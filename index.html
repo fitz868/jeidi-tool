@@ -161,12 +161,22 @@
   @media (max-width:640px){
     .pick-grid{grid-template-columns:1fr;}
   }
+  .pick-progress{font-size:13px;color:var(--ink-soft);font-weight:600;}
+
   .pick-card{
     border:1px solid var(--line);border-radius:8px;padding:16px 18px;background:var(--paper);
+    transition:opacity .15s;
   }
+  .pick-card-done{opacity:0.45;}
+  .pick-card-done .pc-item-name, .pick-card-done .pc-name{text-decoration:line-through;}
   .pick-card-alert{
     border:2px solid var(--warn);background:#FFFBFA;
   }
+  .pick-card .pc-check{
+    display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--sage-dark);
+    font-weight:600;cursor:pointer;margin-bottom:6px;
+  }
+  .pick-card .pc-check input{width:15px;height:15px;accent-color:var(--sage);cursor:pointer;}
   .pick-card .pc-alert{
     background:var(--warn-soft);border-radius:6px;padding:8px 10px;margin-bottom:10px;
     font-size:14px;font-weight:700;color:var(--warn);line-height:1.6;
@@ -281,6 +291,7 @@
   <div class="panel pick-section" id="pickPanel" style="display:none;">
     <div class="panel-head-row no-print">
       <h2>檢貨單</h2>
+      <span class="pick-progress" id="pickProgress"></span>
       <button class="ghost" onclick="window.print()">列印檢貨單</button>
     </div>
     <div class="desc no-print">依排序往下滑檢查,或直接列印成紙本。品名已對照 SKU 表顯示簡單品名,配件會列在該項目下方。</div>
@@ -397,7 +408,7 @@ async function loadAnnouncements(){
 loadAnnouncements();
 
 // ===== 訂單備註(客戶要求延後出貨、收件人資料未填等例外狀況,即時從 Google 試算表讀取)=====
-const ORDER_NOTES_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1Y5JyQmtZQjY7fP_Z641CwplSrXlKTZ5ayx-qguXZttw/export?format=csv&gid=0';
+const ORDER_NOTES_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1JwRKd39wCJ4KAM6BuwWDwypq2xtrSWNaQEh8O9rdiOo/export?format=csv&gid=0';
 let orderNotesMap = {};
 
 async function loadOrderNotes(){
@@ -973,7 +984,7 @@ function renderPickList(){
     byOrder[it.orderId].push(it);
   });
 
-  container.innerHTML = orderIds.map(oid=>{
+  container.innerHTML = orderIds.map((oid, idx)=>{
     const its = byOrder[oid];
     const name = its[0].name;
     const itemsHtml = its.map(it=>{
@@ -994,13 +1005,30 @@ function renderPickList(){
       ? '<div class="pc-alert">⚠ ' + notes.map(escapeHtml).join('<br>⚠ ') + '</div>'
       : '';
     const cardClass = notes.length > 0 ? 'pick-card pick-card-alert' : 'pick-card';
-    return '<div class="' + cardClass + '">' +
-      '<div class="pc-head"><span class="pc-name">' + escapeHtml(name) + '</span><span class="pc-order">' + escapeHtml(oid) + '</span></div>' +
+    return '<div class="' + cardClass + '" id="pick-card-' + idx + '">' +
+      '<div class="pc-head">' +
+        '<label class="pc-check no-print"><input type="checkbox" onchange="togglePickDone(' + idx + ', this.checked)"> 已檢貨</label>' +
+        '<span class="pc-name">' + escapeHtml(name) + '</span><span class="pc-order">' + escapeHtml(oid) + '</span>' +
+      '</div>' +
       noteBlock + itemsHtml + custBlock +
       '</div>';
   }).join('');
 
   document.getElementById('pickPanel').style.display = 'block';
+  updatePickProgress();
+}
+
+function togglePickDone(idx, done){
+  const card = document.getElementById('pick-card-' + idx);
+  if(card) card.classList.toggle('pick-card-done', done);
+  updatePickProgress();
+}
+
+function updatePickProgress(){
+  const total = document.querySelectorAll('#pickList .pick-card').length;
+  const done = document.querySelectorAll('#pickList .pick-card-done').length;
+  const el = document.getElementById('pickProgress');
+  if(el) el.textContent = total > 0 ? ('已檢貨 ' + done + ' / ' + total) : '';
 }
 
 function showError(lines){
