@@ -56,6 +56,14 @@
   .checklist label{display:flex;align-items:center;gap:10px;font-size:14px;cursor:pointer;}
   .checklist input[type="checkbox"]{width:18px;height:18px;accent-color:var(--sage);cursor:pointer;}
 
+  .announce-box{
+    background:var(--amber-soft);border:1px solid #E3D3BE;border-radius:8px;
+    padding:14px 16px;margin-bottom:24px;
+  }
+  .announce-box .ab-title{font-size:12px;font-weight:700;color:var(--amber);letter-spacing:0.02em;margin-bottom:6px;}
+  .announce-box ul{margin:0;padding-left:18px;}
+  .announce-box li{font-size:14px;color:var(--ink);line-height:1.6;}
+
   .channels{display:flex;gap:10px;flex-wrap:wrap;margin:28px 0 32px;}
   .chan-btn{
     flex:1 1 150px;padding:16px 14px;border-radius:var(--radius);border:1.5px solid var(--line);
@@ -193,6 +201,8 @@
     <div class="eyebrow">JEIDI 內部工具・第一階段</div>
     <h1>出貨助手</h1>
   </header>
+
+  <div class="announce-box no-print" id="announceBox" style="display:none;"></div>
 
   <div class="page-tabs no-print">
     <button class="tab-btn active" id="tab-page1" onclick="switchPage(1)">出貨準備</button>
@@ -356,6 +366,28 @@ function pad(n){return String(n).padStart(2,'0');}
 function getShipDate(){
   return today;
 }
+
+// ===== 公告(即時從 Google 試算表讀取)=====
+const ANNOUNCE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1xpgsuRkdwC-8ZLYNmEQDPEJuqQ68gpJ1BnDR-yI-yf4/export?format=csv&gid=0';
+
+async function loadAnnouncements(){
+  try{
+    const res = await fetch(ANNOUNCE_SHEET_URL, {cache:'no-store'});
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const text = await res.text();
+    const rows = parseCSV(text);
+    const items = rows.slice(1).map(r => String(r[0]||'').trim()).filter(Boolean);
+    const box = document.getElementById('announceBox');
+    if(items.length === 0){ box.style.display = 'none'; return; }
+    box.innerHTML = '<div class="ab-title">公告</div><ul>' +
+      items.map(t => '<li>' + escapeHtml(t) + '</li>').join('') + '</ul>';
+    box.style.display = 'block';
+  }catch(err){
+    // 公告讀取失敗時安靜跳過,不影響出貨工具主要功能
+    document.getElementById('announceBox').style.display = 'none';
+  }
+}
+loadAnnouncements();
 
 // ===== SKU 對照表(即時從 Google 試算表讀取)=====
 const SKU_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1pugd5oNme63UFF3jZ-Hg8CqY2ngqrSXiMwNQn3QH69E/export?format=csv&gid=676460575';
