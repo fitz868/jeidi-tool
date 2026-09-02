@@ -107,6 +107,16 @@
   }
   button.ghost:hover{border-color:var(--ink-soft);}
 
+  .reminder-table{
+    display:flex;gap:0;border:1.5px solid var(--warn);border-radius:8px;overflow:hidden;margin-bottom:18px;
+  }
+  .reminder-table .rt-cell{
+    flex:1;padding:14px 16px;text-align:center;background:var(--warn-soft);
+  }
+  .reminder-table .rt-cell + .rt-cell{border-left:1px solid #E9C6C6;}
+  .reminder-table .rt-num{font-family:'Source Serif 4',Georgia,serif;font-size:28px;font-weight:700;color:var(--warn);}
+  .reminder-table .rt-lbl{font-size:12.5px;color:#7A3538;margin-top:2px;}
+
   .stat-row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:18px;}
   .stat{
     flex:1 1 120px;background:var(--bg);border-radius:8px;padding:14px 16px;
@@ -233,11 +243,12 @@
 
   <div class="panel no-print" id="resultPanel" style="display:none;">
     <h2>處理完成</h2>
+    <div class="reminder-table no-print" id="reminderTable"></div>
+
     <div class="desc" id="resultDesc"></div>
 
     <div class="stat-row" id="statRow"></div>
 
-    <div class="warn-box no-print" id="warnBox" style="display:none;"></div>
     <div class="sku-status no-print" id="skuStatusBox"></div>
 
     <div class="download-list">
@@ -808,8 +819,12 @@ async function processFile(){
       let items = dataRows.map(r => {
         const sku = (skuHI !== -1 && String(r[skuHI]||'').trim() !== '') ? r[skuHI]
                     : (skuII !== -1 ? r[skuII] : '');
-        const custRaw = cI !== -1 ? String(r[cI]||'').trim() : '';
-        const hasCust = custRaw !== '' && custRaw !== '-' && custRaw !== '無';
+        const custRawOriginal = cI !== -1 ? String(r[cI]||'').trim() : '';
+        // Excel常把純符號欄位加上前導單引號/全形符號,這裡先去除再判斷是否真的有內容
+        const custNormalized = custRawOriginal.replace(/^['"、\s]+/, '').replace(/[\s]+$/, '');
+        const emptyTokens = ['', '-', '－', '無', 'na', 'n/a', '無刻印', '不需要', '不用'];
+        const hasCust = !emptyTokens.includes(custNormalized.toLowerCase());
+        const custRaw = custNormalized;
         return {
           orderId: cleanId(r[oI]),
           name: nI !== -1 ? String(r[nI]||'') : '',
@@ -920,24 +935,22 @@ function showError(lines){
 
 function renderResult(){
   const uniqueOrders = new Set(parsedItems.map(it=>it.orderId)).size;
-  const multiQty = parsedItems.filter(it => it.qty >= 2).length;
+  const custCount = parsedItems.filter(it => it.hasCust).length;
+  const overTwoCount = parsedItems.filter(it => it.qty > 2).length;
 
   document.getElementById('resultDesc').textContent =
     '共整理 ' + parsedItems.length + ' 筆項目,來自 ' + uniqueOrders + ' 張訂單。';
 
+  document.getElementById('reminderTable').innerHTML = `
+    <div class="rt-cell"><div class="rt-num">${custCount}</div><div class="rt-lbl">需要刻印</div></div>
+    <div class="rt-cell"><div class="rt-num">${overTwoCount}</div><div class="rt-lbl">數量大於 2</div></div>
+  `;
+
   document.getElementById('statRow').innerHTML = `
     <div class="stat"><div class="num">${uniqueOrders}</div><div class="lbl">訂單數</div></div>
     <div class="stat"><div class="num">${parsedItems.length}</div><div class="lbl">商品項目</div></div>
-    <div class="stat"><div class="num">${custItems.length}</div><div class="lbl">客製/刻印項目</div></div>
+    <div class="stat"><div class="num">${custCount}</div><div class="lbl">客製/刻印項目</div></div>
   `;
-
-  const warnBox = document.getElementById('warnBox');
-  if(multiQty > 0){
-    warnBox.style.display = 'block';
-    warnBox.innerHTML = '<strong>注意:</strong> 今天共有 ' + multiQty + ' 筆項目數量為 2 個(含)以上,包裝時請特別確認數量。';
-  }else{
-    warnBox.style.display = 'none';
-  }
 
   document.getElementById('resultPanel').style.display = 'block';
   document.getElementById('resetBtn').style.display = 'inline-block';
