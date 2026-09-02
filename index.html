@@ -137,15 +137,21 @@
   .sku-status{font-size:12px;color:var(--ink-soft);margin-bottom:14px;}
   .sku-status.err{color:var(--warn);}
 
+  .pick-grid{
+    display:grid;grid-template-columns:1fr 1fr;gap:12px;
+  }
+  @media (max-width:640px){
+    .pick-grid{grid-template-columns:1fr;}
+  }
   .pick-card{
-    border:1px solid var(--line);border-radius:8px;padding:16px 18px;margin-bottom:12px;background:var(--paper);
+    border:1px solid var(--line);border-radius:8px;padding:16px 18px;background:var(--paper);
   }
   .pick-card .pc-head{
-    display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;
+    display:flex;flex-direction:column;gap:2px;margin-bottom:10px;
     border-bottom:1px solid var(--line);padding-bottom:8px;
   }
-  .pick-card .pc-order{font-weight:700;font-size:15px;}
-  .pick-card .pc-name{color:var(--ink-soft);font-size:14px;}
+  .pick-card .pc-order{font-weight:600;font-size:12.5px;color:var(--ink-soft);}
+  .pick-card .pc-name{font-size:19px;font-weight:700;color:var(--ink);}
   .pick-card .pc-item{display:flex;justify-content:space-between;gap:10px;padding:4px 0;font-size:14px;}
   .pick-card .pc-item .pc-item-name{flex:1;}
   .pick-card .pc-item .pc-item-qty{font-weight:700;white-space:nowrap;}
@@ -158,20 +164,12 @@
   }
   .pick-card .pc-note{margin-top:6px;font-size:12.5px;color:var(--ink-soft);}
 
-  .cust-section{display:none;}
   .panel-head-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
   .panel-head-row h2{margin:0;}
-  .cust-card{
-    border:1px solid var(--line);border-radius:8px;padding:18px 20px;margin-bottom:10px;
-    background:var(--amber-soft);
-  }
-  .cust-card .n{font-weight:700;font-size:20px;margin-bottom:4px;}
-  .cust-card .c{font-size:22px;font-weight:600;color:var(--sage-dark);}
 
   @media print{
     .no-print{display:none !important;}
     body{background:#fff;}
-    .cust-card{page-break-inside:avoid;border:2px solid #333;}
     .pick-card{page-break-inside:avoid;border:1.5px solid #333;}
   }
 
@@ -253,22 +251,13 @@
     </div>
   </div>
 
-  <div class="panel cust-section" id="custPanel">
-    <div class="panel-head-row no-print">
-      <h2>客製 / 刻印提醒單</h2>
-      <button class="ghost" onclick="window.print()">列印這份提醒單</button>
-    </div>
-    <div class="desc no-print">包裝前對照刻字內容,避免刻錯字。</div>
-    <div id="custList"></div>
-  </div>
-
   <div class="panel pick-section" id="pickPanel" style="display:none;">
     <div class="panel-head-row no-print">
       <h2>檢貨單</h2>
       <button class="ghost" onclick="window.print()">列印檢貨單</button>
     </div>
     <div class="desc no-print">依排序往下滑檢查,或直接列印成紙本。品名已對照 SKU 表顯示簡單品名,配件會列在該項目下方。</div>
-    <div id="pickList"></div>
+    <div id="pickList" class="pick-grid"></div>
   </div>
 
   </div><!-- /page1 -->
@@ -706,7 +695,6 @@ function resetAll(){
   document.getElementById('resetBtn').style.display = 'none';
   document.getElementById('resultPanel').style.display = 'none';
   document.getElementById('errorPanel').style.display = 'none';
-  document.getElementById('custPanel').style.display = 'none';
   document.getElementById('pickPanel').style.display = 'none';
   fileInput.value = '';
 }
@@ -914,7 +902,7 @@ function renderPickList(){
       ? '<div class="pc-cust">刻印:' + escapeHtml(its.find(it=>it.hasCust).custText) + '</div>'
       : '';
     return '<div class="pick-card">' +
-      '<div class="pc-head"><span class="pc-order">' + escapeHtml(oid) + '</span><span class="pc-name">' + escapeHtml(name) + '</span></div>' +
+      '<div class="pc-head"><span class="pc-name">' + escapeHtml(name) + '</span><span class="pc-order">' + escapeHtml(oid) + '</span></div>' +
       itemsHtml + custBlock +
       '</div>';
   }).join('');
@@ -927,7 +915,6 @@ function showError(lines){
   box.innerHTML = '<ul>' + lines.map(l=>'<li>'+l+'</li>').join('') + '</ul>';
   document.getElementById('errorPanel').style.display = 'block';
   document.getElementById('resultPanel').style.display = 'none';
-  document.getElementById('custPanel').style.display = 'none';
   document.getElementById('pickPanel').style.display = 'none';
 }
 
@@ -955,16 +942,6 @@ function renderResult(){
   document.getElementById('resultPanel').style.display = 'block';
   document.getElementById('resetBtn').style.display = 'inline-block';
   document.getElementById('processBtn').disabled = true;
-
-  const custPanel = document.getElementById('custPanel');
-  if(custItems.length > 0){
-    custPanel.style.display = 'block';
-    document.getElementById('custList').innerHTML = custItems.map(it =>
-      '<div class="cust-card"><div class="n">' + escapeHtml(it.name) + '</div><div class="c">' + escapeHtml(it.custText) + '</div></div>'
-    ).join('');
-  }else{
-    custPanel.style.display = 'none';
-  }
 }
 
 function escapeHtml(s){
