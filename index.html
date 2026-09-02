@@ -343,7 +343,7 @@
         <div class="dl-item">
           <div class="info">
             <div class="name">LINE_出貨回報.xlsx</div>
-            <div class="hint">已確認出貨的訂單,含黑貓託運單號,可上傳回 LINE 賣家後台</div>
+            <div class="hint">保留原始訂單所有欄位,已出貨的訂單補上黑貓託運單號,可直接上傳回 LINE 賣家後台</div>
           </div>
           <button class="ghost" onclick="downloadReportFile()">下載</button>
         </div>
@@ -377,6 +377,7 @@
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
+let rawHeaders = [];
 let today = new Date();
 
 function pad(n){return String(n).padStart(2,'0');}
@@ -543,7 +544,7 @@ function handleP2KerryFile(file){
 
 function resetPage2(){
   p2KerryFile = null;
-  matchedItems = [];
+  reportRows = [];
   unmatchedOrders = [];
   document.getElementById('p2-kerry-filename').textContent = '';
   document.getElementById('p2-processBtn').disabled = true;
@@ -600,8 +601,19 @@ function parseCSV(text){
   return rows.filter(r => r.some(c => String(c).trim() !== ''));
 }
 
-let matchedItems = [];
 let unmatchedOrders = [];
+
+function matchTracking(cid, trackMap){
+  if(trackMap[cid]) return trackMap[cid];
+  if(cid && cid.length >= 6){
+    const suffix = cid.slice(-6);
+    if(trackMap[suffix]) return trackMap[suffix];
+  }
+  return '';
+}
+
+let reportHeaders = [];
+let reportRows = [];
 
 async function processReconcile(){
   document.getElementById('p2-errorPanel').style.display = 'none';
@@ -652,15 +664,22 @@ async function processReconcile(){
     if(oid && !oid.includes('E+')) trackMap[oid] = track;
   });
 
-  // 依訂單分組
+  // 依訂單分組,套用比對(完整編號優先,對不到再試後6碼備援)
   const orderIds = [...new Set(orderItems.map(it=>it.orderId))].filter(Boolean);
-  const matchedIds = orderIds.filter(id => trackMap[id]);
-  const unmatchedIds = orderIds.filter(id => !trackMap[id]);
+  const matchedIds = orderIds.filter(id => matchTracking(id, trackMap));
+  const unmatchedIds = orderIds.filter(id => !matchTracking(id, trackMap));
 
-  matchedItems = orderItems.filter(it => trackMap[it.orderId]).map(it => ({...it, tracking: trackMap[it.orderId]}));
   unmatchedOrders = unmatchedIds.map(id => {
     const it = orderItems.find(x => x.orderId === id);
     return {orderId: id, name: it ? it.name : ''};
+  });
+
+  // 回報檔:保留原始所有欄位,包含全部訂單列(未出貨的也留著,只是單號欄位空白)
+  reportHeaders = [...rawHeaders, '物流單編號', '貨運業者代碼'];
+  reportRows = orderItems.map(it=>{
+    const tracking = matchTracking(it.orderId, trackMap);
+    const base = it.rawRow ? [...it.rawRow] : [];
+    return [...base, tracking, 'T_CAT'];
   });
 
   renderP2Result(orderIds.length, matchedIds.length, unmatchedIds.length);
@@ -699,13 +718,8 @@ function renderP2Result(total, matched, unmatched){
 }
 
 function downloadReportFile(){
-  const header = ['訂單編號','收件人姓名','商品名稱','數量','物流單編號','貨運業者代碼'];
-  const aoa = [header];
-  matchedItems.forEach(it=>{
-    aoa.push([it.orderId, it.name, it.itemName, it.qty, it.tracking, 'T_CAT']);
-  });
+  const aoa = [reportHeaders, ...reportRows];
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols'] = [{wch:14},{wch:10},{wch:24},{wch:6},{wch:16},{wch:10}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, '出貨回報');
   XLSX.writeFile(wb, 'LINE_出貨回報_' + fmtDate() + '.xlsx');
@@ -750,11 +764,13 @@ function parseLineOrderWorkbook(wb){
     showP2Error(['這份訂單檔的欄位對不上,請確認是同一份 LINE 禮物訂單原始檔。']);
     return null;
   }
+  rawHeaders = headers;
   return dataRows.map(r => ({
     orderId: cleanId(r[oI]),
     name: String(r[nI]||''),
     itemName: String(r[iI]||''),
-    qty: toNum(r[qI], 1)
+    qty: toNum(r[qI], 1),
+    rawRow: r
   }));
 }
 
@@ -898,6 +914,8 @@ async function processFile(){
         return;
       }
 
+      rawHeaders = headers;
+
       let items = dataRows.map(r => {
         const sku = (skuHI !== -1 && String(r[skuHI]||'').trim() !== '') ? r[skuHI]
                     : (skuII !== -1 ? r[skuII] : '');
@@ -918,7 +936,8 @@ async function processFile(){
           price: prI !== -1 ? toNum(r[prI], 0) : 0,
           qty: qI !== -1 ? toNum(r[qI], 1) : 1,
           subtotal: subI !== -1 ? toNum(r[subI], 0) : 0,
-          sku: String(sku||'').trim()
+          sku: String(sku||'').trim(),
+          rawRow: r
         };
       });
 
