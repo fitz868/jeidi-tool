@@ -1,0 +1,1017 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JEIDI 出貨助手</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#F5F3EE;
+    --paper:#FFFFFF;
+    --ink:#2B2620;
+    --ink-soft:#6B6459;
+    --line:#E4DFD4;
+    --sage:#6E7D5E;
+    --sage-dark:#57654A;
+    --amber:#B08968;
+    --amber-soft:#EFE3D6;
+    --warn:#B5484F;
+    --warn-soft:#F7E4E3;
+    --ok:#4C7A5C;
+    --ok-soft:#E4EFE5;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,'PingFang TC','Microsoft JhengHei',sans-serif;
+    line-height:1.55;
+  }
+  .shell{max-width:860px;margin:0 auto;padding:40px 24px 100px;}
+  header.top{margin-bottom:36px;}
+  header.top .eyebrow{
+    font-size:13px;color:var(--sage-dark);font-weight:600;letter-spacing:0.02em;margin-bottom:6px;
+  }
+  h1{
+    font-family:'Source Serif 4',Georgia,serif;
+    font-weight:600;font-size:32px;margin:0 0 8px;color:var(--ink);
+  }
+  .sub{color:var(--ink-soft);font-size:15px;max-width:520px;}
+
+  .page-tabs{display:flex;gap:6px;margin-bottom:24px;border-bottom:1.5px solid var(--line);}
+  .tab-btn{
+    font-family:inherit;background:transparent;border:none;padding:10px 4px;margin-right:20px;
+    font-size:15px;font-weight:600;color:var(--ink-soft);cursor:pointer;border-bottom:2.5px solid transparent;
+    position:relative;top:1.5px;
+  }
+  .tab-btn.active{color:var(--sage-dark);border-bottom-color:var(--sage);}
+  .tab-btn:hover:not(.active){color:var(--ink);}
+
+  .checklist{display:flex;flex-direction:column;gap:12px;margin-bottom:6px;}
+  .checklist label{display:flex;align-items:center;gap:10px;font-size:14px;cursor:pointer;}
+  .checklist input[type="checkbox"]{width:18px;height:18px;accent-color:var(--sage);cursor:pointer;}
+
+  .channels{display:flex;gap:10px;flex-wrap:wrap;margin:28px 0 32px;}
+  .chan-btn{
+    flex:1 1 150px;padding:16px 14px;border-radius:var(--radius);border:1.5px solid var(--line);
+    background:var(--paper);cursor:pointer;text-align:left;transition:border-color .15s, transform .1s;
+    font-family:inherit;
+  }
+  .chan-btn:hover:not(:disabled){border-color:var(--sage);transform:translateY(-1px);}
+  .chan-btn.active{border-color:var(--sage);background:var(--ok-soft);}
+  .chan-btn:disabled{opacity:.45;cursor:not-allowed;}
+  .chan-btn .name{font-weight:600;font-size:15px;display:block;margin-bottom:3px;}
+  .chan-btn .tag{font-size:12px;color:var(--ink-soft);}
+
+  .panel{
+    background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);
+    padding:28px;margin-bottom:20px;
+  }
+  .panel h2{
+    font-family:'Source Serif 4',Georgia,serif;font-size:19px;margin:0 0 4px;font-weight:600;
+  }
+  .panel .desc{color:var(--ink-soft);font-size:14px;margin-bottom:18px;}
+
+  .dropzone{
+    border:1.5px dashed var(--line);border-radius:var(--radius);padding:36px 20px;text-align:center;
+    cursor:pointer;transition:border-color .15s,background .15s;
+  }
+  .dropzone.drag{border-color:var(--sage);background:var(--ok-soft);}
+  .dropzone p{margin:0;color:var(--ink-soft);font-size:14px;}
+  .dropzone .filename{color:var(--sage-dark);font-weight:600;margin-top:6px;}
+  .dropzone input{display:none;}
+
+  .date-field{margin-bottom:18px;}
+  .date-field label{display:block;font-size:13px;font-weight:600;margin-bottom:6px;}
+  .date-field input[type="date"]{
+    font-family:inherit;font-size:14px;padding:9px 12px;border:1.5px solid var(--line);
+    border-radius:8px;background:var(--paper);color:var(--ink);
+  }
+  .date-hint{font-size:12px;color:var(--ink-soft);margin-top:6px;}
+
+  .btn-row{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap;}
+  button.primary{
+    background:var(--sage);color:#fff;border:none;border-radius:8px;padding:12px 22px;
+    font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;
+  }
+  button.primary:hover{background:var(--sage-dark);}
+  button.primary:disabled{background:#B9BCAE;cursor:not-allowed;}
+  button.ghost{
+    background:transparent;color:var(--ink);border:1.5px solid var(--line);border-radius:8px;
+    padding:11px 20px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;
+  }
+  button.ghost:hover{border-color:var(--ink-soft);}
+
+  .stat-row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:18px;}
+  .stat{
+    flex:1 1 120px;background:var(--bg);border-radius:8px;padding:14px 16px;
+  }
+  .stat .num{font-family:'Source Serif 4',Georgia,serif;font-size:26px;font-weight:600;}
+  .stat .lbl{font-size:12px;color:var(--ink-soft);margin-top:2px;}
+
+  .warn-box{
+    background:var(--warn-soft);border:1px solid #E9C6C6;border-radius:8px;padding:14px 16px;
+    margin-bottom:18px;font-size:14px;color:#7A3538;
+  }
+  .warn-box strong{color:var(--warn);}
+
+  .error-box{
+    background:var(--warn-soft);border:1px solid #E9C6C6;border-radius:8px;padding:16px 18px;
+    color:#7A3538;font-size:14px;
+  }
+  .error-box ul{margin:8px 0 0;padding-left:18px;}
+
+  .download-list{display:flex;flex-direction:column;gap:10px;}
+  .dl-item{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    background:var(--bg);border-radius:8px;padding:14px 16px;
+  }
+  .dl-item .info .name{font-weight:600;font-size:14px;}
+  .dl-item .info .hint{font-size:12px;color:var(--ink-soft);margin-top:2px;}
+
+  .sku-status{font-size:12px;color:var(--ink-soft);margin-bottom:14px;}
+  .sku-status.err{color:var(--warn);}
+
+  .pick-card{
+    border:1px solid var(--line);border-radius:8px;padding:16px 18px;margin-bottom:12px;background:var(--paper);
+  }
+  .pick-card .pc-head{
+    display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;
+    border-bottom:1px solid var(--line);padding-bottom:8px;
+  }
+  .pick-card .pc-order{font-weight:700;font-size:15px;}
+  .pick-card .pc-name{color:var(--ink-soft);font-size:14px;}
+  .pick-card .pc-item{display:flex;justify-content:space-between;gap:10px;padding:4px 0;font-size:14px;}
+  .pick-card .pc-item .pc-item-name{flex:1;}
+  .pick-card .pc-item .pc-item-qty{font-weight:700;white-space:nowrap;}
+  .pick-card .pc-accessory{
+    font-size:12.5px;color:var(--sage-dark);padding-left:14px;margin:2px 0 6px;
+  }
+  .pick-card .pc-cust{
+    margin-top:8px;padding:8px 10px;background:var(--amber-soft);border-radius:6px;
+    font-size:15px;font-weight:600;color:var(--sage-dark);
+  }
+  .pick-card .pc-note{margin-top:6px;font-size:12.5px;color:var(--ink-soft);}
+
+  .cust-section{display:none;}
+  .cust-card{
+    border:1px solid var(--line);border-radius:8px;padding:18px 20px;margin-bottom:10px;
+    background:var(--amber-soft);
+  }
+  .cust-card .n{font-weight:700;font-size:20px;margin-bottom:4px;}
+  .cust-card .c{font-size:22px;font-weight:600;color:var(--sage-dark);}
+
+  @media print{
+    .no-print{display:none !important;}
+    body{background:#fff;}
+    .cust-card{page-break-inside:avoid;border:2px solid #333;}
+    .pick-card{page-break-inside:avoid;border:1.5px solid #333;}
+  }
+
+  footer.note{color:var(--ink-soft);font-size:12px;margin-top:30px;text-align:center;}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <header class="top">
+    <div class="eyebrow">JEIDI 內部工具・第一階段</div>
+    <h1>出貨助手</h1>
+    <div class="sub">上傳今天匯出的訂單檔案,自動整理成檢貨單與黑貓匯入檔,不需要登入 ERP。</div>
+  </header>
+
+  <div class="page-tabs no-print">
+    <button class="tab-btn active" id="tab-page1" onclick="switchPage(1)">出貨準備</button>
+    <button class="tab-btn" id="tab-page2" onclick="switchPage(2)">出貨核對</button>
+  </div>
+
+  <div id="page1">
+
+  <div class="channels no-print">
+    <button class="chan-btn active" id="chan-line" onclick="selectChannel('line')">
+      <span class="name">LINE 禮物</span>
+      <span class="tag">可以使用</span>
+    </button>
+    <button class="chan-btn" disabled>
+      <span class="name">官網</span>
+      <span class="tag">即將推出</span>
+    </button>
+    <button class="chan-btn" disabled>
+      <span class="name">PINKOI</span>
+      <span class="tag">即將推出</span>
+    </button>
+    <button class="chan-btn" disabled>
+      <span class="name">蝦皮</span>
+      <span class="tag">即將推出</span>
+    </button>
+  </div>
+
+  <div class="panel no-print">
+    <h2>上傳訂單檔案</h2>
+    <div class="desc">從 LINE 禮物賣家後台下載今天的訂單 Excel 檔,拖進來或點擊選擇。</div>
+
+    <div class="dropzone" id="dropzone" onclick="document.getElementById('fileInput').click()">
+      <p id="dz-text">將檔案拖曳到這裡,或點擊選擇檔案</p>
+      <div class="filename" id="dz-filename"></div>
+      <input type="file" id="fileInput" accept=".xlsx,.xls">
+    </div>
+    <div class="btn-row">
+      <button class="primary" id="processBtn" onclick="processFile()" disabled>開始處理</button>
+      <button class="ghost" id="resetBtn" onclick="resetAll()" style="display:none;">重新開始</button>
+    </div>
+  </div>
+
+  <div class="panel no-print" id="errorPanel" style="display:none;">
+    <h2>檔案欄位對不上</h2>
+    <div class="error-box" id="errorBox"></div>
+  </div>
+
+  <div class="panel cust-section" id="custPanel">
+    <h2 class="no-print">客製 / 刻印提醒單</h2>
+    <div class="desc no-print">建議直接列印這一頁,包裝前對照刻字內容,避免刻錯字。</div>
+    <div id="custList"></div>
+    <div class="btn-row no-print">
+      <button class="ghost" onclick="window.print()">列印這份提醒單</button>
+    </div>
+  </div>
+
+  <div class="panel pick-section" id="pickPanel" style="display:none;">
+    <h2 class="no-print">檢貨單</h2>
+    <div class="desc no-print">依排序往下滑檢查,或直接列印成紙本。品名已對照 SKU 表顯示簡單品名,配件會列在該項目下方。</div>
+    <div id="pickList"></div>
+    <div class="btn-row no-print">
+      <button class="ghost" onclick="window.print()">列印檢貨單</button>
+    </div>
+  </div>
+
+  <div class="panel no-print" id="resultPanel" style="display:none;">
+    <h2>處理完成</h2>
+    <div class="desc" id="resultDesc"></div>
+
+    <div class="stat-row" id="statRow"></div>
+
+    <div class="warn-box no-print" id="warnBox" style="display:none;"></div>
+    <div class="sku-status no-print" id="skuStatusBox"></div>
+
+    <div class="download-list">
+      <div class="dl-item">
+        <div class="info">
+          <div class="name">黑貓匯入檔.csv</div>
+          <div class="hint">每筆訂單一列,拿去黑貓官方系統匯入列印物流單</div>
+        </div>
+        <button class="ghost" onclick="downloadKerryCSV()">下載</button>
+      </div>
+    </div>
+  </div>
+
+  </div><!-- /page1 -->
+
+  <div id="page2" style="display:none;">
+
+    <div class="panel no-print" id="p2-status">
+      <h2>訂單資料</h2>
+      <div class="desc" id="p2-source-desc">尚未有今天的訂單資料。</div>
+      <div class="dropzone" id="p2-orderDropzone" style="display:none;" onclick="document.getElementById('p2-orderInput').click()">
+        <p>將今天早上處理過的同一份訂單檔拖曳到這裡,或點擊選擇</p>
+        <div class="filename" id="p2-order-filename"></div>
+        <input type="file" id="p2-orderInput" accept=".xlsx,.xls">
+      </div>
+    </div>
+
+    <div class="panel no-print">
+      <h2>上傳黑貓追蹤匯出檔</h2>
+      <div class="desc">黑貓收件完成後,從黑貓系統匯出的追蹤檔(訂單編號、託運單號),用來確認今天哪些訂單真的出貨了。</div>
+      <div class="dropzone" id="p2-kerryDropzone" onclick="document.getElementById('p2-kerryInput').click()">
+        <p id="p2-kerry-text">將黑貓追蹤匯出檔拖曳到這裡,或點擊選擇(.csv)</p>
+        <div class="filename" id="p2-kerry-filename"></div>
+        <input type="file" id="p2-kerryInput" accept=".csv">
+      </div>
+      <div class="btn-row">
+        <button class="primary" id="p2-processBtn" onclick="processReconcile()" disabled>比對出貨結果</button>
+        <button class="ghost" id="p2-resetBtn" onclick="resetPage2()" style="display:none;">重新開始</button>
+      </div>
+    </div>
+
+    <div class="panel no-print" id="p2-errorPanel" style="display:none;">
+      <h2>讀取黑貓檔案時遇到問題</h2>
+      <div class="error-box" id="p2-errorBox"></div>
+    </div>
+
+    <div class="panel no-print" id="p2-resultPanel" style="display:none;">
+      <h2>今天的出貨結果</h2>
+      <div class="desc" id="p2-resultDesc"></div>
+
+      <div class="stat-row" id="p2-statRow"></div>
+
+      <div class="warn-box" id="p2-unmatchedBox" style="display:none;"></div>
+
+      <div class="download-list">
+        <div class="dl-item">
+          <div class="info">
+            <div class="name">LINE_出貨回報.xlsx</div>
+            <div class="hint">已確認出貨的訂單,含黑貓託運單號,可上傳回 LINE 賣家後台</div>
+          </div>
+          <button class="ghost" onclick="downloadReportFile()">下載</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel no-print" id="p2-checklistPanel" style="display:none;">
+      <h2>今日出貨檢核</h2>
+      <div class="desc">跟現在 Google 表格一樣的五個項目,勾選後可以複製摘要貼到表格裡。</div>
+      <div class="checklist">
+        <label><input type="checkbox" id="cb-shipped"> 出貨完成</label>
+        <label><input type="checkbox" id="cb-linereport"> LINE回報完成</label>
+        <label><input type="checkbox" id="cb-linereply"> LINE客戶回復完成</label>
+        <label><input type="checkbox" id="cb-shopee"> 蝦皮今日出貨清空</label>
+        <label><input type="checkbox" id="cb-otherchan"> 其他通路皆出貨</label>
+      </div>
+      <div class="btn-row">
+        <button class="ghost" onclick="copySummary()">複製今日摘要文字</button>
+      </div>
+    </div>
+
+  </div><!-- /page2 -->
+
+  <footer class="note no-print">
+    此工具在瀏覽器本機處理檔案,不會把訂單資料上傳到任何伺服器。
+  </footer>
+
+</div>
+
+<script>
+let workbookData = null;
+let parsedItems = [];
+let custItems = [];
+let today = new Date();
+
+function pad(n){return String(n).padStart(2,'0');}
+
+function getShipDate(){
+  return today;
+}
+
+// ===== SKU 對照表(即時從 Google 試算表讀取)=====
+const SKU_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1pugd5oNme63UFF3jZ-Hg8CqY2ngqrSXiMwNQn3QH69E/export?format=csv&gid=676460575';
+let skuMap = {};
+let skuLoadError = null;
+let skuLoaded = false;
+
+async function loadSkuMap(){
+  try{
+    const res = await fetch(SKU_SHEET_URL, {cache:'no-store'});
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const text = await res.text();
+    const rows = parseCSV(text);
+    if(rows.length < 2) throw new Error('表格內容是空的');
+    const headers = rows[0];
+    const catI = idxOf(headers, ['大分類']);
+    const typeI = idxOf(headers, ['品項類型']);
+    const skuI = idxOf(headers, ['SKU']);
+    const nameI = idxOf(headers, ['商品名稱']);
+    const comboI = idxOf(headers, ['組合成分']);
+    if(skuI === -1 || nameI === -1) throw new Error('找不到 SKU 或商品名稱欄位');
+    const map = {};
+    rows.slice(1).forEach(r=>{
+      const sku = String(r[skuI]||'').trim();
+      if(!sku) return;
+      map[sku] = {
+        name: nameI !== -1 ? String(r[nameI]||'').trim() : '',
+        type: typeI !== -1 ? String(r[typeI]||'').trim() : '',
+        category: catI !== -1 ? String(r[catI]||'').trim() : '',
+        combo: comboI !== -1 ? String(r[comboI]||'').trim() : ''
+      };
+    });
+    skuMap = map;
+    skuLoadError = null;
+  }catch(err){
+    skuLoadError = err.message;
+  }
+  skuLoaded = true;
+}
+
+function selectChannel(ch){
+  // 目前只有 LINE 可用,先保留擴充位置
+}
+
+// ===== 頁面切換 =====
+function switchPage(n){
+  document.getElementById('page1').style.display = n===1 ? 'block' : 'none';
+  document.getElementById('page2').style.display = n===2 ? 'block' : 'none';
+  document.getElementById('tab-page1').classList.toggle('active', n===1);
+  document.getElementById('tab-page2').classList.toggle('active', n===2);
+  if(n===2) refreshPage2Source();
+}
+
+function refreshPage2Source(){
+  const desc = document.getElementById('p2-source-desc');
+  const dz = document.getElementById('p2-orderDropzone');
+  if(parsedItems.length > 0){
+    desc.textContent = '已使用頁面1處理過的訂單資料,共 ' + parsedItems.length + ' 筆項目,不用重新上傳。';
+    dz.style.display = 'none';
+  }else{
+    desc.textContent = '目前沒有訂單資料(可能是重新整理過頁面),請重新上傳今天早上處理的那份訂單原始檔。';
+    dz.style.display = 'block';
+  }
+}
+
+// ===== 頁面2:訂單檔(備援,若 parsedItems 已空)=====
+const p2OrderDropzone = document.getElementById('p2-orderDropzone');
+const p2OrderInput = document.getElementById('p2-orderInput');
+p2OrderDropzone.addEventListener('dragover', e=>{e.preventDefault(); p2OrderDropzone.classList.add('drag');});
+p2OrderDropzone.addEventListener('dragleave', ()=> p2OrderDropzone.classList.remove('drag'));
+p2OrderDropzone.addEventListener('drop', e=>{
+  e.preventDefault(); p2OrderDropzone.classList.remove('drag');
+  if(e.dataTransfer.files.length) handleP2OrderFile(e.dataTransfer.files[0]);
+});
+p2OrderInput.addEventListener('change', e=>{
+  if(e.target.files.length) handleP2OrderFile(e.target.files[0]);
+});
+let p2OrderFile = null;
+function handleP2OrderFile(file){
+  p2OrderFile = file;
+  document.getElementById('p2-order-filename').textContent = file.name;
+}
+
+// ===== 頁面2:黑貓追蹤檔上傳 =====
+const p2KerryDropzone = document.getElementById('p2-kerryDropzone');
+const p2KerryInput = document.getElementById('p2-kerryInput');
+p2KerryDropzone.addEventListener('dragover', e=>{e.preventDefault(); p2KerryDropzone.classList.add('drag');});
+p2KerryDropzone.addEventListener('dragleave', ()=> p2KerryDropzone.classList.remove('drag'));
+p2KerryDropzone.addEventListener('drop', e=>{
+  e.preventDefault(); p2KerryDropzone.classList.remove('drag');
+  if(e.dataTransfer.files.length) handleP2KerryFile(e.dataTransfer.files[0]);
+});
+p2KerryInput.addEventListener('change', e=>{
+  if(e.target.files.length) handleP2KerryFile(e.target.files[0]);
+});
+let p2KerryFile = null;
+function handleP2KerryFile(file){
+  p2KerryFile = file;
+  document.getElementById('p2-kerry-filename').textContent = file.name;
+  document.getElementById('p2-processBtn').disabled = false;
+}
+
+function resetPage2(){
+  p2KerryFile = null;
+  matchedItems = [];
+  unmatchedOrders = [];
+  document.getElementById('p2-kerry-filename').textContent = '';
+  document.getElementById('p2-processBtn').disabled = true;
+  document.getElementById('p2-resetBtn').style.display = 'none';
+  document.getElementById('p2-resultPanel').style.display = 'none';
+  document.getElementById('p2-checklistPanel').style.display = 'none';
+  document.getElementById('p2-errorPanel').style.display = 'none';
+  p2KerryInput.value = '';
+}
+
+function readAsBig5Text(file){
+  return new Promise((resolve, reject)=>{
+    const r = new FileReader();
+    r.onload = e => {
+      const buf = new Uint8Array(e.target.result);
+      let text;
+      try{
+        text = new TextDecoder('big5').decode(buf);
+        // 如果亂碼比例太高,改用 utf-8 試試看
+        const bad = (text.match(/\uFFFD/g) || []).length;
+        if(bad > text.length * 0.02){
+          text = new TextDecoder('utf-8').decode(buf);
+        }
+      }catch(err){
+        text = new TextDecoder('utf-8').decode(buf);
+      }
+      resolve(text);
+    };
+    r.onerror = () => reject(new Error('無法讀取檔案'));
+    r.readAsArrayBuffer(file);
+  });
+}
+
+function parseCSV(text){
+  // 簡易 CSV 解析,支援雙引號包住的欄位
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for(let i=0;i<text.length;i++){
+    const c = text[i];
+    if(inQuotes){
+      if(c === '"'){
+        if(text[i+1] === '"'){ field += '"'; i++; }
+        else inQuotes = false;
+      }else field += c;
+    }else{
+      if(c === '"') inQuotes = true;
+      else if(c === ','){ row.push(field); field=''; }
+      else if(c === '\n'){ row.push(field); rows.push(row); row=[]; field=''; }
+      else if(c === '\r'){ /* skip */ }
+      else field += c;
+    }
+  }
+  if(field !== '' || row.length){ row.push(field); rows.push(row); }
+  return rows.filter(r => r.some(c => String(c).trim() !== ''));
+}
+
+let matchedItems = [];
+let unmatchedOrders = [];
+
+async function processReconcile(){
+  document.getElementById('p2-errorPanel').style.display = 'none';
+
+  let orderItems = parsedItems;
+  if(orderItems.length === 0){
+    if(!p2OrderFile){
+      showP2Error(['請先上傳今天早上處理過的訂單原始檔。']);
+      return;
+    }
+    // 重新解析訂單檔(邏輯與頁面1相同)
+    try{
+      const buf = await readArrayBuffer(p2OrderFile);
+      const wb = XLSX.read(new Uint8Array(buf), {type:'array'});
+      orderItems = parseLineOrderWorkbook(wb);
+      if(!orderItems){ return; }
+    }catch(err){
+      showP2Error(['讀取訂單檔失敗: ' + err.message]);
+      return;
+    }
+  }
+
+  let kerryText;
+  try{
+    kerryText = await readAsBig5Text(p2KerryFile);
+  }catch(err){
+    showP2Error(['讀取黑貓檔案失敗: ' + err.message]);
+    return;
+  }
+
+  const rows = parseCSV(kerryText);
+  if(rows.length < 2){
+    showP2Error(['黑貓檔案裡沒有找到資料列,請確認檔案內容。']);
+    return;
+  }
+  const headers = rows[0];
+  const oI = idxOf(headers, ['訂單編號']);
+  const tI = idxOf(headers, ['託運單號']);
+  if(oI === -1 || tI === -1){
+    showP2Error(['黑貓檔案裡找不到「訂單編號」或「託運單號」欄位,請確認上傳的是黑貓匯出的追蹤檔。']);
+    return;
+  }
+
+  const trackMap = {};
+  rows.slice(1).forEach(r=>{
+    const oid = cleanId(r[oI]);
+    const track = String(r[tI]||'').trim();
+    if(oid && !oid.includes('E+')) trackMap[oid] = track;
+  });
+
+  // 依訂單分組
+  const orderIds = [...new Set(orderItems.map(it=>it.orderId))].filter(Boolean);
+  const matchedIds = orderIds.filter(id => trackMap[id]);
+  const unmatchedIds = orderIds.filter(id => !trackMap[id]);
+
+  matchedItems = orderItems.filter(it => trackMap[it.orderId]).map(it => ({...it, tracking: trackMap[it.orderId]}));
+  unmatchedOrders = unmatchedIds.map(id => {
+    const it = orderItems.find(x => x.orderId === id);
+    return {orderId: id, name: it ? it.name : ''};
+  });
+
+  renderP2Result(orderIds.length, matchedIds.length, unmatchedIds.length);
+}
+
+function showP2Error(lines){
+  document.getElementById('p2-errorBox').innerHTML = '<ul>' + lines.map(l=>'<li>'+l+'</li>').join('') + '</ul>';
+  document.getElementById('p2-errorPanel').style.display = 'block';
+  document.getElementById('p2-resultPanel').style.display = 'none';
+  document.getElementById('p2-checklistPanel').style.display = 'none';
+}
+
+function renderP2Result(total, matched, unmatched){
+  document.getElementById('p2-resultDesc').textContent =
+    '今天共 ' + total + ' 張訂單,黑貓確認收走 ' + matched + ' 張,' + (unmatched>0 ? unmatched + ' 張留到明天處理。' : '全部都出貨了。');
+
+  document.getElementById('p2-statRow').innerHTML = `
+    <div class="stat"><div class="num">${total}</div><div class="lbl">今天總訂單數</div></div>
+    <div class="stat"><div class="num">${matched}</div><div class="lbl">已確認出貨(黑貓)</div></div>
+    <div class="stat"><div class="num">${unmatched}</div><div class="lbl">留到明天</div></div>
+  `;
+
+  const box = document.getElementById('p2-unmatchedBox');
+  if(unmatched > 0){
+    box.style.display = 'block';
+    box.innerHTML = '<strong>以下訂單今天沒被黑貓收走,明天要繼續跟進:</strong><br>' +
+      unmatchedOrders.map(o => escapeHtml(o.orderId) + '　' + escapeHtml(o.name)).join('<br>');
+  }else{
+    box.style.display = 'none';
+  }
+
+  document.getElementById('p2-resultPanel').style.display = 'block';
+  document.getElementById('p2-checklistPanel').style.display = 'block';
+  document.getElementById('p2-resetBtn').style.display = 'inline-block';
+  document.getElementById('p2-processBtn').disabled = true;
+}
+
+function downloadReportFile(){
+  const header = ['訂單編號','收件人姓名','商品名稱','數量','物流單編號','貨運業者代碼'];
+  const aoa = [header];
+  matchedItems.forEach(it=>{
+    aoa.push([it.orderId, it.name, it.itemName, it.qty, it.tracking, 'T_CAT']);
+  });
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{wch:14},{wch:10},{wch:24},{wch:6},{wch:16},{wch:10}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '出貨回報');
+  XLSX.writeFile(wb, 'LINE_出貨回報_' + fmtDate() + '.xlsx');
+}
+
+function copySummary(){
+  const total = document.querySelectorAll('#p2-statRow .num')[0]?.textContent || '';
+  const matched = document.querySelectorAll('#p2-statRow .num')[1]?.textContent || '';
+  const unmatched = document.querySelectorAll('#p2-statRow .num')[2]?.textContent || '';
+  const cb = id => document.getElementById(id).checked ? 'TRUE' : 'FALSE';
+  const d = getShipDate();
+  const dateStr = d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+  const text = [
+    '日期\t' + dateStr,
+    '總出貨單數\t' + matched,
+    '待處理(未出貨)\t' + unmatched,
+    '出貨完成\t' + cb('cb-shipped'),
+    'LINE回報完成\t' + cb('cb-linereport'),
+    'LINE客戶回復完成\t' + cb('cb-linereply'),
+    '蝦皮今日出貨清空\t' + cb('cb-shopee'),
+    '其他通路皆出貨\t' + cb('cb-otherchan')
+  ].join('\n');
+  navigator.clipboard.writeText(text).then(()=>{
+    alert('已複製到剪貼簿,可以直接貼到 Google 表格。');
+  }).catch(()=>{
+    alert('複製失敗,請手動選取文字複製。');
+  });
+}
+
+// 從 workbook 重新解析 LINE 訂單(與頁面1共用邏輯,供頁面2獨立使用時呼叫)
+function parseLineOrderWorkbook(wb){
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+  if(rows.length < 2){ showP2Error(['檔案裡沒有找到資料列。']); return null; }
+  const headers = rows[0];
+  const dataRows = rows.slice(1).filter(r => r.some(c => String(c).trim() !== ''));
+  const oI = idxOf(headers, ['訂單編號']);
+  const nI = idxOf(headers, ['收件人姓名']);
+  const iI = idxOf(headers, ['商品名稱']);
+  const qI = idxOf(headers, ['數量']);
+  if(oI===-1 || nI===-1 || iI===-1 || qI===-1){
+    showP2Error(['這份訂單檔的欄位對不上,請確認是同一份 LINE 禮物訂單原始檔。']);
+    return null;
+  }
+  return dataRows.map(r => ({
+    orderId: cleanId(r[oI]),
+    name: String(r[nI]||''),
+    itemName: String(r[iI]||''),
+    qty: toNum(r[qI], 1)
+  }));
+}
+
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+
+dropzone.addEventListener('dragover', e=>{e.preventDefault(); dropzone.classList.add('drag');});
+dropzone.addEventListener('dragleave', ()=> dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', e=>{
+  e.preventDefault(); dropzone.classList.remove('drag');
+  if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e=>{
+  if(e.target.files.length) handleFile(e.target.files[0]);
+});
+
+let currentFile = null;
+function handleFile(file){
+  currentFile = file;
+  document.getElementById('dz-filename').textContent = file.name;
+  document.getElementById('processBtn').disabled = false;
+}
+
+function resetAll(){
+  currentFile = null;
+  parsedItems = [];
+  custItems = [];
+  document.getElementById('dz-filename').textContent = '';
+  document.getElementById('dz-text').textContent = '將檔案拖曳到這裡,或點擊選擇檔案';
+  document.getElementById('processBtn').disabled = true;
+  document.getElementById('resetBtn').style.display = 'none';
+  document.getElementById('resultPanel').style.display = 'none';
+  document.getElementById('errorPanel').style.display = 'none';
+  document.getElementById('custPanel').style.display = 'none';
+  document.getElementById('pickPanel').style.display = 'none';
+  fileInput.value = '';
+}
+
+function normHeader(h){
+  return String(h == null ? '' : h).replace(/[\n\r\t]/g,'').trim();
+}
+
+function idxOf(headers, keywords){
+  const normalized = headers.map(normHeader);
+  for(const k of keywords){
+    const i = normalized.findIndex(h => h === k || h.includes(k));
+    if(i !== -1) return i;
+  }
+  return -1;
+}
+
+function cleanId(val){
+  if(val === undefined || val === null) return '';
+  let s = String(val).replace(/\.0$/,'').replace(/\t/g,'').replace(/#/g,'').trim();
+  return s;
+}
+
+function toNum(val, d){
+  const n = parseFloat(val);
+  return isNaN(n) ? d : n;
+}
+
+function readArrayBuffer(file){
+  return new Promise((resolve, reject)=>{
+    const r = new FileReader();
+    r.onload = e => resolve(e.target.result);
+    r.onerror = () => reject(new Error('無法讀取檔案'));
+    r.readAsArrayBuffer(file);
+  });
+}
+function readBinaryString(file){
+  return new Promise((resolve, reject)=>{
+    const r = new FileReader();
+    r.onload = e => resolve(e.target.result);
+    r.onerror = () => reject(new Error('無法讀取檔案'));
+    r.readAsBinaryString(file);
+  });
+}
+
+async function processFile(){
+  if(!currentFile) return;
+  document.getElementById('errorPanel').style.display = 'none';
+
+  let wb = null;
+  let lastErr = null;
+
+  // 先用一般方式讀取
+  try{
+    const buf = await readArrayBuffer(currentFile);
+    wb = XLSX.read(new Uint8Array(buf), {type:'array'});
+  }catch(err){ lastErr = err; }
+
+  // 失敗的話,改用另一種讀取方式再試一次(有些檔案的壓縮結構這樣讀才過得去)
+  if(!wb){
+    try{
+      const bstr = await readBinaryString(currentFile);
+      wb = XLSX.read(bstr, {type:'binary'});
+    }catch(err){ lastErr = err; }
+  }
+
+  if(!wb){
+    const msg = String(lastErr && lastErr.message || '');
+    if(msg.includes('uncompressed size') || msg.includes('Bad')){
+      showError([
+        '這份檔案的壓縮格式跟瀏覽器工具不相容,不是操作錯誤。',
+        '請先用 Excel 或 Google 試算表打開這份檔案,直接「另存新檔」存一份新的 .xlsx,不用更改任何內容,再用新存的檔案重新上傳一次。',
+        '如果另存新檔後還是一樣的錯誤,麻煩把錯誤訊息回報給我,我再想其他方法處理。'
+      ]);
+    }else{
+      showError(['讀取檔案時發生問題: ' + msg, '請確認檔案格式是否為 .xlsx 或 .xls。']);
+    }
+    return;
+  }
+
+  try{
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+      if(rows.length < 2){ showError(['檔案裡沒有找到資料列,請確認匯出的檔案內容。']); return; }
+
+      const headers = rows[0];
+      const dataRows = rows.slice(1).filter(r => r.some(c => String(c).trim() !== ''));
+
+      const oI = idxOf(headers, ['訂單編號']);
+      const nI = idxOf(headers, ['收件人姓名']);
+      const pI = idxOf(headers, ['收件人聯絡電話']);
+      const aI = idxOf(headers, ['配送地址']);
+      const cI = idxOf(headers, ['客製刻印選項']);
+      const iI = idxOf(headers, ['商品名稱']);
+      const subI = idxOf(headers, ['總金額','小計']);
+      const prI = idxOf(headers, ['價格','單價']);
+      const qI = idxOf(headers, ['數量']);
+      const skuHI = idxOf(headers, ['賣家商品代碼']);
+      const skuII = idxOf(headers, ['規格管理代碼']);
+
+      const required = {'訂單編號':oI, '收件人姓名':nI, '商品名稱':iI, '數量':qI};
+      const missing = Object.keys(required).filter(k => required[k] === -1);
+      if(missing.length){
+        showError([
+          '在這個檔案裡找不到以下欄位: ' + missing.join('、'),
+          '請確認上傳的是 LINE 禮物賣家後台匯出的訂單原始檔,欄位名稱沒有被更動過。'
+        ]);
+        return;
+      }
+
+      let items = dataRows.map(r => {
+        const sku = (skuHI !== -1 && String(r[skuHI]||'').trim() !== '') ? r[skuHI]
+                    : (skuII !== -1 ? r[skuII] : '');
+        const custRaw = cI !== -1 ? String(r[cI]||'').trim() : '';
+        const hasCust = custRaw !== '' && custRaw !== '-' && custRaw !== '無';
+        return {
+          orderId: cleanId(r[oI]),
+          name: nI !== -1 ? String(r[nI]||'') : '',
+          phone: pI !== -1 ? cleanId(r[pI]) : '',
+          address: aI !== -1 ? String(r[aI]||'') : '',
+          custText: custRaw,
+          hasCust: hasCust,
+          itemName: iI !== -1 ? String(r[iI]||'') : '',
+          price: prI !== -1 ? toNum(r[prI], 0) : 0,
+          qty: qI !== -1 ? toNum(r[qI], 1) : 1,
+          subtotal: subI !== -1 ? toNum(r[subI], 0) : 0,
+          sku: String(sku||'').trim()
+        };
+      });
+
+      // 排序:客製優先 → 數量多到少 → 金額高到低 → SKU
+      items.sort((a,b)=>{
+        if(a.hasCust !== b.hasCust) return a.hasCust ? -1 : 1;
+        if(b.qty !== a.qty) return b.qty - a.qty;
+        if(b.subtotal !== a.subtotal) return b.subtotal - a.subtotal;
+        return a.sku.localeCompare(b.sku);
+      });
+
+      // 套用 SKU 對照表:有查到就用乾淨品名,查不到就維持原始平台品名
+      await loadSkuMap();
+      let matchedSkuCount = 0;
+      items.forEach(it=>{
+        const info = skuMap[it.sku];
+        if(info){
+          it.displayName = info.name || it.itemName;
+          it.combo = info.combo || '';
+          matchedSkuCount++;
+        }else{
+          it.displayName = it.itemName;
+          it.combo = '';
+        }
+      });
+
+      const skuBox = document.getElementById('skuStatusBox');
+      if(skuLoadError){
+        skuBox.className = 'sku-status no-print err';
+        skuBox.textContent = 'SKU 對照表讀取失敗(' + skuLoadError + '),檢貨單暫時顯示平台原始品名。';
+      }else{
+        skuBox.className = 'sku-status no-print';
+        skuBox.textContent = 'SKU 對照:' + matchedSkuCount + ' / ' + items.length + ' 筆項目已對到品名' + (matchedSkuCount < items.length ? '(其餘顯示平台原始品名)' : '');
+      }
+
+      parsedItems = items;
+      custItems = items.filter(it => it.hasCust);
+
+      renderResult();
+      renderPickList();
+  }catch(err){
+    showError(['整理資料時發生問題: ' + err.message]);
+  }
+}
+
+function parseCombo(comboStr, ownSku){
+  if(!comboStr) return [];
+  return comboStr.split(',').map(s=>s.trim()).filter(Boolean).map(part=>{
+    const m = part.match(/^(.+?)\s*x\s*(\d+)$/i);
+    const sku = m ? m[1].trim() : part;
+    const qty = m ? parseInt(m[2], 10) : 1;
+    return {sku, qty};
+  }).filter(c => c.sku !== ownSku);
+}
+
+function renderPickList(){
+  const container = document.getElementById('pickList');
+  const orderIds = [];
+  const byOrder = {};
+  parsedItems.forEach(it=>{
+    if(!byOrder[it.orderId]){ byOrder[it.orderId] = []; orderIds.push(it.orderId); }
+    byOrder[it.orderId].push(it);
+  });
+
+  container.innerHTML = orderIds.map(oid=>{
+    const its = byOrder[oid];
+    const name = its[0].name;
+    const itemsHtml = its.map(it=>{
+      const accessories = parseCombo(it.combo, it.sku);
+      const accHtml = accessories.map(a=>{
+        const info = skuMap[a.sku];
+        const label = info ? info.name : a.sku;
+        return '<div class="pc-accessory">+ 附:' + escapeHtml(label) + ' x' + a.qty + '</div>';
+      }).join('');
+      return '<div class="pc-item"><span class="pc-item-name">' + escapeHtml(it.displayName) + '</span><span class="pc-item-qty">x' + it.qty + '</span></div>' + accHtml;
+    }).join('');
+    const custBlock = its.some(it=>it.hasCust)
+      ? '<div class="pc-cust">刻印:' + escapeHtml(its.find(it=>it.hasCust).custText) + '</div>'
+      : '';
+    return '<div class="pick-card">' +
+      '<div class="pc-head"><span class="pc-order">' + escapeHtml(oid) + '</span><span class="pc-name">' + escapeHtml(name) + '</span></div>' +
+      itemsHtml + custBlock +
+      '</div>';
+  }).join('');
+
+  document.getElementById('pickPanel').style.display = 'block';
+}
+
+function showError(lines){
+  const box = document.getElementById('errorBox');
+  box.innerHTML = '<ul>' + lines.map(l=>'<li>'+l+'</li>').join('') + '</ul>';
+  document.getElementById('errorPanel').style.display = 'block';
+  document.getElementById('resultPanel').style.display = 'none';
+  document.getElementById('custPanel').style.display = 'none';
+  document.getElementById('pickPanel').style.display = 'none';
+}
+
+function renderResult(){
+  const uniqueOrders = new Set(parsedItems.map(it=>it.orderId)).size;
+  const multiQty = parsedItems.filter(it => it.qty >= 2).length;
+
+  document.getElementById('resultDesc').textContent =
+    '共整理 ' + parsedItems.length + ' 筆項目,來自 ' + uniqueOrders + ' 張訂單。';
+
+  document.getElementById('statRow').innerHTML = `
+    <div class="stat"><div class="num">${uniqueOrders}</div><div class="lbl">訂單數</div></div>
+    <div class="stat"><div class="num">${parsedItems.length}</div><div class="lbl">商品項目</div></div>
+    <div class="stat"><div class="num">${custItems.length}</div><div class="lbl">客製/刻印項目</div></div>
+  `;
+
+  const warnBox = document.getElementById('warnBox');
+  if(multiQty > 0){
+    warnBox.style.display = 'block';
+    warnBox.innerHTML = '<strong>注意:</strong> 今天共有 ' + multiQty + ' 筆項目數量為 2 個(含)以上,包裝時請特別確認數量。';
+  }else{
+    warnBox.style.display = 'none';
+  }
+
+  document.getElementById('resultPanel').style.display = 'block';
+  document.getElementById('resetBtn').style.display = 'inline-block';
+  document.getElementById('processBtn').disabled = true;
+
+  const custPanel = document.getElementById('custPanel');
+  if(custItems.length > 0){
+    custPanel.style.display = 'block';
+    document.getElementById('custList').innerHTML = custItems.map(it =>
+      '<div class="cust-card"><div class="n">' + escapeHtml(it.name) + '</div><div class="c">' + escapeHtml(it.custText) + '</div></div>'
+    ).join('');
+  }else{
+    custPanel.style.display = 'none';
+  }
+}
+
+function escapeHtml(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function downloadKerryCSV(){
+  // 每張訂單一列(以第一筆項目的收件人資訊為準)
+  const seen = new Set();
+  const rows = [];
+  const header = ['訂單編號','收件人-姓名','收件人-手機','收件人-地址','寄件人-姓名','寄件人-電話','寄件人-地址','出貨日期','品名','溫層','距離','規格','代收貨款','易碎物品'];
+  rows.push(header);
+  parsedItems.forEach(it=>{
+    if(seen.has(it.orderId) || !it.orderId) return;
+    seen.add(it.orderId);
+    rows.push([
+      '\t' + it.orderId,
+      it.name,
+      it.phone,
+      it.address,
+      'Jeidi 接地',
+      '0225550285',
+      '台北市大同區重慶北路二段32號',
+      fmtDate(),
+      '香氛商品','1','1','1','0','Y'
+    ]);
+  });
+  const csvContent = rows.map(r => r.map(csvEscape).join(',')).join('\r\n');
+  const blob = new Blob(['\uFEFF' + csvContent], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'LINE_黑貓匯入_' + fmtDate() + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function csvEscape(v){
+  const s = String(v == null ? '' : v);
+  if(s.includes(',') || s.includes('"') || s.includes('\n')){
+    return '"' + s.replace(/"/g,'""') + '"';
+  }
+  return s;
+}
+
+function fmtDate(){
+  const d = getShipDate();
+  return d.getFullYear() + pad(d.getMonth()+1) + pad(d.getDate());
+}
+</script>
+</body>
+</html>
