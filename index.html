@@ -192,7 +192,6 @@
   <header class="top">
     <div class="eyebrow">JEIDI 內部工具・第一階段</div>
     <h1>出貨助手</h1>
-    <div class="sub">上傳今天匯出的訂單檔案,自動整理成檢貨單與黑貓匯入檔,不需要登入 ERP。</div>
   </header>
 
   <div class="page-tabs no-print">
@@ -909,6 +908,7 @@ function renderPickList(){
       const accHtml = accessories.map(a=>{
         const info = skuMap[a.sku];
         const label = info ? info.name : a.sku;
+        if(label === it.displayName) return ''; // 跟主品項同名,不重複列出
         return '<div class="pc-accessory">+ 附:' + escapeHtml(label) + ' x' + a.qty + '</div>';
       }).join('');
       return '<div class="pc-item"><span class="pc-item-name">' + escapeHtml(it.displayName) + '</span><span class="pc-item-qty">x' + it.qty + '</span></div>' + accHtml;
