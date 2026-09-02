@@ -164,6 +164,13 @@
   .pick-card{
     border:1px solid var(--line);border-radius:8px;padding:16px 18px;background:var(--paper);
   }
+  .pick-card-alert{
+    border:2px solid var(--warn);background:#FFFBFA;
+  }
+  .pick-card .pc-alert{
+    background:var(--warn-soft);border-radius:6px;padding:8px 10px;margin-bottom:10px;
+    font-size:14px;font-weight:700;color:var(--warn);line-height:1.6;
+  }
   .pick-card .pc-head{
     display:flex;flex-direction:column;gap:2px;margin-bottom:10px;
     border-bottom:1px solid var(--line);padding-bottom:8px;
@@ -388,6 +395,39 @@ async function loadAnnouncements(){
   }
 }
 loadAnnouncements();
+
+// ===== 訂單備註(客戶要求延後出貨、收件人資料未填等例外狀況,即時從 Google 試算表讀取)=====
+const ORDER_NOTES_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1Y5JyQmtZQjY7fP_Z641CwplSrXlKTZ5ayx-qguXZttw/export?format=csv&gid=0';
+let orderNotesMap = {};
+
+async function loadOrderNotes(){
+  if(!ORDER_NOTES_SHEET_URL) return;
+  try{
+    const res = await fetch(ORDER_NOTES_SHEET_URL, {cache:'no-store'});
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const text = await res.text();
+    const rows = parseCSV(text);
+    if(rows.length < 2) return;
+    const headers = rows[0];
+    const oI = idxOf(headers, ['訂單編號']);
+    const noteI = idxOf(headers, ['備註內容']);
+    const statusI = idxOf(headers, ['狀態']);
+    if(oI === -1 || noteI === -1) return;
+    const map = {};
+    rows.slice(1).forEach(r=>{
+      const oid = cleanId(r[oI]);
+      const status = statusI !== -1 ? String(r[statusI]||'').trim() : '待處理';
+      if(!oid || status === '已處理') return;
+      const note = String(r[noteI]||'').trim();
+      if(!note) return;
+      if(!map[oid]) map[oid] = [];
+      map[oid].push(note);
+    });
+    orderNotesMap = map;
+  }catch(err){
+    // 讀取失敗時安靜跳過,不影響檢貨單主要功能
+  }
+}
 
 // ===== SKU 對照表(即時從 Google 試算表讀取)=====
 const SKU_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1pugd5oNme63UFF3jZ-Hg8CqY2ngqrSXiMwNQn3QH69E/export?format=csv&gid=676460575';
@@ -881,6 +921,7 @@ async function processFile(){
 
       // 套用 SKU 對照表:有查到就用乾淨品名,查不到就維持原始平台品名
       await loadSkuMap();
+      await loadOrderNotes();
       let matchedSkuCount = 0;
       items.forEach(it=>{
         const info = skuMap[it.sku];
@@ -948,9 +989,14 @@ function renderPickList(){
     const custBlock = its.some(it=>it.hasCust)
       ? '<div class="pc-cust">刻印:' + escapeHtml(its.find(it=>it.hasCust).custText) + '</div>'
       : '';
-    return '<div class="pick-card">' +
+    const notes = orderNotesMap[oid] || [];
+    const noteBlock = notes.length > 0
+      ? '<div class="pc-alert">⚠ ' + notes.map(escapeHtml).join('<br>⚠ ') + '</div>'
+      : '';
+    const cardClass = notes.length > 0 ? 'pick-card pick-card-alert' : 'pick-card';
+    return '<div class="' + cardClass + '">' +
       '<div class="pc-head"><span class="pc-name">' + escapeHtml(name) + '</span><span class="pc-order">' + escapeHtml(oid) + '</span></div>' +
-      itemsHtml + custBlock +
+      noteBlock + itemsHtml + custBlock +
       '</div>';
   }).join('');
 
