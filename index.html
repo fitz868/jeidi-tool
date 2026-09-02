@@ -215,12 +215,6 @@
     <h2>上傳訂單檔案</h2>
     <div class="desc">從 LINE 禮物賣家後台下載今天的訂單 Excel 檔,拖進來或點擊選擇。</div>
 
-    <div class="date-field">
-      <label for="shipDate">出貨日期(這批貨要算進哪一天的出貨數字)</label>
-      <input type="date" id="shipDate">
-      <div class="date-hint">預設是今天。如果是週末先包貨、下禮拜一才寄,請手動改成禮拜一的日期,這樣黑貓匯入檔跟統計數字才會對得上件數。</div>
-    </div>
-
     <div class="dropzone" id="dropzone" onclick="document.getElementById('fileInput').click()">
       <p id="dz-text">將檔案拖曳到這裡,或點擊選擇檔案</p>
       <div class="filename" id="dz-filename"></div>
@@ -235,6 +229,24 @@
   <div class="panel no-print" id="errorPanel" style="display:none;">
     <h2>檔案欄位對不上</h2>
     <div class="error-box" id="errorBox"></div>
+  </div>
+
+  <div class="panel cust-section" id="custPanel">
+    <h2 class="no-print">客製 / 刻印提醒單</h2>
+    <div class="desc no-print">建議直接列印這一頁,包裝前對照刻字內容,避免刻錯字。</div>
+    <div id="custList"></div>
+    <div class="btn-row no-print">
+      <button class="ghost" onclick="window.print()">列印這份提醒單</button>
+    </div>
+  </div>
+
+  <div class="panel pick-section" id="pickPanel" style="display:none;">
+    <h2 class="no-print">檢貨單</h2>
+    <div class="desc no-print">依排序往下滑檢查,或直接列印成紙本。品名已對照 SKU 表顯示簡單品名,配件會列在該項目下方。</div>
+    <div id="pickList"></div>
+    <div class="btn-row no-print">
+      <button class="ghost" onclick="window.print()">列印檢貨單</button>
+    </div>
   </div>
 
   <div class="panel no-print" id="resultPanel" style="display:none;">
@@ -254,24 +266,6 @@
         </div>
         <button class="ghost" onclick="downloadKerryCSV()">下載</button>
       </div>
-    </div>
-  </div>
-
-  <div class="panel pick-section" id="pickPanel" style="display:none;">
-    <h2 class="no-print">檢貨單</h2>
-    <div class="desc no-print">依排序往下滑檢查,或直接列印成紙本。品名已對照 SKU 表顯示簡單品名,配件會列在該項目下方。</div>
-    <div id="pickList"></div>
-    <div class="btn-row no-print">
-      <button class="ghost" onclick="window.print()">列印檢貨單</button>
-    </div>
-  </div>
-
-  <div class="panel cust-section" id="custPanel">
-    <h2 class="no-print">客製 / 刻印提醒單</h2>
-    <div class="desc no-print">建議直接列印這一頁,包裝前對照刻字內容,避免刻錯字。</div>
-    <div id="custList"></div>
-    <div class="btn-row no-print">
-      <button class="ghost" onclick="window.print()">列印這份提醒單</button>
     </div>
   </div>
 
@@ -358,15 +352,8 @@ let today = new Date();
 
 function pad(n){return String(n).padStart(2,'0');}
 
-// 出貨日期欄位:預設今天,可手動調整(例如週末先包貨算下週一)
-const shipDateInput = document.getElementById('shipDate');
-shipDateInput.value = today.getFullYear() + '-' + pad(today.getMonth()+1) + '-' + pad(today.getDate());
-
 function getShipDate(){
-  const v = shipDateInput.value;
-  if(!v) return today;
-  const [y,m,d] = v.split('-').map(Number);
-  return new Date(y, m-1, d);
+  return today;
 }
 
 // ===== SKU 對照表(即時從 Google 試算表讀取)=====
@@ -645,7 +632,8 @@ function copySummary(){
   const matched = document.querySelectorAll('#p2-statRow .num')[1]?.textContent || '';
   const unmatched = document.querySelectorAll('#p2-statRow .num')[2]?.textContent || '';
   const cb = id => document.getElementById(id).checked ? 'TRUE' : 'FALSE';
-  const dateStr = shipDateInput.value;
+  const d = getShipDate();
+  const dateStr = d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
   const text = [
     '日期\t' + dateStr,
     '總出貨單數\t' + matched,
