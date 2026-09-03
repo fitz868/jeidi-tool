@@ -306,7 +306,7 @@
     </div>
     <div class="btn-row">
       <button class="primary" id="processBtn" onclick="processFile()" disabled>開始處理</button>
-      <button class="ghost" id="resetBtn" onclick="resetAll()" style="display:none;">重新開始</button>
+      <button class="ghost" id="resetBtn" onclick="explicitReset()" style="display:none;">重新開始</button>
     </div>
   </div>
 
@@ -1189,6 +1189,11 @@ function resetAll(){
   fileInput.value = '';
 }
 
+function explicitReset(){
+  resetAll();
+  clearSavedState();
+}
+
 function normHeader(h){
   return String(h == null ? '' : h).replace(/[\n\r\t]/g,'').trim();
 }
@@ -1581,6 +1586,74 @@ async function finishProcessing(rawItems){
 
   renderResult();
   renderPickList();
+  saveState();
+}
+
+// ===== 本機儲存:重新整理頁面不會遺失目前進度 =====
+const STORAGE_KEY = 'jeidi_shipping_state_v1';
+
+function saveState(){
+  try{
+    const doneIndices = Array.from(document.querySelectorAll('#pickList .pick-card-done'))
+      .map(el => el.id.replace('pick-card-',''));
+    const state = {
+      channel: currentChannel,
+      shopeeType: shopeeShipType,
+      parsedItems: parsedItems,
+      channelProgress: channelProgress,
+      doneIndices: doneIndices,
+      savedAt: new Date().toISOString()
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }catch(err){
+    // 存不進去(例如容量爆掉)就算了,不影響主要功能
+  }
+}
+
+function clearSavedState(){
+  try{ localStorage.removeItem(STORAGE_KEY); }catch(err){}
+}
+
+function restoreState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return;
+    const state = JSON.parse(raw);
+    if(state.channelProgress) channelProgress = state.channelProgress;
+    if(!state.parsedItems || state.parsedItems.length === 0) return;
+
+    currentChannel = state.channel || 'line';
+    shopeeShipType = state.shopeeType || 'next';
+    parsedItems = state.parsedItems;
+    custItems = parsedItems.filter(it => it.hasCust);
+
+    document.getElementById('chan-line').classList.toggle('active', currentChannel==='line');
+    document.getElementById('chan-shop').classList.toggle('active', currentChannel==='shop');
+    document.getElementById('chan-shopee').classList.toggle('active', currentChannel==='shopee');
+    document.getElementById('shopeeTypeSelector').style.display = currentChannel==='shopee' ? 'block' : 'none';
+    document.querySelectorAll('.stype-btn').forEach(b=>{
+      b.classList.toggle('active', b.dataset.type === shopeeShipType);
+    });
+
+    renderResult();
+    renderPickList();
+
+    (state.doneIndices || []).forEach(idx=>{
+      const card = document.getElementById('pick-card-' + idx);
+      if(card){
+        card.classList.add('pick-card-done');
+        const cb = card.querySelector('.pc-check input');
+        if(cb) cb.checked = true;
+      }
+    });
+    updatePickProgress();
+
+    const savedTime = state.savedAt ? new Date(state.savedAt).toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'}) : '';
+    const desc = document.getElementById('resultDesc');
+    if(desc) desc.textContent += '(已自動還原 ' + savedTime + ' 的處理紀錄,重新整理不會遺失進度)';
+  }catch(err){
+    // 還原失敗就當作沒有存過,不影響正常使用
+  }
 }
 
 // 全形字母數字轉半形,讓「Ｇ６」也能對照到顏色表裡的「G6」
@@ -1704,6 +1777,7 @@ function togglePickDone(idx, done){
   const card = document.getElementById('pick-card-' + idx);
   if(card) card.classList.toggle('pick-card-done', done);
   updatePickProgress();
+  saveState();
 }
 
 function updatePickProgress(){
@@ -1728,6 +1802,7 @@ function confirmPickProgress(){
   const label = currentChannel === 'line' ? 'LINE' : (currentChannel === 'shop' ? '官網' : '蝦皮');
   note.textContent = '✓ 已確認:' + label + ' 揀貨進度 ' + done + ' / ' + total + '(已記錄到出貨核對頁面)';
   updatePage3PickProgress();
+  saveState();
 }
 
 function showError(lines){
@@ -1878,6 +1953,9 @@ function fmtDate(){
   const d = getShipDate();
   return d.getFullYear() + pad(d.getMonth()+1) + pad(d.getDate());
 }
+
+// 頁面載入時,嘗試還原上次的處理進度(重新整理不會遺失)
+restoreState();
 </script>
 </body>
 </html>
