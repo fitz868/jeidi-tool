@@ -134,6 +134,15 @@
   .reminder-table .rt-num{font-family:'Source Serif 4',Georgia,serif;font-size:28px;font-weight:700;color:var(--warn);}
   .reminder-table .rt-lbl{font-size:12.5px;color:#7A3538;margin-top:2px;}
 
+  .pick-progress-row{display:flex;gap:14px;flex-wrap:wrap;}
+  .pp-cell{
+    flex:1;min-width:140px;background:var(--bg);border-radius:8px;padding:14px 16px;
+  }
+  .pp-cell .pp-name{font-size:13px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;}
+  .pp-cell .pp-num{font-family:'Source Serif 4',Georgia,serif;font-size:24px;font-weight:600;}
+  .pp-cell .pp-num.pp-done{color:var(--ok);}
+  .pp-cell .pp-empty{font-size:13px;color:var(--ink-soft);}
+
   .stat-row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:18px;}
   .stat{
     flex:1 1 120px;background:var(--bg);border-radius:8px;padding:14px 16px;
@@ -226,7 +235,8 @@
   }
   .pick-card .pc-note{margin-top:6px;font-size:12.5px;color:var(--ink-soft);}
 
-  .panel-head-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
+  .panel-head-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;flex-wrap:wrap;gap:10px;}
+  .pc-head-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
   .panel-head-row h2{margin:0;}
 
   @media print{
@@ -338,10 +348,13 @@
   <div class="panel pick-section" id="pickPanel" style="display:none;">
     <div class="panel-head-row no-print">
       <h2>檢貨單</h2>
-      <span class="pick-progress" id="pickProgress"></span>
-      <button class="ghost" onclick="window.print()">列印檢貨單</button>
+      <div class="pc-head-actions">
+        <span class="pick-progress" id="pickProgress"></span>
+        <button class="primary" onclick="confirmPickProgress()">確認完成揀貨</button>
+        <button class="ghost" onclick="window.print()">列印檢貨單</button>
+      </div>
     </div>
-    <div class="desc no-print">依排序往下滑檢查,或直接列印成紙本。品名已對照 SKU 表顯示簡單品名,配件會列在該項目下方。</div>
+    <div class="desc no-print" id="pickConfirmNote">依排序往下滑檢查,或直接列印成紙本。品名已對照 SKU 表顯示簡單品名,配件會列在該項目下方。揀貨完成後按上方「確認完成揀貨」,進度會記錄到「出貨核對」頁面。</div>
     <div id="pickList" class="pick-grid"></div>
   </div>
 
@@ -464,8 +477,14 @@
 
   <div id="page3" style="display:none;">
 
+    <div class="panel no-print" id="p3-pickPanel">
+      <h2>揀貨進度</h2>
+      <div class="desc">來自頁面1每個通路按下「確認完成揀貨」時記錄的進度。</div>
+      <div id="p3-pickRow" class="pick-progress-row"></div>
+    </div>
+
     <div class="panel no-print" id="p3-summaryPanel">
-      <h2>今日出貨統計</h2>
+      <h2>出貨確認(黑貓比對)</h2>
       <div class="desc" id="p3-summaryDesc">尚未有比對結果,請先到「出貨回報」頁面完成 LINE 或官網的比對。</div>
       <div class="stat-row" id="p3-statRow"></div>
     </div>
@@ -684,6 +703,20 @@ function switchPage(n){
   document.getElementById('tab-page1').classList.toggle('active', n===1);
   document.getElementById('tab-page2').classList.toggle('active', n===2);
   document.getElementById('tab-page3').classList.toggle('active', n===3);
+  if(n===3) updatePage3PickProgress();
+}
+
+function updatePage3PickProgress(){
+  const labels = {line:'LINE', shop:'官網', shopee:'蝦皮'};
+  const row = document.getElementById('p3-pickRow');
+  if(!row) return;
+  row.innerHTML = Object.keys(labels).map(ch=>{
+    const p = channelProgress[ch];
+    if(!p){
+      return '<div class="pp-cell"><div class="pp-name">' + labels[ch] + '</div><div class="pp-empty">今天還沒確認</div></div>';
+    }
+    return '<div class="pp-cell"><div class="pp-name">' + labels[ch] + '</div><div class="pp-num pp-done">' + p.done + ' / ' + p.total + '</div></div>';
+  }).join('');
 }
 
 function switchReportChannel(ch){
@@ -1663,6 +1696,7 @@ function renderPickList(){
   }).join('');
 
   document.getElementById('pickPanel').style.display = 'block';
+  document.getElementById('pickConfirmNote').textContent = '依排序往下滑檢查,或直接列印成紙本。品名已對照 SKU 表顯示簡單品名,配件會列在該項目下方。揀貨完成後按上方「確認完成揀貨」,進度會記錄到「出貨核對」頁面。';
   updatePickProgress();
 }
 
@@ -1677,6 +1711,23 @@ function updatePickProgress(){
   const done = document.querySelectorAll('#pickList .pick-card-done').length;
   const el = document.getElementById('pickProgress');
   if(el) el.textContent = total > 0 ? ('已檢貨 ' + done + ' / ' + total) : '';
+}
+
+// 各通路的揀貨進度(按下「確認完成揀貨」才會記錄,不是勾選當下就即時送出)
+let channelProgress = {line:null, shop:null, shopee:null};
+
+function confirmPickProgress(){
+  const total = document.querySelectorAll('#pickList .pick-card').length;
+  const done = document.querySelectorAll('#pickList .pick-card-done').length;
+  if(total === 0){
+    alert('目前沒有檢貨單資料,請先處理訂單檔案。');
+    return;
+  }
+  channelProgress[currentChannel] = {total, done, time: new Date()};
+  const note = document.getElementById('pickConfirmNote');
+  const label = currentChannel === 'line' ? 'LINE' : (currentChannel === 'shop' ? '官網' : '蝦皮');
+  note.textContent = '✓ 已確認:' + label + ' 揀貨進度 ' + done + ' / ' + total + '(已記錄到出貨核對頁面)';
+  updatePage3PickProgress();
 }
 
 function showError(lines){
