@@ -320,11 +320,11 @@
 
     <div id="report-line">
 
-      <div class="panel no-print" id="p2-status">
-        <h2>訂單資料</h2>
-        <div class="desc" id="p2-source-desc">尚未有今天的訂單資料。</div>
-        <div class="dropzone" id="p2-orderDropzone" style="display:none;" onclick="document.getElementById('p2-orderInput').click()">
-          <p>將今天早上處理過的同一份訂單檔拖曳到這裡,或點擊選擇</p>
+      <div class="panel no-print">
+        <h2>上傳 LINE 出貨回填範本</h2>
+        <div class="desc">從 LINE 賣家後台下載的「Order_To_Ship_Mass_Shipping」回填範本,裡面已經列好訂單,只是「貨運業者代碼」「物流單編號」還是空的。</div>
+        <div class="dropzone" id="p2-orderDropzone" onclick="document.getElementById('p2-orderInput').click()">
+          <p id="p2-order-text">將回填範本拖曳到這裡,或點擊選擇(.xlsx)</p>
           <div class="filename" id="p2-order-filename"></div>
           <input type="file" id="p2-orderInput" accept=".xlsx,.xls">
         </div>
@@ -345,7 +345,7 @@
       </div>
 
       <div class="panel no-print" id="p2-errorPanel" style="display:none;">
-        <h2>讀取黑貓檔案時遇到問題</h2>
+        <h2>讀取檔案時遇到問題</h2>
         <div class="error-box" id="p2-errorBox"></div>
       </div>
 
@@ -361,7 +361,7 @@
           <div class="dl-item">
             <div class="info">
               <div class="name">LINE_出貨回報.xlsx</div>
-              <div class="hint">保留原始訂單所有欄位,已出貨的訂單補上黑貓託運單號,可直接上傳回 LINE 賣家後台</div>
+              <div class="hint">跟範本一模一樣的欄位與訂單,已出貨的訂單補上貨運業者代碼跟物流單編號,可直接上傳回 LINE 賣家後台</div>
             </div>
             <button class="ghost" onclick="downloadReportFile()">下載</button>
           </div>
@@ -614,7 +614,6 @@ function switchPage(n){
   document.getElementById('tab-page1').classList.toggle('active', n===1);
   document.getElementById('tab-page2').classList.toggle('active', n===2);
   document.getElementById('tab-page3').classList.toggle('active', n===3);
-  if(n===2) refreshPage2Source();
 }
 
 function switchReportChannel(ch){
@@ -622,18 +621,6 @@ function switchReportChannel(ch){
   document.getElementById('report-shop').style.display = ch==='shop' ? 'block' : 'none';
   document.getElementById('rc-line').classList.toggle('active', ch==='line');
   document.getElementById('rc-shop').classList.toggle('active', ch==='shop');
-}
-
-function refreshPage2Source(){
-  const desc = document.getElementById('p2-source-desc');
-  const dz = document.getElementById('p2-orderDropzone');
-  if(parsedItems.length > 0){
-    desc.textContent = '已使用頁面1處理過的訂單資料,共 ' + parsedItems.length + ' 筆項目,不用重新上傳。';
-    dz.style.display = 'none';
-  }else{
-    desc.textContent = '目前沒有訂單資料(可能是重新整理過頁面),請重新上傳今天早上處理的那份訂單原始檔。';
-    dz.style.display = 'block';
-  }
 }
 
 // ===== 頁面2:訂單檔(備援,若 parsedItems 已空)=====
@@ -652,6 +639,7 @@ let p2OrderFile = null;
 function handleP2OrderFile(file){
   p2OrderFile = file;
   document.getElementById('p2-order-filename').textContent = file.name;
+  checkP2Ready();
 }
 
 // ===== 頁面2:黑貓追蹤檔上傳 =====
@@ -670,18 +658,24 @@ let p2KerryFile = null;
 function handleP2KerryFile(file){
   p2KerryFile = file;
   document.getElementById('p2-kerry-filename').textContent = file.name;
-  document.getElementById('p2-processBtn').disabled = false;
+  checkP2Ready();
+}
+function checkP2Ready(){
+  document.getElementById('p2-processBtn').disabled = !(p2OrderFile && p2KerryFile);
 }
 
 function resetPage2(){
+  p2OrderFile = null;
   p2KerryFile = null;
   reportRows = [];
   unmatchedOrders = [];
+  document.getElementById('p2-order-filename').textContent = '';
   document.getElementById('p2-kerry-filename').textContent = '';
   document.getElementById('p2-processBtn').disabled = true;
   document.getElementById('p2-resetBtn').style.display = 'none';
   document.getElementById('p2-resultPanel').style.display = 'none';
   document.getElementById('p2-errorPanel').style.display = 'none';
+  p2OrderInput.value = '';
   p2KerryInput.value = '';
 }
 
@@ -748,24 +742,44 @@ let reportRows = [];
 async function processReconcile(){
   document.getElementById('p2-errorPanel').style.display = 'none';
 
-  let orderItems = parsedItems;
-  if(orderItems.length === 0){
-    if(!p2OrderFile){
-      showP2Error(['請先上傳今天早上處理過的訂單原始檔。']);
-      return;
-    }
-    // 重新解析訂單檔(邏輯與頁面1相同)
-    try{
-      const buf = await readArrayBuffer(p2OrderFile);
-      const wb = XLSX.read(new Uint8Array(buf), {type:'array'});
-      orderItems = parseLineOrderWorkbook(wb);
-      if(!orderItems){ return; }
-    }catch(err){
-      showP2Error(['讀取訂單檔失敗: ' + err.message]);
-      return;
-    }
+  if(!p2OrderFile || !p2KerryFile){
+    showP2Error(['請先上傳 LINE 回填範本與黑貓追蹤檔。']);
+    return;
   }
 
+  // 讀取 LINE 回填範本(跟頁面1一樣,先試array,失敗再試binary)
+  let wb = null;
+  let lastErr = null;
+  try{
+    const buf = await readArrayBuffer(p2OrderFile);
+    wb = XLSX.read(new Uint8Array(buf), {type:'array'});
+  }catch(err){ lastErr = err; }
+  if(!wb){
+    try{
+      const bstr = await readBinaryString(p2OrderFile);
+      wb = XLSX.read(bstr, {type:'binary'});
+    }catch(err){ lastErr = err; }
+  }
+  if(!wb){
+    showP2Error(['讀取 LINE 回填範本失敗: ' + (lastErr && lastErr.message || ''), '請確認上傳的是 LINE 後台下載的 Order_To_Ship_Mass_Shipping 範本。']);
+    return;
+  }
+
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+  if(rows.length < 2){ showP2Error(['範本裡沒有找到資料列。']); return; }
+  const headers = rows[0];
+  const dataRows = rows.slice(1).filter(r => r.some(c => String(c).trim() !== ''));
+
+  const oI = idxOf(headers, ['訂單編號']);
+  const carrierI = idxOf(headers, ['貨運業者代碼']);
+  const trackI = idxOf(headers, ['物流單編號']);
+  if(oI === -1 || carrierI === -1 || trackI === -1){
+    showP2Error(['範本裡找不到「訂單編號」「貨運業者代碼」或「物流單編號」欄位,請確認上傳的是 LINE 後台的回填範本,欄位名稱沒有被更動過。']);
+    return;
+  }
+
+  // 讀取黑貓追蹤檔
   let kerryText;
   try{
     kerryText = await readAsBig5Text(p2KerryFile);
@@ -773,46 +787,46 @@ async function processReconcile(){
     showP2Error(['讀取黑貓檔案失敗: ' + err.message]);
     return;
   }
-
-  const rows = parseCSV(kerryText);
-  if(rows.length < 2){
+  const kerryRows = parseCSV(kerryText);
+  if(kerryRows.length < 2){
     showP2Error(['黑貓檔案裡沒有找到資料列,請確認檔案內容。']);
     return;
   }
-  const headers = rows[0];
-  const oI = idxOf(headers, ['訂單編號']);
-  const tI = idxOf(headers, ['託運單號']);
-  if(oI === -1 || tI === -1){
+  const kHeaders = kerryRows[0];
+  const kOI = idxOf(kHeaders, ['訂單編號']);
+  const kTI = idxOf(kHeaders, ['託運單號']);
+  if(kOI === -1 || kTI === -1){
     showP2Error(['黑貓檔案裡找不到「訂單編號」或「託運單號」欄位,請確認上傳的是黑貓匯出的追蹤檔。']);
     return;
   }
-
   const trackMap = {};
-  rows.slice(1).forEach(r=>{
-    const oid = cleanId(r[oI]);
-    const track = String(r[tI]||'').trim();
+  kerryRows.slice(1).forEach(r=>{
+    const oid = cleanId(r[kOI]);
+    const track = String(r[kTI]||'').trim();
     if(oid && !oid.includes('E+')) trackMap[oid] = track;
   });
 
-  // 依訂單分組,套用比對(完整編號優先,對不到再試後6碼備援)
-  const orderIds = [...new Set(orderItems.map(it=>it.orderId))].filter(Boolean);
-  const matchedIds = orderIds.filter(id => matchTracking(id, trackMap));
-  const unmatchedIds = orderIds.filter(id => !matchTracking(id, trackMap));
-
-  unmatchedOrders = unmatchedIds.map(id => {
-    const it = orderItems.find(x => x.orderId === id);
-    return {orderId: id, name: it ? it.name : ''};
+  // 直接在原本範本的欄位裡填入貨運業者代碼跟物流單編號,其餘欄位維持原樣
+  let matchedCount = 0;
+  unmatchedOrders = [];
+  reportHeaders = headers;
+  reportRows = dataRows.map(r=>{
+    const row = [...r];
+    const oid = cleanId(r[oI]);
+    const tracking = matchTracking(oid, trackMap);
+    if(tracking){
+      row[carrierI] = 'T_CAT';
+      row[trackI] = tracking;
+      matchedCount++;
+    }else{
+      unmatchedOrders.push({orderId: oid, name: ''});
+    }
+    return row;
   });
 
-  // 回報檔:保留原始所有欄位,包含全部訂單列(未出貨的也留著,只是單號欄位空白)
-  reportHeaders = [...rawHeaders, '物流單編號', '貨運業者代碼'];
-  reportRows = orderItems.map(it=>{
-    const tracking = matchTracking(it.orderId, trackMap);
-    const base = it.rawRow ? [...it.rawRow] : [];
-    return [...base, tracking, 'T_CAT'];
-  });
-
-  renderP2Result(orderIds.length, matchedIds.length, unmatchedIds.length);
+  const total = dataRows.length;
+  const unmatchedCount = total - matchedCount;
+  renderP2Result(total, matchedCount, unmatchedCount);
 }
 
 function showP2Error(lines){
@@ -1035,31 +1049,6 @@ function copySummary(){
   }).catch(()=>{
     alert('複製失敗,請手動選取文字複製。');
   });
-}
-
-// 從 workbook 重新解析 LINE 訂單(與頁面1共用邏輯,供頁面2獨立使用時呼叫)
-function parseLineOrderWorkbook(wb){
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
-  if(rows.length < 2){ showP2Error(['檔案裡沒有找到資料列。']); return null; }
-  const headers = rows[0];
-  const dataRows = rows.slice(1).filter(r => r.some(c => String(c).trim() !== ''));
-  const oI = idxOf(headers, ['訂單編號']);
-  const nI = idxOf(headers, ['收件人姓名']);
-  const iI = idxOf(headers, ['商品名稱']);
-  const qI = idxOf(headers, ['數量']);
-  if(oI===-1 || nI===-1 || iI===-1 || qI===-1){
-    showP2Error(['這份訂單檔的欄位對不上,請確認是同一份 LINE 禮物訂單原始檔。']);
-    return null;
-  }
-  rawHeaders = headers;
-  return dataRows.map(r => ({
-    orderId: cleanId(r[oI]),
-    name: String(r[nI]||''),
-    itemName: String(r[iI]||''),
-    qty: toNum(r[qI], 1),
-    rawRow: r
-  }));
 }
 
 const dropzone = document.getElementById('dropzone');
