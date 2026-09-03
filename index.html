@@ -229,7 +229,8 @@
 
   <div class="page-tabs no-print">
     <button class="tab-btn active" id="tab-page1" onclick="switchPage(1)">出貨準備</button>
-    <button class="tab-btn" id="tab-page2" onclick="switchPage(2)">出貨核對</button>
+    <button class="tab-btn" id="tab-page2" onclick="switchPage(2)">出貨回報</button>
+    <button class="tab-btn" id="tab-page3" onclick="switchPage(3)">出貨核對</button>
   </div>
 
   <div id="page1">
@@ -308,55 +309,128 @@
 
   <div id="page2" style="display:none;">
 
-    <div class="panel no-print" id="p2-status">
-      <h2>訂單資料</h2>
-      <div class="desc" id="p2-source-desc">尚未有今天的訂單資料。</div>
-      <div class="dropzone" id="p2-orderDropzone" style="display:none;" onclick="document.getElementById('p2-orderInput').click()">
-        <p>將今天早上處理過的同一份訂單檔拖曳到這裡,或點擊選擇</p>
-        <div class="filename" id="p2-order-filename"></div>
-        <input type="file" id="p2-orderInput" accept=".xlsx,.xls">
-      </div>
+    <div class="channels no-print">
+      <button class="chan-btn active" id="rc-line" onclick="switchReportChannel('line')">
+        <span class="name">LINE 回報</span>
+      </button>
+      <button class="chan-btn" id="rc-shop" onclick="switchReportChannel('shop')">
+        <span class="name">官網 回報</span>
+      </button>
     </div>
 
-    <div class="panel no-print">
-      <h2>上傳黑貓追蹤匯出檔</h2>
-      <div class="desc">黑貓收件完成後,從黑貓系統匯出的追蹤檔(訂單編號、託運單號),用來確認今天哪些訂單真的出貨了。</div>
-      <div class="dropzone" id="p2-kerryDropzone" onclick="document.getElementById('p2-kerryInput').click()">
-        <p id="p2-kerry-text">將黑貓追蹤匯出檔拖曳到這裡,或點擊選擇(.csv)</p>
-        <div class="filename" id="p2-kerry-filename"></div>
-        <input type="file" id="p2-kerryInput" accept=".csv">
-      </div>
-      <div class="btn-row">
-        <button class="primary" id="p2-processBtn" onclick="processReconcile()" disabled>比對出貨結果</button>
-        <button class="ghost" id="p2-resetBtn" onclick="resetPage2()" style="display:none;">重新開始</button>
-      </div>
-    </div>
+    <div id="report-line">
 
-    <div class="panel no-print" id="p2-errorPanel" style="display:none;">
-      <h2>讀取黑貓檔案時遇到問題</h2>
-      <div class="error-box" id="p2-errorBox"></div>
-    </div>
-
-    <div class="panel no-print" id="p2-resultPanel" style="display:none;">
-      <h2>今天的出貨結果</h2>
-      <div class="desc" id="p2-resultDesc"></div>
-
-      <div class="stat-row" id="p2-statRow"></div>
-
-      <div class="warn-box" id="p2-unmatchedBox" style="display:none;"></div>
-
-      <div class="download-list">
-        <div class="dl-item">
-          <div class="info">
-            <div class="name">LINE_出貨回報.xlsx</div>
-            <div class="hint">保留原始訂單所有欄位,已出貨的訂單補上黑貓託運單號,可直接上傳回 LINE 賣家後台</div>
-          </div>
-          <button class="ghost" onclick="downloadReportFile()">下載</button>
+      <div class="panel no-print" id="p2-status">
+        <h2>訂單資料</h2>
+        <div class="desc" id="p2-source-desc">尚未有今天的訂單資料。</div>
+        <div class="dropzone" id="p2-orderDropzone" style="display:none;" onclick="document.getElementById('p2-orderInput').click()">
+          <p>將今天早上處理過的同一份訂單檔拖曳到這裡,或點擊選擇</p>
+          <div class="filename" id="p2-order-filename"></div>
+          <input type="file" id="p2-orderInput" accept=".xlsx,.xls">
         </div>
       </div>
+
+      <div class="panel no-print">
+        <h2>上傳黑貓追蹤匯出檔</h2>
+        <div class="desc">黑貓收件完成後,從黑貓系統匯出的追蹤檔(訂單編號、託運單號),用來確認今天哪些訂單真的出貨了。</div>
+        <div class="dropzone" id="p2-kerryDropzone" onclick="document.getElementById('p2-kerryInput').click()">
+          <p id="p2-kerry-text">將黑貓追蹤匯出檔拖曳到這裡,或點擊選擇(.csv)</p>
+          <div class="filename" id="p2-kerry-filename"></div>
+          <input type="file" id="p2-kerryInput" accept=".csv">
+        </div>
+        <div class="btn-row">
+          <button class="primary" id="p2-processBtn" onclick="processReconcile()" disabled>比對出貨結果</button>
+          <button class="ghost" id="p2-resetBtn" onclick="resetPage2()" style="display:none;">重新開始</button>
+        </div>
+      </div>
+
+      <div class="panel no-print" id="p2-errorPanel" style="display:none;">
+        <h2>讀取黑貓檔案時遇到問題</h2>
+        <div class="error-box" id="p2-errorBox"></div>
+      </div>
+
+      <div class="panel no-print" id="p2-resultPanel" style="display:none;">
+        <h2>今天的出貨結果</h2>
+        <div class="desc" id="p2-resultDesc"></div>
+
+        <div class="stat-row" id="p2-statRow"></div>
+
+        <div class="warn-box" id="p2-unmatchedBox" style="display:none;"></div>
+
+        <div class="download-list">
+          <div class="dl-item">
+            <div class="info">
+              <div class="name">LINE_出貨回報.xlsx</div>
+              <div class="hint">保留原始訂單所有欄位,已出貨的訂單補上黑貓託運單號,可直接上傳回 LINE 賣家後台</div>
+            </div>
+            <button class="ghost" onclick="downloadReportFile()">下載</button>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /report-line -->
+
+    <div id="report-shop" style="display:none;">
+
+      <div class="panel no-print">
+        <h2>上傳官網訂單匯出檔</h2>
+        <div class="desc">從官網(Shopify)後台匯出的訂單原始檔(.csv),需要包含 Name 欄位。</div>
+        <div class="dropzone" id="ps-orderDropzone" onclick="document.getElementById('ps-orderInput').click()">
+          <p id="ps-order-text">將官網訂單匯出檔拖曳到這裡,或點擊選擇(.csv)</p>
+          <div class="filename" id="ps-order-filename"></div>
+          <input type="file" id="ps-orderInput" accept=".csv">
+        </div>
+      </div>
+
+      <div class="panel no-print">
+        <h2>上傳黑貓追蹤匯出檔</h2>
+        <div class="desc">黑貓收件完成後,從黑貓系統匯出的追蹤檔(訂單編號、託運單號)。</div>
+        <div class="dropzone" id="ps-kerryDropzone" onclick="document.getElementById('ps-kerryInput').click()">
+          <p id="ps-kerry-text">將黑貓追蹤匯出檔拖曳到這裡,或點擊選擇(.csv)</p>
+          <div class="filename" id="ps-kerry-filename"></div>
+          <input type="file" id="ps-kerryInput" accept=".csv">
+        </div>
+        <div class="btn-row">
+          <button class="primary" id="ps-processBtn" onclick="processShopReconcile()" disabled>比對出貨結果</button>
+          <button class="ghost" id="ps-resetBtn" onclick="resetPageShop()" style="display:none;">重新開始</button>
+        </div>
+      </div>
+
+      <div class="panel no-print" id="ps-errorPanel" style="display:none;">
+        <h2>讀取檔案時遇到問題</h2>
+        <div class="error-box" id="ps-errorBox"></div>
+      </div>
+
+      <div class="panel no-print" id="ps-resultPanel" style="display:none;">
+        <h2>今天的出貨結果</h2>
+        <div class="desc" id="ps-resultDesc"></div>
+
+        <div class="stat-row" id="ps-statRow"></div>
+
+        <div class="download-list">
+          <div class="dl-item">
+            <div class="info">
+              <div class="name">官網_出貨回報.xlsx</div>
+              <div class="hint">只包含已配對到單號的訂單(Order Number / Tracking Number / Tracking Company),可直接匯入官網後台</div>
+            </div>
+            <button class="ghost" onclick="downloadShopReportFile()">下載</button>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /report-shop -->
+
+  </div><!-- /page2 -->
+
+  <div id="page3" style="display:none;">
+
+    <div class="panel no-print" id="p3-summaryPanel">
+      <h2>今日出貨統計</h2>
+      <div class="desc" id="p3-summaryDesc">尚未有比對結果,請先到「出貨回報」頁面完成 LINE 或官網的比對。</div>
+      <div class="stat-row" id="p3-statRow"></div>
     </div>
 
-    <div class="panel no-print" id="p2-checklistPanel" style="display:none;">
+    <div class="panel no-print" id="p3-checklistPanel">
       <h2>今日出貨檢核</h2>
       <div class="desc">跟現在 Google 表格一樣的五個項目,勾選後可以複製摘要貼到表格裡。</div>
       <div class="checklist">
@@ -371,7 +445,7 @@
       </div>
     </div>
 
-  </div><!-- /page2 -->
+  </div><!-- /page3 -->
 
   <footer class="note no-print">
     此工具在瀏覽器本機處理檔案,不會把訂單資料上傳到任何伺服器。
@@ -536,9 +610,18 @@ function selectChannel(ch){
 function switchPage(n){
   document.getElementById('page1').style.display = n===1 ? 'block' : 'none';
   document.getElementById('page2').style.display = n===2 ? 'block' : 'none';
+  document.getElementById('page3').style.display = n===3 ? 'block' : 'none';
   document.getElementById('tab-page1').classList.toggle('active', n===1);
   document.getElementById('tab-page2').classList.toggle('active', n===2);
+  document.getElementById('tab-page3').classList.toggle('active', n===3);
   if(n===2) refreshPage2Source();
+}
+
+function switchReportChannel(ch){
+  document.getElementById('report-line').style.display = ch==='line' ? 'block' : 'none';
+  document.getElementById('report-shop').style.display = ch==='shop' ? 'block' : 'none';
+  document.getElementById('rc-line').classList.toggle('active', ch==='line');
+  document.getElementById('rc-shop').classList.toggle('active', ch==='shop');
 }
 
 function refreshPage2Source(){
@@ -598,7 +681,6 @@ function resetPage2(){
   document.getElementById('p2-processBtn').disabled = true;
   document.getElementById('p2-resetBtn').style.display = 'none';
   document.getElementById('p2-resultPanel').style.display = 'none';
-  document.getElementById('p2-checklistPanel').style.display = 'none';
   document.getElementById('p2-errorPanel').style.display = 'none';
   p2KerryInput.value = '';
 }
@@ -737,7 +819,20 @@ function showP2Error(lines){
   document.getElementById('p2-errorBox').innerHTML = '<ul>' + lines.map(l=>'<li>'+l+'</li>').join('') + '</ul>';
   document.getElementById('p2-errorPanel').style.display = 'block';
   document.getElementById('p2-resultPanel').style.display = 'none';
-  document.getElementById('p2-checklistPanel').style.display = 'none';
+}
+
+let lastReconcile = null;
+
+function updatePage3Summary(channel, total, matched, unmatched){
+  lastReconcile = {channel, total, matched, unmatched};
+  const label = channel === 'line' ? 'LINE' : '官網';
+  document.getElementById('p3-summaryDesc').textContent =
+    '最近一次比對(' + label + '):共 ' + total + ' 張訂單,已確認出貨 ' + matched + ' 張,' + (unmatched>0 ? unmatched + ' 張待處理。' : '全部都出貨了。');
+  document.getElementById('p3-statRow').innerHTML = `
+    <div class="stat"><div class="num">${total}</div><div class="lbl">今天總訂單數</div></div>
+    <div class="stat"><div class="num">${matched}</div><div class="lbl">已確認出貨</div></div>
+    <div class="stat"><div class="num">${unmatched}</div><div class="lbl">待處理</div></div>
+  `;
 }
 
 function renderP2Result(total, matched, unmatched){
@@ -760,9 +855,10 @@ function renderP2Result(total, matched, unmatched){
   }
 
   document.getElementById('p2-resultPanel').style.display = 'block';
-  document.getElementById('p2-checklistPanel').style.display = 'block';
   document.getElementById('p2-resetBtn').style.display = 'inline-block';
   document.getElementById('p2-processBtn').disabled = true;
+
+  updatePage3Summary('line', total, matched, unmatched);
 }
 
 function downloadReportFile(){
@@ -773,10 +869,154 @@ function downloadReportFile(){
   XLSX.writeFile(wb, 'LINE_出貨回報_' + fmtDate() + '.xlsx');
 }
 
+// ===== 官網回報 =====
+let shopOrderFile = null;
+let shopKerryFile = null;
+let shopReportRows = [];
+
+const psOrderDropzone = document.getElementById('ps-orderDropzone');
+const psOrderInput = document.getElementById('ps-orderInput');
+psOrderDropzone.addEventListener('dragover', e=>{e.preventDefault(); psOrderDropzone.classList.add('drag');});
+psOrderDropzone.addEventListener('dragleave', ()=> psOrderDropzone.classList.remove('drag'));
+psOrderDropzone.addEventListener('drop', e=>{
+  e.preventDefault(); psOrderDropzone.classList.remove('drag');
+  if(e.dataTransfer.files.length) handlePsOrderFile(e.dataTransfer.files[0]);
+});
+psOrderInput.addEventListener('change', e=>{
+  if(e.target.files.length) handlePsOrderFile(e.target.files[0]);
+});
+function handlePsOrderFile(file){
+  shopOrderFile = file;
+  document.getElementById('ps-order-filename').textContent = file.name;
+  checkPsReady();
+}
+
+const psKerryDropzone = document.getElementById('ps-kerryDropzone');
+const psKerryInput = document.getElementById('ps-kerryInput');
+psKerryDropzone.addEventListener('dragover', e=>{e.preventDefault(); psKerryDropzone.classList.add('drag');});
+psKerryDropzone.addEventListener('dragleave', ()=> psKerryDropzone.classList.remove('drag'));
+psKerryDropzone.addEventListener('drop', e=>{
+  e.preventDefault(); psKerryDropzone.classList.remove('drag');
+  if(e.dataTransfer.files.length) handlePsKerryFile(e.dataTransfer.files[0]);
+});
+psKerryInput.addEventListener('change', e=>{
+  if(e.target.files.length) handlePsKerryFile(e.target.files[0]);
+});
+function handlePsKerryFile(file){
+  shopKerryFile = file;
+  document.getElementById('ps-kerry-filename').textContent = file.name;
+  checkPsReady();
+}
+function checkPsReady(){
+  document.getElementById('ps-processBtn').disabled = !(shopOrderFile && shopKerryFile);
+}
+
+function resetPageShop(){
+  shopOrderFile = null;
+  shopKerryFile = null;
+  shopReportRows = [];
+  document.getElementById('ps-order-filename').textContent = '';
+  document.getElementById('ps-kerry-filename').textContent = '';
+  document.getElementById('ps-processBtn').disabled = true;
+  document.getElementById('ps-resetBtn').style.display = 'none';
+  document.getElementById('ps-resultPanel').style.display = 'none';
+  document.getElementById('ps-errorPanel').style.display = 'none';
+  psOrderInput.value = '';
+  psKerryInput.value = '';
+}
+
+function showPsError(lines){
+  document.getElementById('ps-errorBox').innerHTML = '<ul>' + lines.map(l=>'<li>'+l+'</li>').join('') + '</ul>';
+  document.getElementById('ps-errorPanel').style.display = 'block';
+  document.getElementById('ps-resultPanel').style.display = 'none';
+}
+
+async function processShopReconcile(){
+  document.getElementById('ps-errorPanel').style.display = 'none';
+
+  // 官網匯出檔是 UTF-8,不像黑貓檔是 Big5
+  let orderText;
+  try{
+    const buf = await readArrayBuffer(shopOrderFile);
+    orderText = new TextDecoder('utf-8').decode(new Uint8Array(buf));
+  }catch(err){
+    showPsError(['讀取官網訂單檔失敗: ' + err.message]);
+    return;
+  }
+  const orderRows = parseCSV(orderText);
+  if(orderRows.length < 2){ showPsError(['官網訂單檔裡沒有找到資料列。']); return; }
+  const orderHeaders = orderRows[0];
+  const nameI = idxOf(orderHeaders, ['Name']);
+  if(nameI === -1){ showPsError(['官網訂單檔裡找不到「Name」欄位,請確認上傳的是官網匯出的訂單原始檔。']); return; }
+
+  let kerryText;
+  try{
+    kerryText = await readAsBig5Text(shopKerryFile);
+  }catch(err){
+    showPsError(['讀取黑貓檔案失敗: ' + err.message]);
+    return;
+  }
+  const kerryRows = parseCSV(kerryText);
+  if(kerryRows.length < 2){ showPsError(['黑貓檔案裡沒有找到資料列。']); return; }
+  const kHeaders = kerryRows[0];
+  const oI = idxOf(kHeaders, ['訂單編號']);
+  const tI = idxOf(kHeaders, ['託運單號']);
+  if(oI === -1 || tI === -1){ showPsError(['黑貓檔案裡找不到「訂單編號」或「託運單號」欄位。']); return; }
+
+  const trackMap = {};
+  kerryRows.slice(1).forEach(r=>{
+    const oid = cleanId(r[oI]);
+    const track = String(r[tI]||'').trim();
+    if(oid && !oid.includes('E+')) trackMap[oid] = track;
+  });
+
+  // 依 Name 去重,每張訂單只留一筆
+  const seenNames = new Set();
+  const uniqueNames = [];
+  orderRows.slice(1).forEach(r=>{
+    const n = String(r[nameI]||'').trim();
+    if(n && !seenNames.has(n)){ seenNames.add(n); uniqueNames.push(n); }
+  });
+
+  shopReportRows = [];
+  let matchedCount = 0;
+  uniqueNames.forEach(n=>{
+    const tracking = matchTracking(cleanId(n), trackMap);
+    if(tracking){
+      shopReportRows.push([n, tracking, 'T_CAT']);
+      matchedCount++;
+    }
+  });
+
+  const total = uniqueNames.length;
+  const unmatched = total - matchedCount;
+
+  document.getElementById('ps-resultDesc').textContent =
+    '今天共 ' + total + ' 張訂單,黑貓確認收走 ' + matchedCount + ' 張,' + (unmatched>0 ? unmatched + ' 張留到明天處理。' : '全部都出貨了。');
+  document.getElementById('ps-statRow').innerHTML = `
+    <div class="stat"><div class="num">${total}</div><div class="lbl">今天總訂單數</div></div>
+    <div class="stat"><div class="num">${matchedCount}</div><div class="lbl">已確認出貨(黑貓)</div></div>
+    <div class="stat"><div class="num">${unmatched}</div><div class="lbl">留到明天</div></div>
+  `;
+  document.getElementById('ps-resultPanel').style.display = 'block';
+  document.getElementById('ps-resetBtn').style.display = 'inline-block';
+  document.getElementById('ps-processBtn').disabled = true;
+
+  updatePage3Summary('shop', total, matchedCount, unmatched);
+}
+
+function downloadShopReportFile(){
+  const aoa = [['Order Number','Tracking Number','Tracking Company'], ...shopReportRows];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '回填');
+  XLSX.writeFile(wb, '官網_出貨回報_' + fmtDate() + '.xlsx');
+}
+
 function copySummary(){
-  const total = document.querySelectorAll('#p2-statRow .num')[0]?.textContent || '';
-  const matched = document.querySelectorAll('#p2-statRow .num')[1]?.textContent || '';
-  const unmatched = document.querySelectorAll('#p2-statRow .num')[2]?.textContent || '';
+  const total = lastReconcile ? lastReconcile.total : '';
+  const matched = lastReconcile ? lastReconcile.matched : '';
+  const unmatched = lastReconcile ? lastReconcile.unmatched : '';
   const cb = id => document.getElementById(id).checked ? 'TRUE' : 'FALSE';
   const d = getShipDate();
   const dateStr = d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
