@@ -164,33 +164,28 @@
   .pick-progress{font-size:13px;color:var(--ink-soft);font-weight:600;}
 
   .pick-card{
-    border:1px solid var(--line);border-left:4px solid var(--sage);border-radius:0 10px 10px 0;
-    padding:16px 18px 16px 16px;background:var(--paper);
-    transition:opacity .15s;
+    border:1px solid var(--line);border-radius:12px;background:var(--paper);
+    overflow:hidden;transition:opacity .15s;
   }
   .pick-card-done{opacity:0.45;}
   .pick-card-done .pc-item-name, .pick-card-done .pc-name{text-decoration:line-through;}
-  .pick-card-alert{
-    border-left-color:var(--warn);border-top:2px solid var(--warn);border-right:2px solid var(--warn);border-bottom:2px solid var(--warn);
-    background:#FFFBFA;
-  }
-  .pick-card .pc-check{
-    display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--sage-dark);
-    font-weight:600;cursor:pointer;margin-bottom:6px;
-  }
-  .pick-card .pc-check input{width:15px;height:15px;accent-color:var(--sage);cursor:pointer;}
+  .pick-card-alert{border:2px solid var(--warn);}
   .pick-card .pc-alert{
-    background:var(--warn-soft);border-radius:6px;padding:8px 10px;margin-bottom:10px;
-    font-size:14px;font-weight:700;color:var(--warn);line-height:1.6;
+    background:var(--warn-soft);padding:8px 18px;
+    font-size:13.5px;font-weight:700;color:var(--warn);line-height:1.6;
   }
-  .pick-card .pc-head{
-    display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;
+  .pick-card .pc-top{padding:14px 18px 12px;}
+  .pick-card .pc-check{
+    display:flex;align-items:center;gap:6px;font-size:12px;color:var(--sage-dark);
+    font-weight:600;cursor:pointer;margin-bottom:8px;
   }
-  .pick-card .pc-order{
-    font-size:11px;color:var(--ink-soft);background:var(--bg);padding:2px 10px;border-radius:20px;
-  }
+  .pick-card .pc-check input{width:14px;height:14px;accent-color:var(--sage);cursor:pointer;}
+  .pick-card .pc-headrow{display:flex;justify-content:space-between;align-items:baseline;}
+  .pick-card .pc-order{font-size:11px;color:var(--ink-soft);}
   .pick-card .pc-name{font-size:19px;font-weight:700;color:var(--ink);}
-  .pick-card .pc-item{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;font-size:17px;}
+  .pick-card .pc-divider{border-top:1px dashed var(--line);}
+  .pick-card .pc-body{padding:14px 18px;}
+  .pick-card .pc-item{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:5px 0;font-size:17px;}
   .pick-card .pc-item .pc-item-name{flex:1;font-weight:600;}
   .pick-card .pc-item .pc-item-qty{
     font-weight:700;white-space:nowrap;font-size:13px;
@@ -1033,11 +1028,13 @@ function renderPickList(){
       : '';
     const cardClass = notes.length > 0 ? 'pick-card pick-card-alert' : 'pick-card';
     return '<div class="' + cardClass + '" id="pick-card-' + idx + '">' +
-      '<div class="pc-head">' +
+      noteBlock +
+      '<div class="pc-top">' +
         '<label class="pc-check no-print"><input type="checkbox" onchange="togglePickDone(' + idx + ', this.checked)"> 已檢貨</label>' +
-        '<span class="pc-name">' + escapeHtml(name) + '</span><span class="pc-order">' + escapeHtml(oid) + '</span>' +
+        '<div class="pc-headrow"><span class="pc-name">' + escapeHtml(name) + '</span><span class="pc-order">' + escapeHtml(oid) + '</span></div>' +
       '</div>' +
-      noteBlock + itemsHtml + custBlock +
+      '<div class="pc-divider"></div>' +
+      '<div class="pc-body">' + itemsHtml + custBlock + '</div>' +
       '</div>';
   }).join('');
 
