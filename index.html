@@ -188,8 +188,8 @@
   .pick-card .pc-item{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:5px 0;font-size:17px;}
   .pick-card .pc-item .pc-item-name{flex:1;font-weight:600;}
   .pick-card .pc-scent-tag{
-    display:inline-block;font-size:12px;font-weight:700;background:var(--amber-soft);color:#8A5A1E;
-    padding:1px 8px;border-radius:5px;margin-right:7px;vertical-align:1px;
+    display:inline-block;font-size:15px;font-weight:600;background:var(--amber-soft);color:#8A5A1E;
+    padding:3px 11px;border-radius:6px;margin-right:5px;vertical-align:1px;
   }
   .pick-card .pc-item .pc-item-qty{
     font-weight:700;white-space:nowrap;font-size:13px;
@@ -1042,19 +1042,41 @@ function tagScentCodes(name){
   const normalized = normalizeCode(raw); // 全形轉半形後,字元位置跟原字串一一對應,長度不變
   const sorted = [...codes].sort((a,b)=>b.length-a.length);
   const pattern = new RegExp('(' + sorted.map(c=>c.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|') + ')', 'g');
-  let result = '';
-  let lastIndex = 0;
+
+  // 先找出所有代號出現的位置
+  const matches = [];
   let m;
   while((m = pattern.exec(normalized)) !== null){
-    const start = m.index, end = start + m[0].length;
-    result += escapeHtml(raw.slice(lastIndex, start));
-    const code = m[0];
-    const bg = scentColorMap[code];
-    const tagStyle = bg ? ' style="background:' + bg + ';color:' + darkenColor(bg, 100) + ';"' : '';
-    result += '<span class="pc-scent-tag"' + tagStyle + '>' + escapeHtml(code) + '</span>';
-    lastIndex = end;
+    matches.push({code: m[0], start: m.index, end: m.index + m[0].length});
   }
-  result += escapeHtml(raw.slice(lastIndex));
+  if(matches.length === 0) return escapeHtml(raw);
+
+  let result = '';
+  let cursor = 0;
+  matches.forEach((match, i)=>{
+    // 代號前面的文字(例如分類前綴、或「+」分隔號)當一般文字輸出
+    result += escapeHtml(raw.slice(cursor, match.start));
+
+    // 這個色籤要包到哪裡結束:遇到「+」或下一個代號開頭,或字串結束就停
+    let segEnd = raw.length;
+    const nextPlus = raw.indexOf('+', match.end);
+    if(nextPlus !== -1) segEnd = Math.min(segEnd, nextPlus);
+    if(i + 1 < matches.length) segEnd = Math.min(segEnd, matches[i+1].start);
+
+    const codeLen = match.end - match.start;
+    let restText = raw.slice(match.start + codeLen, segEnd);
+    // 代號後面緊接的一個分隔符號(底線/間隔號/空白)拿掉,色籤裡看起來更乾淨
+    if(/^[_・\s]/.test(restText)) restText = restText.slice(1);
+    // 代號固定用半形顯示(match.code 已經是正規化過的半形),避免全形寫法讓色籤忽大忽小
+    const segText = match.code + restText;
+
+    const bg = scentColorMap[match.code];
+    const tagStyle = bg ? ' style="background:' + bg + ';color:' + darkenColor(bg, 100) + ';"' : '';
+    result += '<span class="pc-scent-tag"' + tagStyle + '>' + escapeHtml(segText) + '</span>';
+
+    cursor = segEnd;
+  });
+  result += escapeHtml(raw.slice(cursor));
   return result;
 }
 
