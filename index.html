@@ -64,6 +64,15 @@
   .announce-box ul{margin:0;padding-left:20px;}
   .announce-box li{font-size:17px;font-weight:600;color:var(--ink);line-height:1.7;}
 
+  .ship-type-selector{margin-bottom:18px;}
+  .ship-type-selector label{display:block;font-size:13px;font-weight:600;margin-bottom:8px;}
+  .ship-type-btns{display:flex;gap:8px;flex-wrap:wrap;}
+  .stype-btn{
+    font-family:inherit;font-size:13px;font-weight:600;padding:8px 16px;border-radius:20px;
+    border:1.5px solid var(--line);background:var(--paper);color:var(--ink-soft);cursor:pointer;
+  }
+  .stype-btn.active{border-color:var(--sage);background:var(--ok-soft);color:var(--sage-dark);}
+
   .channels{display:flex;gap:10px;flex-wrap:wrap;margin:28px 0 32px;}
   .chan-btn{
     flex:1 1 150px;padding:16px 14px;border-radius:var(--radius);border:1.5px solid var(--line);
@@ -190,6 +199,9 @@
   .pc-ship-kerry{background:var(--ok-soft);color:var(--ok);}
   .pc-ship-store{background:var(--amber-soft);color:#8A5A1E;}
   .pc-ship-sf{background:#E3D9F5;color:#5B3A99;}
+  .pc-ship-next{background:#D6E9F5;color:#1F5A80;}
+  .pc-ship-home{background:#F5E0D6;color:#8A4B25;}
+  .pc-ship-shop2shop{background:#E8E3F5;color:#4A3A80;}
   .sf-item{padding:8px 0;border-bottom:1px solid var(--line);font-size:14px;}
   .sf-item:last-child{border-bottom:none;}
   .pick-card .pc-divider{border-top:1px dashed var(--line);}
@@ -257,15 +269,25 @@
       <span class="name">PINKOI</span>
       <span class="tag">即將推出</span>
     </button>
-    <button class="chan-btn" disabled>
+    <button class="chan-btn" id="chan-shopee" onclick="selectChannel('shopee')">
       <span class="name">蝦皮</span>
-      <span class="tag">即將推出</span>
+      <span class="tag">可以使用</span>
     </button>
   </div>
 
   <div class="panel no-print">
     <h2>上傳訂單檔案</h2>
     <div class="desc" id="upload-desc">從 LINE 禮物賣家後台下載今天的訂單 Excel 檔,拖進來或點擊選擇。</div>
+
+    <div class="ship-type-selector no-print" id="shopeeTypeSelector" style="display:none;">
+      <label>這份檔案是哪種物流方式?</label>
+      <div class="ship-type-btns">
+        <button type="button" class="stype-btn active" data-type="next" onclick="selectShopeeType('next')">隔日到貨</button>
+        <button type="button" class="stype-btn" data-type="home" onclick="selectShopeeType('home')">店到家宅配</button>
+        <button type="button" class="stype-btn" data-type="shop2shop" onclick="selectShopeeType('shop2shop')">店到店</button>
+        <button type="button" class="stype-btn" data-type="store" onclick="selectShopeeType('store')">超商</button>
+      </div>
+    </div>
 
     <div class="dropzone" id="dropzone" onclick="document.getElementById('fileInput').click()">
       <p id="dz-text">將檔案拖曳到這裡,或點擊選擇檔案</p>
@@ -293,7 +315,7 @@
 
     <div class="sku-status no-print" id="skuStatusBox"></div>
 
-    <div class="download-list">
+    <div class="download-list" id="kerryDownloadItem">
       <div class="dl-item">
         <div class="info">
           <div class="name">黑貓匯入檔.csv</div>
@@ -621,20 +643,37 @@ async function loadSkuMap(){
 }
 
 let currentChannel = 'line';
+let shopeeShipType = 'next';
+
 function selectChannel(ch){
   currentChannel = ch;
   document.getElementById('chan-line').classList.toggle('active', ch==='line');
   document.getElementById('chan-shop').classList.toggle('active', ch==='shop');
+  document.getElementById('chan-shopee').classList.toggle('active', ch==='shopee');
   const desc = document.getElementById('upload-desc');
   const fileInputEl = document.getElementById('fileInput');
+  const typeSelector = document.getElementById('shopeeTypeSelector');
   if(ch === 'line'){
     desc.textContent = '從 LINE 禮物賣家後台下載今天的訂單 Excel 檔,拖進來或點擊選擇。';
     fileInputEl.accept = '.xlsx,.xls';
-  }else{
+    typeSelector.style.display = 'none';
+  }else if(ch === 'shop'){
     desc.textContent = '從官網後台匯出今天的訂單 CSV 檔,拖進來或點擊選擇。';
     fileInputEl.accept = '.csv';
+    typeSelector.style.display = 'none';
+  }else{
+    desc.textContent = '從蝦皮賣家中心下載的裝箱單 Excel 檔,拖進來或點擊選擇。';
+    fileInputEl.accept = '.xlsx,.xls';
+    typeSelector.style.display = 'block';
   }
   resetAll();
+}
+
+function selectShopeeType(t){
+  shopeeShipType = t;
+  document.querySelectorAll('.stype-btn').forEach(b=>{
+    b.classList.toggle('active', b.dataset.type === t);
+  });
 }
 
 // ===== 頁面切換 =====
@@ -1165,7 +1204,7 @@ function categorizeShipping(method){
   if(m.includes('港澳')) return 'sf';
   return 'kerry';
 }
-const SHIP_CATEGORY_LABEL = {kerry:'黑貓', store:'超商', sf:'順豐'};
+const SHIP_CATEGORY_LABEL = {kerry:'黑貓', store:'超商', sf:'順豐', next:'隔日到貨', home:'店到家宅配', shop2shop:'店到店'};
 
 // 官網(Shopify)匯出檔:同一張訂單會拆成好幾列,只有第一列有 Name/收件人等欄位,
 // 後面幾列是空的要沿用上面那列的值(表格合併儲存格匯出成CSV常見的樣子)
@@ -1241,8 +1280,10 @@ async function processFile(){
 
   if(currentChannel === 'line'){
     items = await readLineItems();
-  }else{
+  }else if(currentChannel === 'shop'){
     items = await readShopItems();
+  }else{
+    items = await readShopeeItems();
   }
   if(!items) return; // 錯誤訊息已經在讀取函式裡顯示過了
 
@@ -1362,6 +1403,100 @@ async function readShopItems(){
     const result = parseShopRows(dataRows, headers);
     if(result.error){ showError(result.error); return null; }
     return result.items;
+  }catch(err){
+    showError(['整理資料時發生問題: ' + err.message]);
+    return null;
+  }
+}
+
+// 蝦皮裝箱單:商品資訊全部塞在同一個欄位(product_info)裡,格式像
+// "[1] 商品名稱:...; 商品選項名稱:...; 價格: $490; 數量: 1; 商品選項貨號: DiffG5_B; 主商品貨號: ...;\r\n[2] ..."
+// 需要自己解析拆開,而且完全沒有收件人姓名/電話/地址欄位,只能用訂單編號當識別
+function parseProductInfo(text){
+  if(!text) return [];
+  const blocks = String(text).split(/\[\d+\]\s*/).filter(b => b.trim());
+  return blocks.map(b=>{
+    const nameM = b.match(/商品名稱:\s*([^;]+);/);
+    const optM = b.match(/商品選項名稱:\s*([^;]+);/);
+    const priceM = b.match(/價格:\s*\$?\s*([\d.]+)/);
+    const qtyM = b.match(/數量:\s*(\d+)/);
+    const skuM = b.match(/商品選項貨號:\s*([^;]+);/);
+    return {
+      itemName: nameM ? nameM[1].trim() : '',
+      option: optM ? optM[1].trim() : '',
+      price: priceM ? parseFloat(priceM[1]) : 0,
+      qty: qtyM ? parseInt(qtyM[1], 10) : 1,
+      sku: skuM ? skuM[1].trim() : ''
+    };
+  });
+}
+
+async function readShopeeItems(){
+  let wb = null;
+  let lastErr = null;
+  try{
+    const buf = await readArrayBuffer(currentFile);
+    wb = XLSX.read(new Uint8Array(buf), {type:'array'});
+  }catch(err){ lastErr = err; }
+  if(!wb){
+    try{
+      const bstr = await readBinaryString(currentFile);
+      wb = XLSX.read(bstr, {type:'binary'});
+    }catch(err){ lastErr = err; }
+  }
+  if(!wb){
+    showError(['讀取蝦皮裝箱單失敗: ' + (lastErr && lastErr.message || ''), '請確認上傳的是蝦皮賣家中心下載的裝箱單 Excel 檔。']);
+    return null;
+  }
+
+  try{
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+    if(rows.length < 2){ showError(['裝箱單裡沒有找到資料列。']); return null; }
+    const headers = rows[0];
+    const dataRows = rows.slice(1).filter(r => r.some(c => String(c).trim() !== ''));
+
+    const orderI = idxOf(headers, ['order_sn']);
+    const infoI = idxOf(headers, ['product_info']);
+    const remarkI = idxOf(headers, ['remark_from_buyer']);
+    if(orderI === -1 || infoI === -1){
+      showError(['裝箱單裡找不到「order_sn」或「product_info」欄位,請確認上傳的是蝦皮賣家中心下載的裝箱單。']);
+      return null;
+    }
+
+    rawHeaders = headers;
+    const items = [];
+    dataRows.forEach(r=>{
+      const orderId = String(r[orderI]||'').trim();
+      if(!orderId) return;
+      const custRaw = remarkI !== -1 ? String(r[remarkI]||'').trim() : '';
+      const emptyTokens = ['', '-', '－', '無', 'na', 'n/a'];
+      const hasCust = !emptyTokens.includes(custRaw.toLowerCase());
+      const parsed = parseProductInfo(r[infoI]);
+      parsed.forEach(p=>{
+        items.push({
+          orderId: orderId,
+          name: orderId, // 蝦皮裝箱單沒有收件人姓名,用訂單編號當標題
+          phone: '',
+          address: '',
+          custText: custRaw,
+          hasCust: hasCust,
+          itemName: p.itemName + (p.option ? ' - ' + p.option : ''),
+          price: p.price,
+          qty: p.qty,
+          subtotal: p.price * p.qty,
+          sku: p.sku,
+          rawRow: r,
+          shippingCategory: shopeeShipType
+        });
+      });
+    });
+
+    if(items.length === 0){
+      showError(['沒有解析到任何商品資料,請確認裝箱單內容是否正常。']);
+      return null;
+    }
+    return items;
   }catch(err){
     showError(['整理資料時發生問題: ' + err.message]);
     return null;
@@ -1512,14 +1647,15 @@ function renderPickList(){
       : '';
     const cardClass = notes.length > 0 ? 'pick-card pick-card-alert' : 'pick-card';
     const shipCat = its[0].shippingCategory;
-    const shipTag = (currentChannel === 'shop' && shipCat)
+    const shipTag = ((currentChannel === 'shop' || currentChannel === 'shopee') && shipCat)
       ? '<span class="pc-ship-tag pc-ship-' + shipCat + '">' + SHIP_CATEGORY_LABEL[shipCat] + '</span>'
       : '';
+    const orderBadge = (name !== oid) ? '<span class="pc-order">' + escapeHtml(oid) + '</span>' : '';
     return '<div class="' + cardClass + '" id="pick-card-' + idx + '">' +
       noteBlock +
       '<div class="pc-top">' +
         '<label class="pc-check no-print"><input type="checkbox" onchange="togglePickDone(' + idx + ', this.checked)"> 已檢貨</label>' +
-        '<div class="pc-headrow"><span class="pc-name">' + escapeHtml(name) + shipTag + '</span><span class="pc-order">' + escapeHtml(oid) + '</span></div>' +
+        '<div class="pc-headrow"><span class="pc-name">' + escapeHtml(name) + shipTag + '</span>' + orderBadge + '</div>' +
       '</div>' +
       '<div class="pc-divider"></div>' +
       '<div class="pc-body">' + itemsHtml + custBlock + '</div>' +
@@ -1604,6 +1740,8 @@ function renderResult(){
     `;
     document.getElementById('sfPanel').style.display = 'none';
   }
+
+  document.getElementById('kerryDownloadItem').style.display = (currentChannel === 'shopee') ? 'none' : 'block';
 
   document.getElementById('resultPanel').style.display = 'block';
   document.getElementById('resetBtn').style.display = 'inline-block';
