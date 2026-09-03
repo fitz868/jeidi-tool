@@ -1026,18 +1026,36 @@ async function processFile(){
   }
 }
 
-// 把「G8_隨行噴霧」「Ｇ６・擴香瓶」這類名稱拆成香味代號跟品名兩段,方便用色籤獨立標示
-function parseScentCode(name){
-  const m = String(name||'').match(/^([A-Za-z0-9\uFF21-\uFF3A\uFF41-\uFF5A\uFF10-\uFF19]{1,4})[_・\s]+(.+)$/);
-  if(m) return {code: m[1], rest: m[2]};
-  return null;
-}
-
 // 全形字母數字轉半形,讓「Ｇ６」也能對照到顏色表裡的「G6」
 function normalizeCode(s){
   return String(s).replace(/[\uFF10-\uFF19\uFF21-\uFF3A\uFF41-\uFF5A]/g, c =>
     String.fromCharCode(c.charCodeAt(0) - 0xFEE0)
   ).toUpperCase();
+}
+
+// 掃描品名裡任何位置出現的已知香味代號(可能不只一個),用色籤標示;
+// 色籤一律顯示成統一的半形格式,不管原始是全形還半形,大小才會一致
+function tagScentCodes(name){
+  const raw = String(name||'');
+  const codes = Object.keys(scentColorMap);
+  if(codes.length === 0) return escapeHtml(raw);
+  const normalized = normalizeCode(raw); // 全形轉半形後,字元位置跟原字串一一對應,長度不變
+  const sorted = [...codes].sort((a,b)=>b.length-a.length);
+  const pattern = new RegExp('(' + sorted.map(c=>c.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|') + ')', 'g');
+  let result = '';
+  let lastIndex = 0;
+  let m;
+  while((m = pattern.exec(normalized)) !== null){
+    const start = m.index, end = start + m[0].length;
+    result += escapeHtml(raw.slice(lastIndex, start));
+    const code = m[0];
+    const bg = scentColorMap[code];
+    const tagStyle = bg ? ' style="background:' + bg + ';color:' + darkenColor(bg, 100) + ';"' : '';
+    result += '<span class="pc-scent-tag"' + tagStyle + '>' + escapeHtml(code) + '</span>';
+    lastIndex = end;
+  }
+  result += escapeHtml(raw.slice(lastIndex));
+  return result;
 }
 
 function parseCombo(comboStr, ownSku){
@@ -1071,16 +1089,7 @@ function renderPickList(){
         return '<div class="pc-accessory">+ 附:' + escapeHtml(label) + ' x' + a.qty + '</div>';
       }).join('');
       const qtyClass = it.qty > 1 ? 'pc-item-qty qty-high' : 'pc-item-qty';
-      const parsed = parseScentCode(it.displayName);
-      let nameHtml;
-      if(parsed){
-        const normCode = normalizeCode(parsed.code);
-        const bg = scentColorMap[normCode];
-        const tagStyle = bg ? ' style="background:' + bg + ';color:' + darkenColor(bg, 100) + ';"' : '';
-        nameHtml = '<span class="pc-scent-tag"' + tagStyle + '>' + escapeHtml(parsed.code) + '</span>' + escapeHtml(parsed.rest);
-      }else{
-        nameHtml = escapeHtml(it.displayName);
-      }
+      const nameHtml = tagScentCodes(it.displayName);
       return '<div class="pc-item"><span class="pc-item-name">' + nameHtml + '</span><span class="' + qtyClass + '">x' + it.qty + '</span></div>' + accHtml;
     }).join('');
     const custBlock = its.some(it=>it.hasCust)
