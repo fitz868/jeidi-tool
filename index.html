@@ -183,6 +183,15 @@
   .pick-card .pc-headrow{display:flex;justify-content:space-between;align-items:baseline;}
   .pick-card .pc-order{font-size:11px;color:var(--ink-soft);}
   .pick-card .pc-name{font-size:19px;font-weight:700;color:var(--ink);}
+  .pc-ship-tag{
+    display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;
+    margin-left:8px;vertical-align:2px;
+  }
+  .pc-ship-kerry{background:var(--ok-soft);color:var(--ok);}
+  .pc-ship-store{background:var(--amber-soft);color:#8A5A1E;}
+  .pc-ship-sf{background:#E3D9F5;color:#5B3A99;}
+  .sf-item{padding:8px 0;border-bottom:1px solid var(--line);font-size:14px;}
+  .sf-item:last-child{border-bottom:none;}
   .pick-card .pc-divider{border-top:1px dashed var(--line);}
   .pick-card .pc-body{padding:14px 18px;}
   .pick-card .pc-item{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:5px 0;font-size:17px;}
@@ -240,9 +249,9 @@
       <span class="name">LINE 禮物</span>
       <span class="tag">可以使用</span>
     </button>
-    <button class="chan-btn" disabled>
+    <button class="chan-btn" id="chan-shop" onclick="selectChannel('shop')">
       <span class="name">官網</span>
-      <span class="tag">即將推出</span>
+      <span class="tag">可以使用</span>
     </button>
     <button class="chan-btn" disabled>
       <span class="name">PINKOI</span>
@@ -256,12 +265,12 @@
 
   <div class="panel no-print">
     <h2>上傳訂單檔案</h2>
-    <div class="desc">從 LINE 禮物賣家後台下載今天的訂單 Excel 檔,拖進來或點擊選擇。</div>
+    <div class="desc" id="upload-desc">從 LINE 禮物賣家後台下載今天的訂單 Excel 檔,拖進來或點擊選擇。</div>
 
     <div class="dropzone" id="dropzone" onclick="document.getElementById('fileInput').click()">
       <p id="dz-text">將檔案拖曳到這裡,或點擊選擇檔案</p>
       <div class="filename" id="dz-filename"></div>
-      <input type="file" id="fileInput" accept=".xlsx,.xls">
+      <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
     </div>
     <div class="btn-row">
       <button class="primary" id="processBtn" onclick="processFile()" disabled>開始處理</button>
@@ -293,6 +302,15 @@
         <button class="ghost" onclick="downloadKerryCSV()">下載</button>
       </div>
     </div>
+  </div>
+
+  <div class="panel no-print" id="sfPanel" style="display:none;">
+    <div class="panel-head-row">
+      <h2>順豐訂單</h2>
+      <a class="ghost" style="text-decoration:none;display:inline-block;" href="https://htm.sf-express.com/tw/tc/products_services/express_service/mainland_area/standard_express_service/" target="_blank" rel="noopener">前往順豐官網叫件</a>
+    </div>
+    <div class="desc">今天這幾張訂單是港澳順豐配送,黑貓匯入檔不會包含這些,提醒兼職另外處理。</div>
+    <div id="sfList"></div>
   </div>
 
   <div class="panel pick-section" id="pickPanel" style="display:none;">
@@ -602,8 +620,21 @@ async function loadSkuMap(){
   skuLoaded = true;
 }
 
+let currentChannel = 'line';
 function selectChannel(ch){
-  // 目前只有 LINE 可用,先保留擴充位置
+  currentChannel = ch;
+  document.getElementById('chan-line').classList.toggle('active', ch==='line');
+  document.getElementById('chan-shop').classList.toggle('active', ch==='shop');
+  const desc = document.getElementById('upload-desc');
+  const fileInputEl = document.getElementById('fileInput');
+  if(ch === 'line'){
+    desc.textContent = '從 LINE 禮物賣家後台下載今天的訂單 Excel 檔,拖進來或點擊選擇。';
+    fileInputEl.accept = '.xlsx,.xls';
+  }else{
+    desc.textContent = '從官網後台匯出今天的訂單 CSV 檔,拖進來或點擊選擇。';
+    fileInputEl.accept = '.csv';
+  }
+  resetAll();
 }
 
 // ===== 頁面切換 =====
@@ -1082,6 +1113,7 @@ function resetAll(){
   document.getElementById('resultPanel').style.display = 'none';
   document.getElementById('errorPanel').style.display = 'none';
   document.getElementById('pickPanel').style.display = 'none';
+  document.getElementById('sfPanel').style.display = 'none';
   fileInput.value = '';
 }
 
@@ -1126,10 +1158,98 @@ function readBinaryString(file){
   });
 }
 
+// 依 Shipping Method 文字判斷是黑貓/超商/順豐
+function categorizeShipping(method){
+  const m = String(method||'');
+  if(m.includes('超商')) return 'store';
+  if(m.includes('港澳')) return 'sf';
+  return 'kerry';
+}
+const SHIP_CATEGORY_LABEL = {kerry:'黑貓', store:'超商', sf:'順豐'};
+
+// 官網(Shopify)匯出檔:同一張訂單會拆成好幾列,只有第一列有 Name/收件人等欄位,
+// 後面幾列是空的要沿用上面那列的值(表格合併儲存格匯出成CSV常見的樣子)
+function parseShopRows(dataRows, headers){
+  const nameI = idxOf(headers, ['Name']);
+  const smI = idxOf(headers, ['Shipping Method']);
+  const qI = idxOf(headers, ['Lineitem quantity']);
+  const iI = idxOf(headers, ['Lineitem name']);
+  const prI = idxOf(headers, ['Lineitem price']);
+  const skuI = idxOf(headers, ['Lineitem sku']);
+  const snI = idxOf(headers, ['Shipping Name']);
+  const spI = idxOf(headers, ['Shipping Phone']);
+  const saI = idxOf(headers, ['Shipping Address1']);
+  const scI = idxOf(headers, ['Shipping City']);
+  const noteI = idxOf(headers, ['Notes']);
+
+  if(nameI===-1 || iI===-1 || qI===-1){
+    return {error: ['在這個檔案裡找不到必要欄位(Name / Lineitem name / Lineitem quantity)', '請確認上傳的是官網後台匯出的訂單原始檔,欄位名稱沒有被更動過。']};
+  }
+
+  let ctx = null;
+  let lastOrderId = null;
+  const items = [];
+  dataRows.forEach(r=>{
+    const rawName = String(r[nameI]||'').trim();
+    // Name 欄位每一列其實都會重複填寫,真正只出現在「第一列」的是 Shipping Method/Shipping Name 這些
+    // 所以要用「訂單編號跟上一列不同」來判斷是不是換了一張新訂單,而不是「Name 是否有值」
+    if(rawName && rawName !== lastOrderId){
+      const method = smI!==-1 ? String(r[smI]||'').trim() : '';
+      const custRaw = noteI!==-1 ? String(r[noteI]||'').trim() : '';
+      ctx = {
+        orderId: rawName,
+        name: snI!==-1 ? String(r[snI]||'') : '',
+        phone: spI!==-1 ? cleanId(r[spI]) : '',
+        address: (scI!==-1 ? String(r[scI]||'') : '') + (saI!==-1 ? String(r[saI]||'') : ''),
+        shippingCategory: categorizeShipping(method),
+        custRaw: custRaw
+      };
+      lastOrderId = rawName;
+    }
+    if(!ctx) return; // 沒有訂單資訊可依附的異常列,跳過
+
+    const custNormalized = ctx.custRaw.replace(/^['"、\s]+/, '').replace(/[\s]+$/, '');
+    const emptyTokens = ['', '-', '－', '無', 'na', 'n/a'];
+    const hasCust = !emptyTokens.includes(custNormalized.toLowerCase());
+    const price = prI!==-1 ? toNum(r[prI], 0) : 0;
+    const qty = qI!==-1 ? toNum(r[qI], 1) : 1;
+
+    items.push({
+      orderId: ctx.orderId,
+      name: ctx.name,
+      phone: ctx.phone,
+      address: ctx.address,
+      custText: custNormalized,
+      hasCust: hasCust,
+      itemName: iI!==-1 ? String(r[iI]||'') : '',
+      price: price,
+      qty: qty,
+      subtotal: price * qty,
+      sku: skuI!==-1 ? String(r[skuI]||'').trim() : '',
+      rawRow: r,
+      shippingCategory: ctx.shippingCategory
+    });
+  });
+  return {items};
+}
+
 async function processFile(){
   if(!currentFile) return;
   document.getElementById('errorPanel').style.display = 'none';
 
+  let items = null;
+
+  if(currentChannel === 'line'){
+    items = await readLineItems();
+  }else{
+    items = await readShopItems();
+  }
+  if(!items) return; // 錯誤訊息已經在讀取函式裡顯示過了
+
+  await finishProcessing(items);
+}
+
+async function readLineItems(){
   let wb = null;
   let lastErr = null;
 
@@ -1158,108 +1278,141 @@ async function processFile(){
     }else{
       showError(['讀取檔案時發生問題: ' + msg, '請確認檔案格式是否為 .xlsx 或 .xls。']);
     }
-    return;
+    return null;
   }
 
   try{
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
-      if(rows.length < 2){ showError(['檔案裡沒有找到資料列,請確認匯出的檔案內容。']); return; }
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+    if(rows.length < 2){ showError(['檔案裡沒有找到資料列,請確認匯出的檔案內容。']); return null; }
 
-      const headers = rows[0];
-      const dataRows = rows.slice(1).filter(r => r.some(c => String(c).trim() !== ''));
+    const headers = rows[0];
+    const dataRows = rows.slice(1).filter(r => r.some(c => String(c).trim() !== ''));
 
-      const oI = idxOf(headers, ['訂單編號']);
-      const nI = idxOf(headers, ['收件人姓名']);
-      const pI = idxOf(headers, ['收件人聯絡電話']);
-      const aI = idxOf(headers, ['配送地址']);
-      const cI = idxOf(headers, ['客製刻印選項']);
-      const iI = idxOf(headers, ['商品名稱']);
-      const subI = idxOf(headers, ['總金額','小計']);
-      const prI = idxOf(headers, ['價格','單價']);
-      const qI = idxOf(headers, ['數量']);
-      const skuHI = idxOf(headers, ['賣家商品代碼']);
-      const skuII = idxOf(headers, ['規格管理代碼']);
+    const oI = idxOf(headers, ['訂單編號']);
+    const nI = idxOf(headers, ['收件人姓名']);
+    const pI = idxOf(headers, ['收件人聯絡電話']);
+    const aI = idxOf(headers, ['配送地址']);
+    const cI = idxOf(headers, ['客製刻印選項']);
+    const iI = idxOf(headers, ['商品名稱']);
+    const subI = idxOf(headers, ['總金額','小計']);
+    const prI = idxOf(headers, ['價格','單價']);
+    const qI = idxOf(headers, ['數量']);
+    const skuHI = idxOf(headers, ['賣家商品代碼']);
+    const skuII = idxOf(headers, ['規格管理代碼']);
 
-      const required = {'訂單編號':oI, '收件人姓名':nI, '商品名稱':iI, '數量':qI};
-      const missing = Object.keys(required).filter(k => required[k] === -1);
-      if(missing.length){
-        showError([
-          '在這個檔案裡找不到以下欄位: ' + missing.join('、'),
-          '請確認上傳的是 LINE 禮物賣家後台匯出的訂單原始檔,欄位名稱沒有被更動過。'
-        ]);
-        return;
-      }
+    const required = {'訂單編號':oI, '收件人姓名':nI, '商品名稱':iI, '數量':qI};
+    const missing = Object.keys(required).filter(k => required[k] === -1);
+    if(missing.length){
+      showError([
+        '在這個檔案裡找不到以下欄位: ' + missing.join('、'),
+        '請確認上傳的是 LINE 禮物賣家後台匯出的訂單原始檔,欄位名稱沒有被更動過。'
+      ]);
+      return null;
+    }
 
-      rawHeaders = headers;
+    rawHeaders = headers;
 
-      let items = dataRows.map(r => {
-        const sku = (skuHI !== -1 && String(r[skuHI]||'').trim() !== '') ? r[skuHI]
-                    : (skuII !== -1 ? r[skuII] : '');
-        const custRawOriginal = cI !== -1 ? String(r[cI]||'').trim() : '';
-        // Excel常把純符號欄位加上前導單引號/全形符號,這裡先去除再判斷是否真的有內容
-        const custNormalized = custRawOriginal.replace(/^['"、\s]+/, '').replace(/[\s]+$/, '');
-        const emptyTokens = ['', '-', '－', '無', 'na', 'n/a', '無刻印', '不需要', '不用'];
-        const hasCust = !emptyTokens.includes(custNormalized.toLowerCase());
-        const custRaw = custNormalized;
-        return {
-          orderId: cleanId(r[oI]),
-          name: nI !== -1 ? String(r[nI]||'') : '',
-          phone: pI !== -1 ? cleanId(r[pI]) : '',
-          address: aI !== -1 ? String(r[aI]||'') : '',
-          custText: custRaw,
-          hasCust: hasCust,
-          itemName: iI !== -1 ? String(r[iI]||'') : '',
-          price: prI !== -1 ? toNum(r[prI], 0) : 0,
-          qty: qI !== -1 ? toNum(r[qI], 1) : 1,
-          subtotal: subI !== -1 ? toNum(r[subI], 0) : 0,
-          sku: String(sku||'').trim(),
-          rawRow: r
-        };
-      });
-
-      // 排序:客製優先 → 數量多到少 → 金額高到低 → SKU
-      items.sort((a,b)=>{
-        if(a.hasCust !== b.hasCust) return a.hasCust ? -1 : 1;
-        if(b.qty !== a.qty) return b.qty - a.qty;
-        if(b.subtotal !== a.subtotal) return b.subtotal - a.subtotal;
-        return a.sku.localeCompare(b.sku);
-      });
-
-      // 套用 SKU 對照表:有查到就用乾淨品名,查不到就維持原始平台品名
-      await loadSkuMap();
-      await loadOrderNotes();
-      await loadScentColors();
-      let matchedSkuCount = 0;
-      items.forEach(it=>{
-        const info = skuMap[it.sku];
-        if(info){
-          it.displayName = info.name || it.itemName;
-          it.combo = info.combo || '';
-          matchedSkuCount++;
-        }else{
-          it.displayName = it.itemName;
-          it.combo = '';
-        }
-      });
-
-      const skuBox = document.getElementById('skuStatusBox');
-      if(skuLoadError){
-        skuBox.className = 'sku-status no-print err';
-        skuBox.textContent = 'SKU 對照表讀取失敗(' + skuLoadError + '),檢貨單暫時顯示平台原始品名。';
-      }else{
-        skuBox.className = 'sku-status no-print';
-        skuBox.textContent = 'SKU 對照:' + matchedSkuCount + ' / ' + items.length + ' 筆項目已對到品名' + (matchedSkuCount < items.length ? '(其餘顯示平台原始品名)' : '');
-      }
-
-      parsedItems = items;
-      custItems = items.filter(it => it.hasCust);
-
-      renderResult();
-      renderPickList();
+    return dataRows.map(r => {
+      const sku = (skuHI !== -1 && String(r[skuHI]||'').trim() !== '') ? r[skuHI]
+                  : (skuII !== -1 ? r[skuII] : '');
+      const custRawOriginal = cI !== -1 ? String(r[cI]||'').trim() : '';
+      const custNormalized = custRawOriginal.replace(/^['"、\s]+/, '').replace(/[\s]+$/, '');
+      const emptyTokens = ['', '-', '－', '無', 'na', 'n/a', '無刻印', '不需要', '不用'];
+      const hasCust = !emptyTokens.includes(custNormalized.toLowerCase());
+      return {
+        orderId: cleanId(r[oI]),
+        name: nI !== -1 ? String(r[nI]||'') : '',
+        phone: pI !== -1 ? cleanId(r[pI]) : '',
+        address: aI !== -1 ? String(r[aI]||'') : '',
+        custText: custNormalized,
+        hasCust: hasCust,
+        itemName: iI !== -1 ? String(r[iI]||'') : '',
+        price: prI !== -1 ? toNum(r[prI], 0) : 0,
+        qty: qI !== -1 ? toNum(r[qI], 1) : 1,
+        subtotal: subI !== -1 ? toNum(r[subI], 0) : 0,
+        sku: String(sku||'').trim(),
+        rawRow: r,
+        shippingCategory: 'kerry'
+      };
+    });
   }catch(err){
     showError(['整理資料時發生問題: ' + err.message]);
+    return null;
   }
+}
+
+async function readShopItems(){
+  let text;
+  try{
+    const buf = await readArrayBuffer(currentFile);
+    text = new TextDecoder('utf-8').decode(new Uint8Array(buf));
+  }catch(err){
+    showError(['讀取檔案失敗: ' + err.message]);
+    return null;
+  }
+
+  try{
+    const rows = parseCSV(text);
+    if(rows.length < 2){ showError(['檔案裡沒有找到資料列,請確認匯出的檔案內容。']); return null; }
+    const headers = rows[0];
+    const dataRows = rows.slice(1).filter(r => r.some(c => String(c).trim() !== ''));
+
+    rawHeaders = headers;
+    const result = parseShopRows(dataRows, headers);
+    if(result.error){ showError(result.error); return null; }
+    return result.items;
+  }catch(err){
+    showError(['整理資料時發生問題: ' + err.message]);
+    return null;
+  }
+}
+
+async function finishProcessing(rawItems){
+  let items = rawItems;
+
+  // 排序:物流方式分組(黑貓/超商/順豐)→ 客製優先 → 數量多到少 → 金額高到低 → SKU
+  const SHIP_ORDER = {kerry:0, store:1, sf:2};
+  items.sort((a,b)=>{
+    const sa = SHIP_ORDER[a.shippingCategory] ?? 0, sb = SHIP_ORDER[b.shippingCategory] ?? 0;
+    if(sa !== sb) return sa - sb;
+    if(a.hasCust !== b.hasCust) return a.hasCust ? -1 : 1;
+    if(b.qty !== a.qty) return b.qty - a.qty;
+    if(b.subtotal !== a.subtotal) return b.subtotal - a.subtotal;
+    return a.sku.localeCompare(b.sku);
+  });
+
+  // 套用 SKU 對照表:有查到就用乾淨品名,查不到就維持原始平台品名
+  await loadSkuMap();
+  await loadOrderNotes();
+  await loadScentColors();
+  let matchedSkuCount = 0;
+  items.forEach(it=>{
+    const info = skuMap[it.sku];
+    if(info){
+      it.displayName = info.name || it.itemName;
+      it.combo = info.combo || '';
+      matchedSkuCount++;
+    }else{
+      it.displayName = it.itemName;
+      it.combo = '';
+    }
+  });
+
+  const skuBox = document.getElementById('skuStatusBox');
+  if(skuLoadError){
+    skuBox.className = 'sku-status no-print err';
+    skuBox.textContent = 'SKU 對照表讀取失敗(' + skuLoadError + '),檢貨單暫時顯示平台原始品名。';
+  }else{
+    skuBox.className = 'sku-status no-print';
+    skuBox.textContent = 'SKU 對照:' + matchedSkuCount + ' / ' + items.length + ' 筆項目已對到品名' + (matchedSkuCount < items.length ? '(其餘顯示平台原始品名)' : '');
+  }
+
+  parsedItems = items;
+  custItems = items.filter(it => it.hasCust);
+
+  renderResult();
+  renderPickList();
 }
 
 // 全形字母數字轉半形,讓「Ｇ６」也能對照到顏色表裡的「G6」
@@ -1358,11 +1511,15 @@ function renderPickList(){
       ? '<div class="pc-alert">⚠ ' + notes.map(escapeHtml).join('<br>⚠ ') + '</div>'
       : '';
     const cardClass = notes.length > 0 ? 'pick-card pick-card-alert' : 'pick-card';
+    const shipCat = its[0].shippingCategory;
+    const shipTag = (currentChannel === 'shop' && shipCat)
+      ? '<span class="pc-ship-tag pc-ship-' + shipCat + '">' + SHIP_CATEGORY_LABEL[shipCat] + '</span>'
+      : '';
     return '<div class="' + cardClass + '" id="pick-card-' + idx + '">' +
       noteBlock +
       '<div class="pc-top">' +
         '<label class="pc-check no-print"><input type="checkbox" onchange="togglePickDone(' + idx + ', this.checked)"> 已檢貨</label>' +
-        '<div class="pc-headrow"><span class="pc-name">' + escapeHtml(name) + '</span><span class="pc-order">' + escapeHtml(oid) + '</span></div>' +
+        '<div class="pc-headrow"><span class="pc-name">' + escapeHtml(name) + shipTag + '</span><span class="pc-order">' + escapeHtml(oid) + '</span></div>' +
       '</div>' +
       '<div class="pc-divider"></div>' +
       '<div class="pc-body">' + itemsHtml + custBlock + '</div>' +
@@ -1392,6 +1549,7 @@ function showError(lines){
   document.getElementById('errorPanel').style.display = 'block';
   document.getElementById('resultPanel').style.display = 'none';
   document.getElementById('pickPanel').style.display = 'none';
+  document.getElementById('sfPanel').style.display = 'none';
 }
 
 function renderResult(){
@@ -1407,11 +1565,45 @@ function renderResult(){
     <div class="rt-cell"><div class="rt-num">${overTwoCount}</div><div class="rt-lbl">數量大於 2</div></div>
   `;
 
-  document.getElementById('statRow').innerHTML = `
-    <div class="stat"><div class="num">${uniqueOrders}</div><div class="lbl">訂單數</div></div>
-    <div class="stat"><div class="num">${parsedItems.length}</div><div class="lbl">商品項目</div></div>
-    <div class="stat"><div class="num">${custCount}</div><div class="lbl">客製/刻印項目</div></div>
-  `;
+  if(currentChannel === 'shop'){
+    const byCat = {};
+    parsedItems.forEach(it=>{
+      if(!byCat[it.orderId]) byCat[it.orderId] = it.shippingCategory;
+    });
+    const catCounts = {kerry:0, store:0, sf:0};
+    Object.values(byCat).forEach(c=>{ if(catCounts[c] !== undefined) catCounts[c]++; });
+    document.getElementById('statRow').innerHTML = `
+      <div class="stat"><div class="num">${uniqueOrders}</div><div class="lbl">訂單數</div></div>
+      <div class="stat"><div class="num">${catCounts.kerry}</div><div class="lbl">黑貓</div></div>
+      <div class="stat"><div class="num">${catCounts.store}</div><div class="lbl">超商</div></div>
+      <div class="stat"><div class="num">${catCounts.sf}</div><div class="lbl">順豐</div></div>
+    `;
+
+    const sfOrders = [];
+    const seenSf = new Set();
+    parsedItems.forEach(it=>{
+      if(it.shippingCategory === 'sf' && !seenSf.has(it.orderId)){
+        seenSf.add(it.orderId);
+        sfOrders.push(it);
+      }
+    });
+    const sfPanel = document.getElementById('sfPanel');
+    if(sfOrders.length > 0){
+      document.getElementById('sfList').innerHTML = sfOrders.map(it =>
+        '<div class="sf-item">' + escapeHtml(it.orderId) + '　' + escapeHtml(it.name) + '</div>'
+      ).join('');
+      sfPanel.style.display = 'block';
+    }else{
+      sfPanel.style.display = 'none';
+    }
+  }else{
+    document.getElementById('statRow').innerHTML = `
+      <div class="stat"><div class="num">${uniqueOrders}</div><div class="lbl">訂單數</div></div>
+      <div class="stat"><div class="num">${parsedItems.length}</div><div class="lbl">商品項目</div></div>
+      <div class="stat"><div class="num">${custCount}</div><div class="lbl">客製/刻印項目</div></div>
+    `;
+    document.getElementById('sfPanel').style.display = 'none';
+  }
 
   document.getElementById('resultPanel').style.display = 'block';
   document.getElementById('resetBtn').style.display = 'inline-block';
@@ -1455,12 +1647,13 @@ function encodeBig5(str){
 }
 
 function downloadKerryCSV(){
-  // 每張訂單一列(以第一筆項目的收件人資訊為準)
+  // 每張訂單一列(以第一筆項目的收件人資訊為準),只取真的要走黑貓的訂單
   const seen = new Set();
   const rows = [];
   const header = ['訂單編號','收件人-姓名','收件人-手機','收件人-地址','寄件人-姓名','寄件人-電話','寄件人-地址','出貨日期','品名','溫層','距離','規格','代收貨款','易碎物品'];
   rows.push(header);
   parsedItems.forEach(it=>{
+    if(it.shippingCategory && it.shippingCategory !== 'kerry') return;
     if(seen.has(it.orderId) || !it.orderId) return;
     seen.add(it.orderId);
     rows.push([
@@ -1482,7 +1675,7 @@ function downloadKerryCSV(){
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'LINE_黑貓匯入_' + fmtDate() + '.csv';
+  a.download = (currentChannel === 'shop' ? '官網' : 'LINE') + '_黑貓匯入_' + fmtDate() + '.csv';
   a.click();
   URL.revokeObjectURL(url);
 }
