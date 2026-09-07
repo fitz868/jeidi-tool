@@ -399,9 +399,9 @@
       <span class="name">官網</span>
       <span class="tag">可以使用</span>
     </button>
-    <button class="chan-btn" disabled>
+    <button class="chan-btn" id="chan-pinkoi" onclick="selectChannel('pinkoi')">
       <span class="name">PINKOI</span>
-      <span class="tag">即將推出</span>
+      <span class="tag">試用中</span>
     </button>
     <button class="chan-btn" id="chan-shopee" onclick="selectChannel('shopee')">
       <span class="name">蝦皮</span>
@@ -422,6 +422,15 @@
         <button type="button" class="stype-btn" data-type="family" onclick="selectShopeeType('family')">全家</button>
         <button type="button" class="stype-btn" data-type="seven" onclick="selectShopeeType('seven')">7-11</button>
         <button type="button" class="stype-btn" data-type="hct" onclick="selectShopeeType('hct')">新竹物流</button>
+      </div>
+    </div>
+
+    <div class="ship-type-selector no-print" id="pinkoiTypeSelector" style="display:none;">
+      <label>這份檔案是哪種物流方式?</label>
+      <div class="ship-type-btns">
+        <button type="button" class="stype-btn active" data-type="seven" onclick="selectPinkoiType('seven')">7-11</button>
+        <button type="button" class="stype-btn" data-type="family" onclick="selectPinkoiType('family')">全家</button>
+        <button type="button" class="stype-btn" data-type="sf" onclick="selectPinkoiType('sf')">順豐</button>
       </div>
     </div>
 
@@ -1081,34 +1090,48 @@ async function loadSkuMap(){
 
 let currentChannel = 'line';
 let shopeeShipType = 'next';
+let pinkoiShipType = 'seven';
 
 function selectChannel(ch){
   currentChannel = ch;
   document.getElementById('chan-line').classList.toggle('active', ch==='line');
   document.getElementById('chan-shop').classList.toggle('active', ch==='shop');
   document.getElementById('chan-shopee').classList.toggle('active', ch==='shopee');
+  document.getElementById('chan-pinkoi').classList.toggle('active', ch==='pinkoi');
   const desc = document.getElementById('upload-desc');
   const fileInputEl = document.getElementById('fileInput');
-  const typeSelector = document.getElementById('shopeeTypeSelector');
+  const shopeeSelector = document.getElementById('shopeeTypeSelector');
+  const pinkoiSelector = document.getElementById('pinkoiTypeSelector');
+  shopeeSelector.style.display = 'none';
+  pinkoiSelector.style.display = 'none';
   if(ch === 'line'){
     desc.textContent = '從 LINE 禮物賣家後台下載今天的訂單 Excel 檔,拖進來或點擊選擇。';
     fileInputEl.accept = '.xlsx,.xls';
-    typeSelector.style.display = 'none';
   }else if(ch === 'shop'){
     desc.textContent = '從官網後台匯出今天的訂單 CSV 檔,拖進來或點擊選擇。';
     fileInputEl.accept = '.csv';
-    typeSelector.style.display = 'none';
-  }else{
+  }else if(ch === 'shopee'){
     desc.textContent = '從蝦皮賣家中心下載的裝箱單 Excel 檔,拖進來或點擊選擇。';
     fileInputEl.accept = '.xlsx,.xls';
-    typeSelector.style.display = 'block';
+    shopeeSelector.style.display = 'block';
+  }else{
+    desc.textContent = '從 PINKOI 賣家後台下載今天的訂單檔,拖進來或點擊選擇。(欄位辨識為初次嘗試,如果卡住麻煩截圖錯誤訊息給我)';
+    fileInputEl.accept = '.xlsx,.xls,.csv,.txt';
+    pinkoiSelector.style.display = 'block';
   }
   resetAll();
 }
 
 function selectShopeeType(t){
   shopeeShipType = t;
-  document.querySelectorAll('.stype-btn').forEach(b=>{
+  document.querySelectorAll('#shopeeTypeSelector .stype-btn').forEach(b=>{
+    b.classList.toggle('active', b.dataset.type === t);
+  });
+}
+
+function selectPinkoiType(t){
+  pinkoiShipType = t;
+  document.querySelectorAll('#pinkoiTypeSelector .stype-btn').forEach(b=>{
     b.classList.toggle('active', b.dataset.type === t);
   });
 }
@@ -1801,8 +1824,10 @@ async function processFile(){
     items = await readLineItems();
   }else if(currentChannel === 'shop'){
     items = await readShopItems();
-  }else{
+  }else if(currentChannel === 'shopee'){
     items = await readShopeeItems();
+  }else{
+    items = await readPinkoiItems();
   }
   if(!items) return; // 錯誤訊息已經在讀取函式裡顯示過了
 
@@ -2022,6 +2047,105 @@ async function readShopeeItems(){
   }
 }
 
+// PINKOI:目前沒有實際檔案可以參考,欄位用彈性關鍵字比對(可能需要之後依實際檔案調整)
+async function readPinkoiItems(){
+  const fname = currentFile.name.toLowerCase();
+  let rows = null;
+
+  if(fname.endsWith('.xlsx') || fname.endsWith('.xls')){
+    let wb = null, lastErr = null;
+    try{
+      const buf = await readArrayBuffer(currentFile);
+      wb = XLSX.read(new Uint8Array(buf), {type:'array'});
+    }catch(err){ lastErr = err; }
+    if(!wb){
+      try{
+        const bstr = await readBinaryString(currentFile);
+        wb = XLSX.read(bstr, {type:'binary'});
+      }catch(err){ lastErr = err; }
+    }
+    if(!wb){
+      showError(['讀取 PINKOI 檔案失敗: ' + (lastErr && lastErr.message || '')]);
+      return null;
+    }
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+  }else{
+    // 純文字檔:舊程式的經驗是 PINKOI 匯出檔常是 UTF-16、用 Tab 分隔,這裡先照這個假設嘗試
+    let text;
+    try{
+      const buf = await readArrayBuffer(currentFile);
+      text = new TextDecoder('utf-16').decode(new Uint8Array(buf));
+      const badRatio = (text.match(/\uFFFD/g) || []).length / Math.max(text.length, 1);
+      if(badRatio > 0.02){
+        text = new TextDecoder('utf-8').decode(new Uint8Array(buf));
+      }
+    }catch(err){
+      showError(['讀取 PINKOI 檔案失敗: ' + err.message]);
+      return null;
+    }
+    if(text.includes('\t')){
+      rows = text.split(/\r?\n/).filter(l=>l.trim()!=='').map(line =>
+        line.split('\t').map(v => v.replace(/^"|"$/g,'').trim())
+      );
+    }else{
+      rows = parseCSV(text);
+    }
+  }
+
+  if(!rows || rows.length < 2){
+    showError(['PINKOI 檔案裡沒有找到資料列,請確認檔案內容。']);
+    return null;
+  }
+
+  const headers = rows[0];
+  const dataRows = rows.slice(1).filter(r => r.some(c => String(c).trim() !== ''));
+
+  const oI = idxOf(headers, ['訂單編號','訂單流水號','交易序號','訂單號碼']);
+  const nI = idxOf(headers, ['收件人姓名','收件人','買家姓名','姓名']);
+  const pI = idxOf(headers, ['收件人電話','聯絡電話','電話']);
+  const aI = idxOf(headers, ['收件地址','寄送地址','地址']);
+  const iI = idxOf(headers, ['商品名稱','品名','商品']);
+  const qI = idxOf(headers, ['數量']);
+  const prI = idxOf(headers, ['售價','單價','價格']);
+  const skuI = idxOf(headers, ['商品編號','貨號','SKU','商品貨號']);
+  const custI = idxOf(headers, ['備註','買家留言','訂製內容','客製']);
+
+  const required = {'訂單編號':oI, '商品名稱':iI, '數量':qI};
+  const missing = Object.keys(required).filter(k => required[k] === -1);
+  if(missing.length){
+    showError([
+      '在這份 PINKOI 檔案裡找不到以下欄位: ' + missing.join('、'),
+      '這是第一次串接 PINKOI,欄位名稱可能跟猜測的不一樣。麻煩把這份檔案的欄位名稱告訴我(或截圖表頭那一列),我再調整辨識關鍵字。'
+    ]);
+    return null;
+  }
+
+  rawHeaders = headers;
+  return dataRows.map(r=>{
+    const custRaw = custI !== -1 ? String(r[custI]||'').trim() : '';
+    const emptyTokens = ['', '-', '－', '無', 'na', 'n/a'];
+    const hasCust = !emptyTokens.includes(custRaw.toLowerCase());
+    const price = prI !== -1 ? toNum(r[prI], 0) : 0;
+    const qty = qI !== -1 ? toNum(r[qI], 1) : 1;
+    return {
+      orderId: cleanId(r[oI]),
+      name: nI !== -1 ? String(r[nI]||'') : cleanId(r[oI]),
+      phone: pI !== -1 ? cleanId(r[pI]) : '',
+      address: aI !== -1 ? String(r[aI]||'') : '',
+      custText: custRaw,
+      hasCust: hasCust,
+      itemName: iI !== -1 ? String(r[iI]||'') : '',
+      price: price,
+      qty: qty,
+      subtotal: price * qty,
+      sku: skuI !== -1 ? String(r[skuI]||'').trim() : '',
+      rawRow: r,
+      shippingCategory: pinkoiShipType
+    };
+  });
+}
+
 async function finishProcessing(rawItems){
   let items = rawItems;
 
@@ -2239,7 +2363,7 @@ function renderPickList(){
       : '';
     const cardClass = notes.length > 0 ? 'pick-card pick-card-alert' : 'pick-card';
     const shipCat = its[0].shippingCategory;
-    const shipTag = ((currentChannel === 'shop' || currentChannel === 'shopee') && shipCat)
+    const shipTag = ((currentChannel === 'shop' || currentChannel === 'shopee' || currentChannel === 'pinkoi') && shipCat)
       ? '<span class="pc-ship-tag pc-ship-' + shipCat + '">' + SHIP_CATEGORY_LABEL[shipCat] + '</span>'
       : '';
     const orderBadge = (name !== oid) ? '<span class="pc-order">' + escapeHtml(oid) + '</span>' : '';
@@ -2375,7 +2499,7 @@ function renderResult(){
     document.getElementById('sfPanel').style.display = 'none';
   }
 
-  document.getElementById('kerryDownloadItem').style.display = (currentChannel === 'shopee') ? 'none' : 'block';
+  document.getElementById('kerryDownloadItem').style.display = (currentChannel === 'shopee' || currentChannel === 'pinkoi') ? 'none' : 'block';
 
   document.getElementById('resultPanel').style.display = 'block';
   document.getElementById('resetBtn').style.display = 'inline-block';
