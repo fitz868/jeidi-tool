@@ -335,7 +335,16 @@
             <option value="蝦皮">蝦皮</option>
           </select>
           <input id="rf-order" placeholder="補寄單號">
-          <input id="rf-method" placeholder="物流方式">
+          <select id="rf-category">
+            <option value="kerry">黑貓</option>
+            <option value="seven">7-11</option>
+            <option value="family">全家</option>
+            <option value="hct">新竹物流</option>
+            <option value="sf">順豐</option>
+            <option value="next">蝦皮隔日到貨</option>
+            <option value="home">蝦皮店到家宅配</option>
+            <option value="shop2shop">蝦皮店到店</option>
+          </select>
           <input id="rf-address" placeholder="地址/超商店名">
           <input id="rf-name" placeholder="姓名">
           <input id="rf-phone" placeholder="電話">
@@ -575,8 +584,8 @@
     </div>
 
     <div class="panel no-print" id="p3-summaryPanel">
-      <h2>出貨確認(黑貓比對)</h2>
-      <div class="desc" id="p3-summaryDesc">尚未有比對結果,請先到「出貨回報」頁面完成 LINE 或官網的比對。</div>
+      <h2>今日物流件數核對</h2>
+      <div class="desc" id="p3-summaryDesc">跨 LINE / 官網 / 蝦皮 / 補寄,依實際物流方式加總今天確認揀貨的件數,可以跟廠商電話告知的件數核對。</div>
       <div class="stat-row" id="p3-statRow"></div>
     </div>
 
@@ -718,13 +727,13 @@ async function loadPendingShipmentsMap(channel){
 // ===== 揀貨記錄(確認完成揀貨時寫入,含每個SKU的數量,供之後扣庫存/報表用)=====
 const PICK_RECORDS_COLLECTION = 'pick_records';
 
-async function savePickRecord(channel, shippingCategory, totalOrders, totalItems, doneCount, skuBreakdown){
+async function savePickRecord(channel, categoryCounts, totalOrders, totalItems, doneCount, skuBreakdown){
   await waitForFirebase();
   const {db, collection, addDoc, serverTimestamp} = window.__fb;
   try{
     await addDoc(collection(db, PICK_RECORDS_COLLECTION), {
       date: ymd(new Date()),
-      channel, shippingCategory: shippingCategory || null,
+      channel, categoryCounts: categoryCounts || {},
       totalOrders, totalItems, doneCount,
       items: skuBreakdown,
       confirmedAt: serverTimestamp()
@@ -766,18 +775,23 @@ function renderResendRecords(records){
         <span class="resend-order">${escapeHtml(r.orderNumber||'')}</span>
       </div>
       <div class="resend-line">${escapeHtml(r.name||'')}　${escapeHtml(r.phone||'')}</div>
-      <div class="resend-line">${escapeHtml(r.shippingMethod||'')}${r.shippingMethod && r.address ? '｜' : ''}${escapeHtml(r.address||'')}</div>
+      <div class="resend-line">${escapeHtml(SHIP_CATEGORY_LABEL[r.category]||r.category||'')}${r.address ? '｜' : ''}${escapeHtml(r.address||'')}</div>
       <div class="resend-line">內容:${escapeHtml(r.contents||'')}</div>
-      <button class="ghost" onclick="confirmResendDone('${r.id}')">確認完成</button>
+      <button class="ghost" onclick="confirmResendDone('${r.id}', '${r.category||''}')">確認完成</button>
     </div>
   `).join('');
 }
 
-async function confirmResendDone(id){
+async function confirmResendDone(id, category){
   await waitForFirebase();
   const {db, doc, updateDoc} = window.__fb;
   try{
     await updateDoc(doc(db, RESEND_COLLECTION, id), {status: '已完成'});
+    // 補寄實際寄出也算今天的物流件數,一起記進揀貨記錄的統計裡
+    if(category){
+      const counts = {}; counts[category] = 1;
+      savePickRecord('resend', counts, 1, 0, 1, []);
+    }
     loadResendRecords();
   }catch(err){
     alert('更新失敗: ' + err.message);
@@ -790,7 +804,7 @@ async function submitResendForm(){
 
   const channel = document.getElementById('rf-channel').value;
   const orderNumber = document.getElementById('rf-order').value.trim();
-  const shippingMethod = document.getElementById('rf-method').value.trim();
+  const category = document.getElementById('rf-category').value;
   const address = document.getElementById('rf-address').value.trim();
   const name = document.getElementById('rf-name').value.trim();
   const phone = document.getElementById('rf-phone').value.trim();
@@ -804,11 +818,11 @@ async function submitResendForm(){
 
   try{
     await addDoc(collection(db, RESEND_COLLECTION), {
-      channel, orderNumber, shippingMethod, address, name, phone, contents,
+      channel, orderNumber, category, address, name, phone, contents,
       status: '待處理',
       createdAt: serverTimestamp()
     });
-    ['rf-order','rf-method','rf-address','rf-name','rf-phone','rf-contents'].forEach(id=>{
+    ['rf-order','rf-address','rf-name','rf-phone','rf-contents'].forEach(id=>{
       document.getElementById(id).value = '';
     });
     msgEl.textContent = '✓ 已新增,清單已更新。';
@@ -978,7 +992,7 @@ function switchPage(n){
   document.getElementById('tab-page1').classList.toggle('active', n===1);
   document.getElementById('tab-page2').classList.toggle('active', n===2);
   document.getElementById('tab-page3').classList.toggle('active', n===3);
-  if(n===3) updatePage3PickProgress();
+  if(n===3){ updatePage3PickProgress(); loadCategoryTotals(); }
 }
 
 function updatePage3PickProgress(){
@@ -1226,41 +1240,53 @@ function showP2Error(lines){
   document.getElementById('p2-resultPanel').style.display = 'none';
 }
 
-let reconcileStats = {line: null, shop: null};
-let carrierReportedCount = {line: null, shop: null};
+let categoryTotals = {};
+let carrierReportedCount = {};
 
-function updatePage3Summary(channel, total, matched, unmatched){
-  reconcileStats[channel] = {total, matched, unmatched};
-  renderReconcilePanel();
+async function loadCategoryTotals(){
+  await waitForFirebase();
+  const {db, collection, query, where, getDocs} = window.__fb;
+  const totals = {};
+  try{
+    const q = query(collection(db, PICK_RECORDS_COLLECTION), where('date','==', ymd(new Date())));
+    const snap = await getDocs(q);
+    snap.forEach(d=>{
+      const data = d.data();
+      const counts = data.categoryCounts || {};
+      Object.keys(counts).forEach(cat=>{
+        totals[cat] = (totals[cat] || 0) + counts[cat];
+      });
+    });
+  }catch(err){
+    // 讀取失敗就顯示空的,不影響其他功能
+  }
+  categoryTotals = totals;
+  renderCategoryPanel();
 }
 
-function renderReconcilePanel(){
-  const labels = {line:'LINE', shop:'官網'};
-  const anyData = reconcileStats.line || reconcileStats.shop;
-  document.getElementById('p3-summaryDesc').textContent = anyData
-    ? '各通路最近一次黑貓比對結果,以及跟廠商告知件數的核對。'
-    : '尚未有比對結果,請先到「出貨回報」頁面完成 LINE 或官網的比對。';
+function renderCategoryPanel(){
+  const hasAny = Object.values(categoryTotals).some(v => v > 0);
+  document.getElementById('p3-summaryDesc').textContent = hasAny
+    ? '跨 LINE / 官網 / 蝦皮 / 補寄,依實際物流方式加總今天確認揀貨的件數,可以跟廠商電話告知的件數核對。'
+    : '今天還沒有任何通路按下「確認完成揀貨」,或補寄記錄確認完成,暫時沒有數字可以核對。';
 
-  document.getElementById('p3-statRow').innerHTML = Object.keys(labels).map(ch=>{
-    const s = reconcileStats[ch];
-    if(!s){
-      return '<div class="stat"><div class="num">-</div><div class="lbl">' + labels[ch] + '(尚未比對)</div></div>';
-    }
-    const reported = carrierReportedCount[ch];
+  document.getElementById('p3-statRow').innerHTML = CATEGORY_TOTAL_KEYS.map(cat=>{
+    const sysCount = categoryTotals[cat] || 0;
+    const reported = carrierReportedCount[cat];
     let diffHtml = '';
-    if(reported !== null && reported !== ''){
-      const diff = Number(reported) - s.matched;
+    if(reported !== null && reported !== undefined && reported !== ''){
+      const diff = Number(reported) - sysCount;
       diffHtml = diff === 0
         ? '<div class="rc-match rc-ok">✓ 對得上</div>'
         : '<div class="rc-match rc-warn">⚠ 差 ' + Math.abs(diff) + ' 件(' + (diff>0 ? '廠商說的比較多' : '系統算的比較多') + ')</div>';
     }
     return `
       <div class="stat rc-cell">
-        <div class="num">${s.matched}</div>
-        <div class="lbl">${labels[ch]} 系統統計已出貨(共${s.total}張)</div>
+        <div class="num">${sysCount}</div>
+        <div class="lbl">${SHIP_CATEGORY_LABEL[cat]} 系統統計</div>
         <div class="rc-input-row">
-          <label>廠商告知件數:</label>
-          <input type="number" class="rc-input" value="${reported !== null ? reported : ''}" oninput="updateCarrierCount('${ch}', this.value)">
+          <label>廠商告知:</label>
+          <input type="number" class="rc-input" value="${reported !== null && reported !== undefined ? reported : ''}" oninput="updateCarrierCategoryCount('${cat}', this.value)">
         </div>
         ${diffHtml}
       </div>
@@ -1268,9 +1294,9 @@ function renderReconcilePanel(){
   }).join('');
 }
 
-function updateCarrierCount(channel, value){
-  carrierReportedCount[channel] = value === '' ? null : value;
-  renderReconcilePanel();
+function updateCarrierCategoryCount(cat, value){
+  carrierReportedCount[cat] = value === '' ? null : value;
+  renderCategoryPanel();
 }
 
 function renderP2Result(total, matched, unmatched){
@@ -1295,8 +1321,6 @@ function renderP2Result(total, matched, unmatched){
   document.getElementById('p2-resultPanel').style.display = 'block';
   document.getElementById('p2-resetBtn').style.display = 'inline-block';
   document.getElementById('p2-processBtn').disabled = true;
-
-  updatePage3Summary('line', total, matched, unmatched);
 }
 
 function downloadReportFile(){
@@ -1442,8 +1466,6 @@ async function processShopReconcile(){
   document.getElementById('ps-resultPanel').style.display = 'block';
   document.getElementById('ps-resetBtn').style.display = 'inline-block';
   document.getElementById('ps-processBtn').disabled = true;
-
-  updatePage3Summary('shop', total, matchedCount, unmatched);
 }
 
 function downloadShopReportFile(){
@@ -1455,17 +1477,15 @@ function downloadShopReportFile(){
 }
 
 function copySummary(){
-  const lineS = reconcileStats.line;
-  const shopS = reconcileStats.shop;
   const cb = id => document.getElementById(id).checked ? 'TRUE' : 'FALSE';
   const d = getShipDate();
   const dateStr = d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+  const categoryLines = CATEGORY_TOTAL_KEYS.map(cat =>
+    SHIP_CATEGORY_LABEL[cat] + '\t' + (categoryTotals[cat] || 0)
+  );
   const text = [
     '日期\t' + dateStr,
-    'LINE 已出貨\t' + (lineS ? lineS.matched : ''),
-    'LINE 待處理\t' + (lineS ? lineS.unmatched : ''),
-    '官網 已出貨\t' + (shopS ? shopS.matched : ''),
-    '官網 待處理\t' + (shopS ? shopS.unmatched : ''),
+    ...categoryLines,
     '出貨完成\t' + cb('cb-shipped'),
     'LINE回報完成\t' + cb('cb-linereport'),
     'LINE客戶回復完成\t' + cb('cb-linereply'),
@@ -1563,11 +1583,14 @@ function readBinaryString(file){
 // 依 Shipping Method 文字判斷是黑貓/超商/順豐
 function categorizeShipping(method){
   const m = String(method||'');
-  if(m.includes('超商')) return 'store';
+  if(m.includes('全家') || /familymart/i.test(m)) return 'family';
+  if(m.includes('7-11') || m.includes('7-ELEVEN') || /7-eleven/i.test(m)) return 'seven';
+  if(m.includes('超商')) return 'store'; // 無法判斷確切超商品牌時的備援分類
   if(m.includes('港澳')) return 'sf';
   return 'kerry';
 }
-const SHIP_CATEGORY_LABEL = {kerry:'黑貓', store:'超商', sf:'順豐', next:'隔日到貨', home:'店到家宅配', shop2shop:'店到店', family:'全家', seven:'7-11', hct:'新竹物流'};
+const SHIP_CATEGORY_LABEL = {kerry:'黑貓', store:'超商(未分類)', sf:'順豐', next:'蝦皮隔日到貨', home:'蝦皮店到家宅配', shop2shop:'蝦皮店到店', family:'全家', seven:'7-11', hct:'新竹物流'};
+const CATEGORY_TOTAL_KEYS = ['kerry','seven','family','next','home','shop2shop','hct','sf'];
 
 // 官網(Shopify)匯出檔:同一張訂單會拆成好幾列,只有第一列有 Name/收件人等欄位,
 // 後面幾列是空的要沿用上面那列的值(表格合併儲存格匯出成CSV常見的樣子)
@@ -2135,12 +2158,17 @@ function confirmPickProgress(){
   updatePage3PickProgress();
   saveState();
 
-  // 彙整已勾選(已檢貨)訂單裡每個SKU賣了幾件,存進揀貨記錄,供之後扣庫存/報表使用
+  // 彙整已勾選(已檢貨)訂單裡每個SKU賣了幾件,以及每種物流分類各幾張,存進揀貨記錄
   const skuTotals = {};
+  const categoryCounts = {};
   let totalItemCount = 0;
   doneCards.forEach(card=>{
     const idx = parseInt(card.id.replace('pick-card-',''), 10);
     const its = pickOrderGroups[idx] || [];
+    if(its.length > 0){
+      const cat = its[0].shippingCategory || 'kerry';
+      categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+    }
     its.forEach(it=>{
       if(!it.sku) return;
       if(!skuTotals[it.sku]) skuTotals[it.sku] = {sku: it.sku, name: it.displayName || it.itemName, qty: 0};
@@ -2149,8 +2177,7 @@ function confirmPickProgress(){
     });
   });
   const skuBreakdown = Object.values(skuTotals);
-  const shipCat = currentChannel === 'shopee' ? shopeeShipType : null;
-  savePickRecord(currentChannel, shipCat, total, totalItemCount, done, skuBreakdown);
+  savePickRecord(currentChannel, categoryCounts, total, totalItemCount, done, skuBreakdown);
 }
 
 function showError(lines){
