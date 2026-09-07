@@ -426,7 +426,7 @@
     </div>
 
     <div class="ship-type-selector no-print" id="pinkoiTypeSelector" style="display:none;">
-      <label>這份檔案是哪種物流方式?</label>
+      <label>備援物流方式(如果檔案裡有物流欄位,系統會優先用檔案判斷,這裡選的只在抓不到時才會用到)</label>
       <div class="ship-type-btns">
         <button type="button" class="stype-btn active" data-type="seven" onclick="selectPinkoiType('seven')">7-11</button>
         <button type="button" class="stype-btn" data-type="family" onclick="selectPinkoiType('family')">全家</button>
@@ -1741,8 +1741,8 @@ function categorizeShipping(method){
   const m = String(method||'');
   if(m.includes('全家') || /familymart/i.test(m)) return 'family';
   if(m.includes('7-11') || m.includes('7-ELEVEN') || /7-eleven/i.test(m)) return 'seven';
+  if(m.includes('順豐') || m.includes('港澳') || /\bSF\b/i.test(m)) return 'sf';
   if(m.includes('超商')) return 'store'; // 無法判斷確切超商品牌時的備援分類
-  if(m.includes('港澳')) return 'sf';
   return 'kerry';
 }
 const SHIP_CATEGORY_LABEL = {kerry:'黑貓', store:'超商(未分類)', sf:'順豐', next:'蝦皮隔日到貨', home:'蝦皮店到家宅配', shop2shop:'蝦皮店到店', family:'全家', seven:'7-11', hct:'新竹物流'};
@@ -2110,6 +2110,7 @@ async function readPinkoiItems(){
   const prI = idxOf(headers, ['售價','單價','價格']);
   const skuI = idxOf(headers, ['商品編號','貨號','SKU','商品貨號']);
   const custI = idxOf(headers, ['備註','買家留言','訂製內容','客製']);
+  const smI = idxOf(headers, ['物流方式','配送方式','運送方式','出貨方式','貨運方式','寄送方式']);
 
   const required = {'訂單編號':oI, '商品名稱':iI, '數量':qI};
   const missing = Object.keys(required).filter(k => required[k] === -1);
@@ -2128,6 +2129,8 @@ async function readPinkoiItems(){
     const hasCust = !emptyTokens.includes(custRaw.toLowerCase());
     const price = prI !== -1 ? toNum(r[prI], 0) : 0;
     const qty = qI !== -1 ? toNum(r[qI], 1) : 1;
+    // 檔案裡如果有物流方式欄位就用那個判斷,沒有才用上面手動選的當備援
+    const shipCat = smI !== -1 ? categorizeShipping(r[smI]) : pinkoiShipType;
     return {
       orderId: cleanId(r[oI]),
       name: nI !== -1 ? String(r[nI]||'') : cleanId(r[oI]),
@@ -2141,7 +2144,7 @@ async function readPinkoiItems(){
       subtotal: price * qty,
       sku: skuI !== -1 ? String(r[skuI]||'').trim() : '',
       rawRow: r,
-      shippingCategory: pinkoiShipType
+      shippingCategory: shipCat
     };
   });
 }
@@ -2363,7 +2366,7 @@ function renderPickList(){
       : '';
     const cardClass = notes.length > 0 ? 'pick-card pick-card-alert' : 'pick-card';
     const shipCat = its[0].shippingCategory;
-    const shipTag = ((currentChannel === 'shop' || currentChannel === 'shopee' || currentChannel === 'pinkoi') && shipCat)
+    const shipTag = shipCat
       ? '<span class="pc-ship-tag pc-ship-' + shipCat + '">' + SHIP_CATEGORY_LABEL[shipCat] + '</span>'
       : '';
     const orderBadge = (name !== oid) ? '<span class="pc-order">' + escapeHtml(oid) + '</span>' : '';
