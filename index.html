@@ -211,6 +211,9 @@
   .pc-ship-next{background:#D6E9F5;color:#1F5A80;}
   .pc-ship-home{background:#F5E0D6;color:#8A4B25;}
   .pc-ship-shop2shop{background:#E8E3F5;color:#4A3A80;}
+  .pc-ship-family{background:#D6EAF5;color:#1F5A80;}
+  .pc-ship-seven{background:#F5D6D6;color:#8A2525;}
+  .pc-ship-hct{background:#E0F5D6;color:#3A6B1F;}
   .sf-item{padding:8px 0;border-bottom:1px solid var(--line);font-size:14px;}
   .sf-item:last-child{border-bottom:none;}
   .pick-card .pc-divider{border-top:1px dashed var(--line);}
@@ -293,9 +296,11 @@
       <label>這份檔案是哪種物流方式?</label>
       <div class="ship-type-btns">
         <button type="button" class="stype-btn active" data-type="next" onclick="selectShopeeType('next')">隔日到貨</button>
-        <button type="button" class="stype-btn" data-type="home" onclick="selectShopeeType('home')">店到家宅配</button>
         <button type="button" class="stype-btn" data-type="shop2shop" onclick="selectShopeeType('shop2shop')">店到店</button>
-        <button type="button" class="stype-btn" data-type="store" onclick="selectShopeeType('store')">超商</button>
+        <button type="button" class="stype-btn" data-type="home" onclick="selectShopeeType('home')">店到家宅配</button>
+        <button type="button" class="stype-btn" data-type="family" onclick="selectShopeeType('family')">全家</button>
+        <button type="button" class="stype-btn" data-type="seven" onclick="selectShopeeType('seven')">7-11</button>
+        <button type="button" class="stype-btn" data-type="hct" onclick="selectShopeeType('hct')">新竹物流</button>
       </div>
     </div>
 
@@ -1242,7 +1247,7 @@ function categorizeShipping(method){
   if(m.includes('港澳')) return 'sf';
   return 'kerry';
 }
-const SHIP_CATEGORY_LABEL = {kerry:'黑貓', store:'超商', sf:'順豐', next:'隔日到貨', home:'店到家宅配', shop2shop:'店到店'};
+const SHIP_CATEGORY_LABEL = {kerry:'黑貓', store:'超商', sf:'順豐', next:'隔日到貨', home:'店到家宅配', shop2shop:'店到店', family:'全家', seven:'7-11', hct:'新竹物流'};
 
 // 官網(Shopify)匯出檔:同一張訂單會拆成好幾列,只有第一列有 Name/收件人等欄位,
 // 後面幾列是空的要沿用上面那列的值(表格合併儲存格匯出成CSV常見的樣子)
