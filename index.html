@@ -7,6 +7,28 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import {
+    getFirestore, collection, addDoc, query, where, getDocs, doc, updateDoc, serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyC_D5YGb7RTUMXOrw_DCXwYLg83Fy8GNEw",
+    authDomain: "jeidi868.firebaseapp.com",
+    projectId: "jeidi868",
+    storageBucket: "jeidi868.firebasestorage.app",
+    messagingSenderId: "837658854531",
+    appId: "1:837658854531:web:972e2ee45a30f97c9687b6"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  window.__fb = { db, collection, addDoc, query, where, getDocs, doc, updateDoc, serverTimestamp };
+  window.__fbReady = true;
+  window.dispatchEvent(new Event('fbready'));
+</script>
 <style>
   :root{
     --bg:#F5F3EE;
@@ -56,6 +78,10 @@
   .checklist label{display:flex;align-items:center;gap:10px;font-size:14px;cursor:pointer;}
   .checklist input[type="checkbox"]{width:18px;height:18px;accent-color:var(--sage);cursor:pointer;}
 
+  .top-boxes{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:24px;align-items:flex-start;}
+  .top-boxes .announce-box{flex:1;min-width:260px;margin-bottom:0;}
+  .top-boxes .resend-box{flex:1;min-width:260px;}
+
   .announce-box{
     background:var(--amber-soft);border:1px solid #E3D3BE;border-radius:8px;
     padding:14px 16px;margin-bottom:24px;
@@ -63,6 +89,31 @@
   .announce-box .ab-title{font-size:13px;font-weight:700;color:var(--amber);letter-spacing:0.02em;margin-bottom:8px;}
   .announce-box ul{margin:0;padding-left:20px;}
   .announce-box li{font-size:17px;font-weight:600;color:var(--ink);line-height:1.7;}
+
+  .resend-box{
+    background:var(--ok-soft);border:1px solid #C9DFC0;border-radius:8px;padding:14px 16px;
+  }
+  .resend-title{font-size:13px;font-weight:700;color:var(--sage-dark);letter-spacing:0.02em;margin-bottom:8px;}
+  .resend-list{display:flex;flex-direction:column;gap:8px;}
+  .resend-empty{font-size:13px;color:var(--ink-soft);}
+  .resend-item{
+    background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:10px 12px;font-size:13px;
+  }
+  .resend-item-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;}
+  .resend-channel{font-weight:700;font-size:12px;background:var(--bg);padding:1px 8px;border-radius:20px;}
+  .resend-order{color:var(--ink-soft);font-size:12px;}
+  .resend-line{color:var(--ink);margin-bottom:2px;}
+  .resend-item button{margin-top:6px;font-size:12px;padding:5px 12px;}
+
+  .resend-form-details{margin-top:10px;}
+  .resend-form-details summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--sage-dark);}
+  .resend-form{display:flex;flex-direction:column;gap:8px;margin-top:10px;}
+  .resend-form input, .resend-form select, .resend-form textarea{
+    font-family:inherit;font-size:13px;padding:7px 10px;border:1px solid var(--line);border-radius:6px;
+    background:var(--paper);color:var(--ink);
+  }
+  .resend-form button{align-self:flex-start;}
+  .form-msg{font-size:12.5px;color:var(--sage-dark);}
 
   .ship-type-selector{margin-bottom:18px;}
   .ship-type-selector label{display:block;font-size:13px;font-weight:600;margin-bottom:8px;}
@@ -259,7 +310,32 @@
     <h1>出貨助手</h1>
   </header>
 
-  <div class="announce-box no-print" id="announceBox" style="display:none;"></div>
+  <div class="top-boxes no-print">
+    <div class="announce-box" id="announceBox" style="display:none;"></div>
+
+    <div class="resend-box" id="resendBox">
+      <div class="resend-title">補寄記錄(待處理)</div>
+      <div id="resendListBox" class="resend-list"><div class="resend-empty">讀取中...</div></div>
+      <details class="resend-form-details">
+        <summary>+ 新增補寄記錄</summary>
+        <div class="resend-form">
+          <select id="rf-channel">
+            <option value="LINE">LINE</option>
+            <option value="官網">官網</option>
+            <option value="蝦皮">蝦皮</option>
+          </select>
+          <input id="rf-order" placeholder="補寄單號">
+          <input id="rf-method" placeholder="物流方式">
+          <input id="rf-address" placeholder="地址/超商店名">
+          <input id="rf-name" placeholder="姓名">
+          <input id="rf-phone" placeholder="電話">
+          <textarea id="rf-contents" placeholder="補寄內容物" rows="2"></textarea>
+          <button class="primary" onclick="submitResendForm()">送出</button>
+          <div class="form-msg" id="resendFormMsg"></div>
+        </div>
+      </details>
+    </div>
+  </div>
 
   <div class="page-tabs no-print">
     <button class="tab-btn active" id="tab-page1" onclick="switchPage(1)">出貨準備</button>
@@ -551,6 +627,102 @@ async function loadAnnouncements(){
   }
 }
 loadAnnouncements();
+
+// ===== 補寄記錄(Firestore 讀寫)=====
+const RESEND_COLLECTION = 'resend_records';
+
+function waitForFirebase(){
+  return new Promise(resolve=>{
+    if(window.__fbReady) resolve();
+    else window.addEventListener('fbready', ()=>resolve(), {once:true});
+  });
+}
+
+async function loadResendRecords(){
+  await waitForFirebase();
+  const {db, collection, query, where, getDocs} = window.__fb;
+  try{
+    const q = query(collection(db, RESEND_COLLECTION), where('status','==','待處理'));
+    const snap = await getDocs(q);
+    const records = [];
+    snap.forEach(d => records.push({id: d.id, ...d.data()}));
+    records.sort((a,b)=>{
+      const ta = a.createdAt && a.createdAt.seconds || 0;
+      const tb = b.createdAt && b.createdAt.seconds || 0;
+      return tb - ta;
+    });
+    renderResendRecords(records);
+  }catch(err){
+    document.getElementById('resendListBox').innerHTML = '<div class="resend-empty">讀取失敗: ' + err.message + '</div>';
+  }
+}
+
+function renderResendRecords(records){
+  const box = document.getElementById('resendListBox');
+  if(records.length === 0){
+    box.innerHTML = '<div class="resend-empty">目前沒有待處理的補寄</div>';
+    return;
+  }
+  box.innerHTML = records.map(r => `
+    <div class="resend-item">
+      <div class="resend-item-head">
+        <span class="resend-channel">${escapeHtml(r.channel||'')}</span>
+        <span class="resend-order">${escapeHtml(r.orderNumber||'')}</span>
+      </div>
+      <div class="resend-line">${escapeHtml(r.name||'')}　${escapeHtml(r.phone||'')}</div>
+      <div class="resend-line">${escapeHtml(r.shippingMethod||'')}${r.shippingMethod && r.address ? '｜' : ''}${escapeHtml(r.address||'')}</div>
+      <div class="resend-line">內容:${escapeHtml(r.contents||'')}</div>
+      <button class="ghost" onclick="confirmResendDone('${r.id}')">確認完成</button>
+    </div>
+  `).join('');
+}
+
+async function confirmResendDone(id){
+  await waitForFirebase();
+  const {db, doc, updateDoc} = window.__fb;
+  try{
+    await updateDoc(doc(db, RESEND_COLLECTION, id), {status: '已完成'});
+    loadResendRecords();
+  }catch(err){
+    alert('更新失敗: ' + err.message);
+  }
+}
+
+async function submitResendForm(){
+  await waitForFirebase();
+  const {db, collection, addDoc, serverTimestamp} = window.__fb;
+
+  const channel = document.getElementById('rf-channel').value;
+  const orderNumber = document.getElementById('rf-order').value.trim();
+  const shippingMethod = document.getElementById('rf-method').value.trim();
+  const address = document.getElementById('rf-address').value.trim();
+  const name = document.getElementById('rf-name').value.trim();
+  const phone = document.getElementById('rf-phone').value.trim();
+  const contents = document.getElementById('rf-contents').value.trim();
+  const msgEl = document.getElementById('resendFormMsg');
+
+  if(!orderNumber || !name){
+    msgEl.textContent = '請至少填寫補寄單號跟姓名。';
+    return;
+  }
+
+  try{
+    await addDoc(collection(db, RESEND_COLLECTION), {
+      channel, orderNumber, shippingMethod, address, name, phone, contents,
+      status: '待處理',
+      createdAt: serverTimestamp()
+    });
+    ['rf-order','rf-method','rf-address','rf-name','rf-phone','rf-contents'].forEach(id=>{
+      document.getElementById(id).value = '';
+    });
+    msgEl.textContent = '✓ 已新增,清單已更新。';
+    loadResendRecords();
+  }catch(err){
+    msgEl.textContent = '新增失敗: ' + err.message;
+  }
+}
+
+loadResendRecords();
 
 // ===== 訂單備註(客戶要求延後出貨、收件人資料未填等例外狀況,即時從 Google 試算表讀取)=====
 const ORDER_NOTES_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1JwRKd39wCJ4KAM6BuwWDwypq2xtrSWNaQEh8O9rdiOo/export?format=csv&gid=0';
