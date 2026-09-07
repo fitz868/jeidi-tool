@@ -81,6 +81,27 @@
   .top-boxes{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:24px;align-items:flex-start;}
   .top-boxes .announce-box{flex:1;min-width:260px;margin-bottom:0;}
   .top-boxes .resend-box{flex:1;min-width:260px;}
+  .top-boxes .daily-note-box{flex:1;min-width:260px;}
+
+  .daily-note-box{
+    background:#F5E4E4;border:1px solid #E3B8B8;border-radius:8px;padding:14px 16px;
+  }
+  .daily-note-title{font-size:13px;font-weight:700;color:#A04A4A;letter-spacing:0.02em;margin-bottom:8px;}
+  .daily-note-item{
+    background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:10px 12px;font-size:13px;margin-bottom:8px;
+  }
+  .daily-note-item:last-child{margin-bottom:0;}
+  .daily-note-meta{color:var(--ink-soft);font-size:12px;margin-bottom:4px;}
+  .daily-note-text{color:var(--ink);font-size:14px;font-weight:600;margin-bottom:6px;}
+  .daily-note-item button{font-size:12px;padding:5px 12px;}
+
+  .field-block{margin-bottom:16px;}
+  .field-block label{display:block;font-size:13px;font-weight:600;margin-bottom:8px;}
+  .field-block textarea{
+    width:100%;font-family:inherit;font-size:14px;padding:9px 12px;border:1px solid var(--line);
+    border-radius:8px;background:var(--paper);color:var(--ink);resize:vertical;box-sizing:border-box;
+  }
+  .filler-btns{display:flex;gap:8px;}
 
   .announce-box{
     background:var(--amber-soft);border:1px solid #E3D3BE;border-radius:8px;
@@ -354,6 +375,11 @@
         </div>
       </details>
     </div>
+
+    <div class="daily-note-box" id="dailyNoteBox" style="display:none;">
+      <div class="daily-note-title">今日提醒</div>
+      <div id="dailyNoteList"></div>
+    </div>
   </div>
 
   <div class="page-tabs no-print">
@@ -577,6 +603,37 @@
 
   <div id="page3" style="display:none;">
 
+    <div class="panel no-print" id="p3-checklistPanel">
+      <h2>今日出貨檢核</h2>
+      <div class="desc">填寫人+打勾確認+備註,送出後直接存進資料庫,不用再複製貼到表格。</div>
+
+      <div class="field-block">
+        <label>填寫人</label>
+        <div class="filler-btns" id="fillerBtns">
+          <button type="button" class="stype-btn" data-filler="茹" onclick="selectFiller('茹')">茹</button>
+          <button type="button" class="stype-btn" data-filler="文" onclick="selectFiller('文')">文</button>
+          <button type="button" class="stype-btn" data-filler="沈" onclick="selectFiller('沈')">沈</button>
+          <button type="button" class="stype-btn" data-filler="F" onclick="selectFiller('F')">F</button>
+        </div>
+      </div>
+
+      <div class="checklist">
+        <label><input type="checkbox" id="cb-linereport"> LINE回報完成</label>
+        <label><input type="checkbox" id="cb-shopee"> 蝦皮今日必出貨完成</label>
+        <label><input type="checkbox" id="cb-otherchan"> 其他通路完成</label>
+      </div>
+
+      <div class="field-block">
+        <label for="checklistRemark">備註(一般性提醒,明天大家進到出貨頁面就會看到)</label>
+        <textarea id="checklistRemark" rows="2" placeholder="例如:今天黑貓改時間,大家注意"></textarea>
+      </div>
+
+      <div class="btn-row">
+        <button class="primary" onclick="submitDailyChecklist()">送出</button>
+      </div>
+      <div class="form-msg" id="checklistMsg"></div>
+    </div>
+
     <div class="panel no-print" id="p3-pickPanel">
       <h2>揀貨進度</h2>
       <div class="desc">來自頁面1每個通路按下「確認完成揀貨」時記錄的進度。</div>
@@ -587,21 +644,10 @@
       <h2>今日物流件數核對</h2>
       <div class="desc" id="p3-summaryDesc">跨 LINE / 官網 / 蝦皮 / 補寄,依實際物流方式加總今天確認揀貨的件數,可以跟廠商電話告知的件數核對。</div>
       <div class="stat-row" id="p3-statRow"></div>
-    </div>
-
-    <div class="panel no-print" id="p3-checklistPanel">
-      <h2>今日出貨檢核</h2>
-      <div class="desc">跟現在 Google 表格一樣的五個項目,勾選後可以複製摘要貼到表格裡。</div>
-      <div class="checklist">
-        <label><input type="checkbox" id="cb-shipped"> 出貨完成</label>
-        <label><input type="checkbox" id="cb-linereport"> LINE回報完成</label>
-        <label><input type="checkbox" id="cb-linereply"> LINE客戶回復完成</label>
-        <label><input type="checkbox" id="cb-shopee"> 蝦皮今日出貨清空</label>
-        <label><input type="checkbox" id="cb-otherchan"> 其他通路皆出貨</label>
-      </div>
       <div class="btn-row">
-        <button class="ghost" onclick="copySummary()">複製今日摘要文字</button>
+        <button class="primary" onclick="submitCarrierCheck()">確認送出</button>
       </div>
+      <div class="form-msg" id="carrierCheckMsg"></div>
     </div>
 
   </div><!-- /page3 -->
@@ -833,6 +879,89 @@ async function submitResendForm(){
 }
 
 loadResendRecords();
+
+// ===== 每日出貨檢核(填寫人、打勾、一般性備註提醒)=====
+const DAILY_CHECKLIST_COLLECTION = 'daily_checklist';
+let selectedFiller = null;
+
+function selectFiller(name){
+  selectedFiller = name;
+  document.querySelectorAll('#fillerBtns .stype-btn').forEach(b=>{
+    b.classList.toggle('active', b.dataset.filler === name);
+  });
+}
+
+async function submitDailyChecklist(){
+  await waitForFirebase();
+  const {db, collection, addDoc, serverTimestamp} = window.__fb;
+  const msgEl = document.getElementById('checklistMsg');
+
+  if(!selectedFiller){
+    msgEl.textContent = '請先選填寫人。';
+    return;
+  }
+
+  const lineReport = document.getElementById('cb-linereport').checked;
+  const shopeeDone = document.getElementById('cb-shopee').checked;
+  const otherDone = document.getElementById('cb-otherchan').checked;
+  const remark = document.getElementById('checklistRemark').value.trim();
+
+  try{
+    await addDoc(collection(db, DAILY_CHECKLIST_COLLECTION), {
+      date: ymd(new Date()),
+      filledBy: selectedFiller,
+      lineReport, shopeeDone, otherDone,
+      remark: remark || '',
+      remarkStatus: remark ? 'pending' : null,
+      createdAt: serverTimestamp()
+    });
+    msgEl.textContent = '✓ 已送出並記錄。';
+  }catch(err){
+    msgEl.textContent = '送出失敗: ' + err.message;
+  }
+}
+
+// 頁面1顯示:還沒處理的一般性提醒備註
+async function loadDailyNotes(){
+  await waitForFirebase();
+  const {db, collection, query, where, getDocs} = window.__fb;
+  const box = document.getElementById('dailyNoteBox');
+  try{
+    const q = query(collection(db, DAILY_CHECKLIST_COLLECTION), where('remarkStatus','==','pending'));
+    const snap = await getDocs(q);
+    const notes = [];
+    snap.forEach(d => notes.push({id: d.id, ...d.data()}));
+    if(notes.length === 0){ box.style.display = 'none'; return; }
+    notes.sort((a,b)=>{
+      const ta = a.createdAt && a.createdAt.seconds || 0;
+      const tb = b.createdAt && b.createdAt.seconds || 0;
+      return tb - ta;
+    });
+    document.getElementById('dailyNoteList').innerHTML = notes.map(n => `
+      <div class="daily-note-item">
+        <div class="daily-note-meta">${escapeHtml(n.date||'')}・${escapeHtml(n.filledBy||'')}</div>
+        <div class="daily-note-text">${escapeHtml(n.remark||'')}</div>
+        <button class="ghost" onclick="resolveDailyNote('${n.id}')">已處理</button>
+      </div>
+    `).join('');
+    box.style.display = 'block';
+  }catch(err){
+    box.style.display = 'none';
+  }
+}
+
+async function resolveDailyNote(id){
+  await waitForFirebase();
+  const {db, doc, updateDoc} = window.__fb;
+  try{
+    await updateDoc(doc(db, DAILY_CHECKLIST_COLLECTION, id), {remarkStatus: 'resolved'});
+    loadDailyNotes();
+  }catch(err){
+    alert('更新失敗: ' + err.message);
+  }
+}
+
+loadDailyNotes();
 
 // ===== 訂單備註(客戶要求延後出貨、收件人資料未填等例外狀況,即時從 Google 試算表讀取)=====
 const ORDER_NOTES_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1JwRKd39wCJ4KAM6BuwWDwypq2xtrSWNaQEh8O9rdiOo/export?format=csv&gid=0';
@@ -1476,27 +1605,31 @@ function downloadShopReportFile(){
   XLSX.writeFile(wb, '官網_出貨回報_' + fmtDate() + '.xlsx');
 }
 
-function copySummary(){
-  const cb = id => document.getElementById(id).checked ? 'TRUE' : 'FALSE';
-  const d = getShipDate();
-  const dateStr = d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
-  const categoryLines = CATEGORY_TOTAL_KEYS.map(cat =>
-    SHIP_CATEGORY_LABEL[cat] + '\t' + (categoryTotals[cat] || 0)
-  );
-  const text = [
-    '日期\t' + dateStr,
-    ...categoryLines,
-    '出貨完成\t' + cb('cb-shipped'),
-    'LINE回報完成\t' + cb('cb-linereport'),
-    'LINE客戶回復完成\t' + cb('cb-linereply'),
-    '蝦皮今日出貨清空\t' + cb('cb-shopee'),
-    '其他通路皆出貨\t' + cb('cb-otherchan')
-  ].join('\n');
-  navigator.clipboard.writeText(text).then(()=>{
-    alert('已複製到剪貼簿,可以直接貼到 Google 表格。');
-  }).catch(()=>{
-    alert('複製失敗,請手動選取文字複製。');
+const CARRIER_CHECKS_COLLECTION = 'carrier_checks';
+
+async function submitCarrierCheck(){
+  await waitForFirebase();
+  const {db, collection, addDoc, serverTimestamp} = window.__fb;
+  const msgEl = document.getElementById('carrierCheckMsg');
+
+  const counts = {};
+  CATEGORY_TOTAL_KEYS.forEach(cat=>{
+    counts[cat] = {
+      system: categoryTotals[cat] || 0,
+      reported: (carrierReportedCount[cat] !== null && carrierReportedCount[cat] !== undefined) ? Number(carrierReportedCount[cat]) : null
+    };
   });
+
+  try{
+    await addDoc(collection(db, CARRIER_CHECKS_COLLECTION), {
+      date: ymd(new Date()),
+      counts,
+      confirmedAt: serverTimestamp()
+    });
+    msgEl.textContent = '✓ 已送出並記錄。';
+  }catch(err){
+    msgEl.textContent = '送出失敗: ' + err.message;
+  }
 }
 
 const dropzone = document.getElementById('dropzone');
