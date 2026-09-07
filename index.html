@@ -10,7 +10,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
   import {
-    getFirestore, collection, addDoc, query, where, getDocs, doc, updateDoc, serverTimestamp
+    getFirestore, collection, addDoc, query, where, getDocs, doc, updateDoc, getDoc, setDoc, serverTimestamp
   } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
   const firebaseConfig = {
@@ -25,7 +25,7 @@
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
 
-  window.__fb = { db, collection, addDoc, query, where, getDocs, doc, updateDoc, serverTimestamp };
+  window.__fb = { db, collection, addDoc, query, where, getDocs, doc, updateDoc, getDoc, setDoc, serverTimestamp };
   window.__fbReady = true;
   window.dispatchEvent(new Event('fbready'));
 </script>
@@ -195,6 +195,16 @@
   .pp-cell .pp-empty{font-size:13px;color:var(--ink-soft);}
 
   .stat-row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:18px;}
+  .rc-cell{min-width:220px;}
+  .rc-input-row{margin-top:10px;display:flex;align-items:center;gap:8px;}
+  .rc-input-row label{font-size:12.5px;color:var(--ink-soft);}
+  .rc-input{
+    width:70px;font-family:inherit;font-size:14px;padding:5px 8px;border:1px solid var(--line);
+    border-radius:6px;background:var(--paper);color:var(--ink);
+  }
+  .rc-match{margin-top:8px;font-size:13px;font-weight:600;padding:4px 10px;border-radius:6px;display:inline-block;}
+  .rc-match.rc-ok{background:var(--ok-soft);color:var(--ok);}
+  .rc-match.rc-warn{background:var(--warn-soft);color:var(--warn);}
   .stat{
     flex:1 1 120px;background:var(--bg);border-radius:8px;padding:14px 16px;
   }
@@ -638,6 +648,92 @@ function waitForFirebase(){
   });
 }
 
+// ===== 隔天待處理清單(訂單今天沒被黑貓收走,自動記錄延遲天數)=====
+const PENDING_COLLECTION = 'pending_shipments';
+
+function ymd(d){
+  return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+}
+
+// 訂單今天沒配對到單號:第一次出現就建立記錄,之後每天比對還是沒配對到就更新「最後確認日期」
+async function markPendingShipment(channel, orderId, name){
+  await waitForFirebase();
+  const {db, doc, getDoc, setDoc, serverTimestamp} = window.__fb;
+  const id = channel + '_' + orderId;
+  try{
+    const ref = doc(db, PENDING_COLLECTION, id);
+    const snap = await getDoc(ref);
+    const today = ymd(new Date());
+    if(snap.exists() && snap.data().status === 'pending'){
+      await setDoc(ref, {lastCheckedDate: today}, {merge: true});
+    }else{
+      await setDoc(ref, {
+        channel, orderId, name: name || '',
+        firstSeenDate: today, lastCheckedDate: today,
+        status: 'pending', createdAt: serverTimestamp()
+      });
+    }
+  }catch(err){
+    // 寫入失敗不影響主要的比對流程,安靜跳過
+  }
+}
+
+// 訂單這次比對到單號了(表示出貨了):如果之前有卡在待處理清單裡,標記解決
+async function resolvePendingShipment(channel, orderId){
+  await waitForFirebase();
+  const {db, doc, getDoc, setDoc} = window.__fb;
+  const id = channel + '_' + orderId;
+  try{
+    const ref = doc(db, PENDING_COLLECTION, id);
+    const snap = await getDoc(ref);
+    if(snap.exists() && snap.data().status === 'pending'){
+      await setDoc(ref, {status: 'resolved'}, {merge: true});
+    }
+  }catch(err){
+    // 安靜跳過
+  }
+}
+
+// 讀取某通路目前所有還「待處理」的訂單,回傳 {訂單編號: 已延遲天數} 的對照表
+async function loadPendingShipmentsMap(channel){
+  await waitForFirebase();
+  const {db, collection, query, where, getDocs} = window.__fb;
+  const map = {};
+  try{
+    const q = query(collection(db, PENDING_COLLECTION), where('channel','==',channel), where('status','==','pending'));
+    const snap = await getDocs(q);
+    const today = new Date();
+    snap.forEach(d=>{
+      const data = d.data();
+      const first = new Date(data.firstSeenDate + 'T00:00:00');
+      const days = Math.max(1, Math.round((today - first) / 86400000) + 1);
+      map[data.orderId] = days;
+    });
+  }catch(err){
+    // 讀取失敗就當作沒有延遲訂單,不影響主要功能
+  }
+  return map;
+}
+
+// ===== 揀貨記錄(確認完成揀貨時寫入,含每個SKU的數量,供之後扣庫存/報表用)=====
+const PICK_RECORDS_COLLECTION = 'pick_records';
+
+async function savePickRecord(channel, shippingCategory, totalOrders, totalItems, doneCount, skuBreakdown){
+  await waitForFirebase();
+  const {db, collection, addDoc, serverTimestamp} = window.__fb;
+  try{
+    await addDoc(collection(db, PICK_RECORDS_COLLECTION), {
+      date: ymd(new Date()),
+      channel, shippingCategory: shippingCategory || null,
+      totalOrders, totalItems, doneCount,
+      items: skuBreakdown,
+      confirmedAt: serverTimestamp()
+    });
+  }catch(err){
+    // 寫入失敗不影響「確認完成揀貨」這個動作本身的其他效果
+  }
+}
+
 async function loadResendRecords(){
   await waitForFirebase();
   const {db, collection, query, where, getDocs} = window.__fb;
@@ -727,6 +823,8 @@ loadResendRecords();
 // ===== 訂單備註(客戶要求延後出貨、收件人資料未填等例外狀況,即時從 Google 試算表讀取)=====
 const ORDER_NOTES_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1JwRKd39wCJ4KAM6BuwWDwypq2xtrSWNaQEh8O9rdiOo/export?format=csv&gid=0';
 let orderNotesMap = {};
+let pendingShipmentMap = {};
+let pickOrderGroups = [];
 
 async function loadOrderNotes(){
   if(!ORDER_NOTES_SHEET_URL) return;
@@ -1106,6 +1204,19 @@ async function processReconcile(){
 
   const total = dataRows.length;
   const unmatchedCount = total - matchedCount;
+
+  // 沒配對到的訂單,自動記錄到隔天待處理清單;配對到的,如果之前卡在清單裡就解除
+  dataRows.forEach(r=>{
+    const oid = cleanId(r[oI]);
+    const tracking = matchTracking(oid, trackMap);
+    if(tracking){
+      resolvePendingShipment('line', oid);
+    }
+  });
+  unmatchedOrders.forEach(o=>{
+    markPendingShipment('line', o.orderId, o.name);
+  });
+
   renderP2Result(total, matchedCount, unmatchedCount);
 }
 
@@ -1115,18 +1226,51 @@ function showP2Error(lines){
   document.getElementById('p2-resultPanel').style.display = 'none';
 }
 
-let lastReconcile = null;
+let reconcileStats = {line: null, shop: null};
+let carrierReportedCount = {line: null, shop: null};
 
 function updatePage3Summary(channel, total, matched, unmatched){
-  lastReconcile = {channel, total, matched, unmatched};
-  const label = channel === 'line' ? 'LINE' : '官網';
-  document.getElementById('p3-summaryDesc').textContent =
-    '最近一次比對(' + label + '):共 ' + total + ' 張訂單,已確認出貨 ' + matched + ' 張,' + (unmatched>0 ? unmatched + ' 張待處理。' : '全部都出貨了。');
-  document.getElementById('p3-statRow').innerHTML = `
-    <div class="stat"><div class="num">${total}</div><div class="lbl">今天總訂單數</div></div>
-    <div class="stat"><div class="num">${matched}</div><div class="lbl">已確認出貨</div></div>
-    <div class="stat"><div class="num">${unmatched}</div><div class="lbl">待處理</div></div>
-  `;
+  reconcileStats[channel] = {total, matched, unmatched};
+  renderReconcilePanel();
+}
+
+function renderReconcilePanel(){
+  const labels = {line:'LINE', shop:'官網'};
+  const anyData = reconcileStats.line || reconcileStats.shop;
+  document.getElementById('p3-summaryDesc').textContent = anyData
+    ? '各通路最近一次黑貓比對結果,以及跟廠商告知件數的核對。'
+    : '尚未有比對結果,請先到「出貨回報」頁面完成 LINE 或官網的比對。';
+
+  document.getElementById('p3-statRow').innerHTML = Object.keys(labels).map(ch=>{
+    const s = reconcileStats[ch];
+    if(!s){
+      return '<div class="stat"><div class="num">-</div><div class="lbl">' + labels[ch] + '(尚未比對)</div></div>';
+    }
+    const reported = carrierReportedCount[ch];
+    let diffHtml = '';
+    if(reported !== null && reported !== ''){
+      const diff = Number(reported) - s.matched;
+      diffHtml = diff === 0
+        ? '<div class="rc-match rc-ok">✓ 對得上</div>'
+        : '<div class="rc-match rc-warn">⚠ 差 ' + Math.abs(diff) + ' 件(' + (diff>0 ? '廠商說的比較多' : '系統算的比較多') + ')</div>';
+    }
+    return `
+      <div class="stat rc-cell">
+        <div class="num">${s.matched}</div>
+        <div class="lbl">${labels[ch]} 系統統計已出貨(共${s.total}張)</div>
+        <div class="rc-input-row">
+          <label>廠商告知件數:</label>
+          <input type="number" class="rc-input" value="${reported !== null ? reported : ''}" oninput="updateCarrierCount('${ch}', this.value)">
+        </div>
+        ${diffHtml}
+      </div>
+    `;
+  }).join('');
+}
+
+function updateCarrierCount(channel, value){
+  carrierReportedCount[channel] = value === '' ? null : value;
+  renderReconcilePanel();
 }
 
 function renderP2Result(total, matched, unmatched){
@@ -1279,6 +1423,9 @@ async function processShopReconcile(){
     if(tracking){
       shopReportRows.push([n, tracking, 'T_CAT']);
       matchedCount++;
+      resolvePendingShipment('shop', cleanId(n));
+    }else{
+      markPendingShipment('shop', cleanId(n), n);
     }
   });
 
@@ -1308,16 +1455,17 @@ function downloadShopReportFile(){
 }
 
 function copySummary(){
-  const total = lastReconcile ? lastReconcile.total : '';
-  const matched = lastReconcile ? lastReconcile.matched : '';
-  const unmatched = lastReconcile ? lastReconcile.unmatched : '';
+  const lineS = reconcileStats.line;
+  const shopS = reconcileStats.shop;
   const cb = id => document.getElementById(id).checked ? 'TRUE' : 'FALSE';
   const d = getShipDate();
   const dateStr = d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
   const text = [
     '日期\t' + dateStr,
-    '總出貨單數\t' + matched,
-    '待處理(未出貨)\t' + unmatched,
+    'LINE 已出貨\t' + (lineS ? lineS.matched : ''),
+    'LINE 待處理\t' + (lineS ? lineS.unmatched : ''),
+    '官網 已出貨\t' + (shopS ? shopS.matched : ''),
+    '官網 待處理\t' + (shopS ? shopS.unmatched : ''),
     '出貨完成\t' + cb('cb-shipped'),
     'LINE回報完成\t' + cb('cb-linereport'),
     'LINE客戶回復完成\t' + cb('cb-linereply'),
@@ -1736,6 +1884,7 @@ async function finishProcessing(rawItems){
   await loadSkuMap();
   await loadOrderNotes();
   await loadScentColors();
+  pendingShipmentMap = await loadPendingShipmentsMap(currentChannel);
   let matchedSkuCount = 0;
   items.forEach(it=>{
     const info = skuMap[it.sku];
@@ -1905,6 +2054,7 @@ function renderPickList(){
     if(!byOrder[it.orderId]){ byOrder[it.orderId] = []; orderIds.push(it.orderId); }
     byOrder[it.orderId].push(it);
   });
+  pickOrderGroups = orderIds.map(oid => byOrder[oid]);
 
   container.innerHTML = orderIds.map((oid, idx)=>{
     const its = byOrder[oid];
@@ -1924,7 +2074,10 @@ function renderPickList(){
     const custBlock = its.some(it=>it.hasCust)
       ? '<div class="pc-cust">刻印:' + escapeHtml(its.find(it=>it.hasCust).custText) + '</div>'
       : '';
-    const notes = orderNotesMap[oid] || [];
+    const notes = [...(orderNotesMap[oid] || [])];
+    if(pendingShipmentMap[oid]){
+      notes.push('已延遲 ' + pendingShipmentMap[oid] + ' 天未出貨,今天優先處理');
+    }
     const noteBlock = notes.length > 0
       ? '<div class="pc-alert">⚠ ' + notes.map(escapeHtml).join('<br>⚠ ') + '</div>'
       : '';
@@ -1969,7 +2122,8 @@ let channelProgress = {line:null, shop:null, shopee:null};
 
 function confirmPickProgress(){
   const total = document.querySelectorAll('#pickList .pick-card').length;
-  const done = document.querySelectorAll('#pickList .pick-card-done').length;
+  const doneCards = Array.from(document.querySelectorAll('#pickList .pick-card-done'));
+  const done = doneCards.length;
   if(total === 0){
     alert('目前沒有檢貨單資料,請先處理訂單檔案。');
     return;
@@ -1980,6 +2134,23 @@ function confirmPickProgress(){
   note.textContent = '✓ 已確認:' + label + ' 揀貨進度 ' + done + ' / ' + total + '(已記錄到出貨核對頁面)';
   updatePage3PickProgress();
   saveState();
+
+  // 彙整已勾選(已檢貨)訂單裡每個SKU賣了幾件,存進揀貨記錄,供之後扣庫存/報表使用
+  const skuTotals = {};
+  let totalItemCount = 0;
+  doneCards.forEach(card=>{
+    const idx = parseInt(card.id.replace('pick-card-',''), 10);
+    const its = pickOrderGroups[idx] || [];
+    its.forEach(it=>{
+      if(!it.sku) return;
+      if(!skuTotals[it.sku]) skuTotals[it.sku] = {sku: it.sku, name: it.displayName || it.itemName, qty: 0};
+      skuTotals[it.sku].qty += it.qty;
+      totalItemCount += it.qty;
+    });
+  });
+  const skuBreakdown = Object.values(skuTotals);
+  const shipCat = currentChannel === 'shopee' ? shopeeShipType : null;
+  savePickRecord(currentChannel, shipCat, total, totalItemCount, done, skuBreakdown);
 }
 
 function showError(lines){
