@@ -2366,8 +2366,9 @@ function renderPickList(){
       : '';
     const cardClass = notes.length > 0 ? 'pick-card pick-card-alert' : 'pick-card';
     const shipCat = its[0].shippingCategory;
+    const CHANNEL_LABEL = {line:'LINE', shop:'官網', shopee:'蝦皮', pinkoi:'PINKOI'};
     const shipTag = shipCat
-      ? '<span class="pc-ship-tag pc-ship-' + shipCat + '">' + SHIP_CATEGORY_LABEL[shipCat] + '</span>'
+      ? '<span class="pc-ship-tag pc-ship-' + shipCat + '">' + CHANNEL_LABEL[currentChannel] + '・' + SHIP_CATEGORY_LABEL[shipCat] + '</span>'
       : '';
     const orderBadge = (name !== oid) ? '<span class="pc-order">' + escapeHtml(oid) + '</span>' : '';
     return '<div class="' + cardClass + '" id="pick-card-' + idx + '">' +
