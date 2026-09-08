@@ -330,6 +330,8 @@
   .pc-ship-hct{background:#E0F5D6;color:#3A6B1F;}
   .sf-item{padding:8px 0;border-bottom:1px solid var(--line);font-size:14px;}
   .sf-item:last-child{border-bottom:none;}
+  #islandPanel{border:2px solid var(--warn);}
+  #islandPanel h2{color:var(--warn);}
   .pick-card .pc-divider{border-top:1px dashed var(--line);}
   .pick-card .pc-body{padding:14px 18px;}
   .pick-card .pc-item{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:5px 0;font-size:17px;}
@@ -562,6 +564,12 @@
     </div>
     <div class="desc">今天這幾張訂單是港澳順豐配送,黑貓匯入檔不會包含這些,提醒兼職另外處理。</div>
     <div id="sfList"></div>
+  </div>
+
+  <div class="panel no-print" id="islandPanel" style="display:none;">
+    <h2>⚠ 離島地區訂單(無法配送)</h2>
+    <div class="desc">地址裡出現金門/馬祖/澎湖/綠島/蘭嶼等離島地名,黑貓不配送這些地區。請先到平台後台取消這幾筆訂單,再重新匯入一次,或直接把這幾筆從檔案裡刪掉後重新上傳。</div>
+    <div id="islandList"></div>
   </div>
 
   <div class="panel pick-section" id="pickPanel" style="display:none;">
@@ -2029,6 +2037,7 @@ function resetAll(){
   document.getElementById('errorPanel').style.display = 'none';
   document.getElementById('pickPanel').style.display = 'none';
   document.getElementById('sfPanel').style.display = 'none';
+  document.getElementById('islandPanel').style.display = 'none';
   fileInput.value = '';
 }
 
@@ -2856,6 +2865,7 @@ function showError(lines){
   document.getElementById('resultPanel').style.display = 'none';
   document.getElementById('pickPanel').style.display = 'none';
   document.getElementById('sfPanel').style.display = 'none';
+  document.getElementById('islandPanel').style.display = 'none';
 }
 
 function renderResult(){
@@ -2912,6 +2922,28 @@ function renderResult(){
   }
 
   document.getElementById('kerryDownloadItem').style.display = (currentChannel === 'shopee' || currentChannel === 'pinkoi') ? 'none' : 'block';
+
+  // 離島地區偵測(黑貓不配送,提醒先去平台取消訂單再重新匯入)
+  const ISLAND_KEYWORDS = ['金門','馬祖','澎湖','綠島','蘭嶼','小琉球','龜山島','南竿','北竿','東引'];
+  const islandOrders = [];
+  const seenIsland = new Set();
+  parsedItems.forEach(it=>{
+    if(seenIsland.has(it.orderId)) return;
+    const addr = String(it.address || '');
+    if(ISLAND_KEYWORDS.some(kw => addr.includes(kw))){
+      seenIsland.add(it.orderId);
+      islandOrders.push(it);
+    }
+  });
+  const islandPanel = document.getElementById('islandPanel');
+  if(islandOrders.length > 0){
+    document.getElementById('islandList').innerHTML = islandOrders.map(it =>
+      '<div class="sf-item"><strong>' + escapeHtml(it.orderId) + '</strong>　' + escapeHtml(it.name) + '　' + escapeHtml(it.address) + '</div>'
+    ).join('');
+    islandPanel.style.display = 'block';
+  }else{
+    islandPanel.style.display = 'none';
+  }
 
   document.getElementById('resultPanel').style.display = 'block';
   document.getElementById('resetBtn').style.display = 'inline-block';
