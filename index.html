@@ -405,7 +405,6 @@
   <header class="top">
     <div class="header-row no-print">
       <div>
-        <div class="eyebrow">JEIDI 內部工具・第一階段</div>
         <h1>JEIDI <span id="headerDateLabel" class="header-date"></span></h1>
       </div>
       <div class="user-info">
@@ -461,11 +460,6 @@
       <div class="daily-note-title">今日提醒</div>
       <div id="dailyNoteList"></div>
     </div>
-  </div>
-
-  <div class="overview-box no-print" id="overviewBox" style="display:none;">
-    <div class="overview-title">近5天各通路訂單數</div>
-    <div id="overviewRow" class="overview-row"></div>
   </div>
 
   <div class="page-tabs no-print">
@@ -754,10 +748,6 @@
 
   </div><!-- /page3 -->
 
-  <footer class="note no-print">
-    此工具在瀏覽器本機處理檔案,不會把訂單資料上傳到任何伺服器。
-  </footer>
-
   </div><!-- /helperMode -->
 
   <div id="reportMode" style="display:none;">
@@ -882,7 +872,6 @@ async function handleAuthStateChange(user){
       loadAnnouncements();
       loadResendRecords();
       loadDailyNotes();
-      loadOverview();
     }else{
       desc.textContent = '這個帳號還沒被登記,沒有使用權限';
       msgEl.textContent = user.email + ' 尚未獲得授權,請聯絡管理者新增這個帳號。';
@@ -1169,33 +1158,6 @@ function exportReportExcel(){
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, '出貨報表');
   XLSX.writeFile(wb, '出貨報表_' + ymd(new Date()) + '.xlsx');
-}
-
-async function loadOverview(){
-  await waitForFirebase();
-  const {db, collection, query, where, getDocs} = window.__fb;
-  const box = document.getElementById('overviewBox');
-  try{
-    const start = new Date();
-    start.setDate(start.getDate() - 4);
-    const startStr = ymd(start);
-    const q = query(collection(db, PICK_RECORDS_COLLECTION), where('date','>=',startStr));
-    const snap = await getDocs(q);
-    const totals = {line:0, shop:0, shopee:0, pinkoi:0};
-    snap.forEach(d=>{
-      const data = d.data();
-      if(totals[data.channel] !== undefined){
-        totals[data.channel] += (data.totalOrders || 0);
-      }
-    });
-    const labels = {line:'LINE', shop:'官網', shopee:'蝦皮', pinkoi:'PINKOI'};
-    document.getElementById('overviewRow').innerHTML = Object.keys(labels).map(ch => `
-      <div class="ov-cell"><div class="ov-num">${totals[ch]}</div><div class="ov-lbl">${labels[ch]}</div></div>
-    `).join('');
-    box.style.display = 'block';
-  }catch(err){
-    box.style.display = 'none';
-  }
 }
 
 async function savePickRecord(channel, categoryCounts, totalOrders, totalItems, doneCount, skuBreakdown){
