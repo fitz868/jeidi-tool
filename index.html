@@ -104,6 +104,15 @@
   .daily-note-text{color:var(--ink);font-size:14px;font-weight:600;margin-bottom:6px;}
   .daily-note-item button{font-size:12px;padding:5px 12px;}
 
+  .overview-box{
+    background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-bottom:24px;
+  }
+  .overview-title{font-size:13px;font-weight:700;color:var(--ink-soft);letter-spacing:0.02em;margin-bottom:10px;}
+  .overview-row{display:flex;gap:14px;flex-wrap:wrap;}
+  .ov-cell{flex:1;min-width:100px;background:var(--bg);border-radius:8px;padding:12px 14px;text-align:center;}
+  .ov-cell .ov-num{font-family:'Source Serif 4',Georgia,serif;font-size:24px;font-weight:600;color:var(--ink);}
+  .ov-cell .ov-lbl{font-size:12px;color:var(--ink-soft);margin-top:2px;}
+
   .field-block{margin-bottom:16px;}
   .field-block label{display:block;font-size:13px;font-weight:600;margin-bottom:8px;}
   .field-block textarea{
@@ -358,6 +367,7 @@
 
   .header-row{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;}
   .user-info{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--ink-soft);}
+  .header-date{font-size:16px;font-weight:400;color:var(--ink-soft);vertical-align:middle;}
 </style>
 </head>
 <body>
@@ -380,7 +390,7 @@
     <div class="header-row no-print">
       <div>
         <div class="eyebrow">JEIDI 內部工具・第一階段</div>
-        <h1>出貨助手</h1>
+        <h1>出貨助手 <span id="headerDateLabel" class="header-date"></span></h1>
       </div>
       <div class="user-info">
         <span id="userEmailLabel"></span>
@@ -428,6 +438,11 @@
       <div class="daily-note-title">今日提醒</div>
       <div id="dailyNoteList"></div>
     </div>
+  </div>
+
+  <div class="overview-box no-print" id="overviewBox" style="display:none;">
+    <div class="overview-title">近5天各通路訂單數</div>
+    <div id="overviewRow" class="overview-row"></div>
   </div>
 
   <div class="page-tabs no-print">
@@ -811,6 +826,7 @@ async function handleAuthStateChange(user){
       loadAnnouncements();
       loadResendRecords();
       loadDailyNotes();
+      loadOverview();
     }else{
       desc.textContent = '這個帳號還沒被登記,沒有使用權限';
       msgEl.textContent = user.email + ' 尚未獲得授權,請聯絡管理者新增這個帳號。';
@@ -905,6 +921,34 @@ const loadPendingPicksMap = (channel) => loadPendingRecordsMap(PENDING_PICKS_COL
 
 // ===== 揀貨記錄(確認完成揀貨時寫入,含每個SKU的數量,供之後扣庫存/報表用)=====
 const PICK_RECORDS_COLLECTION = 'pick_records';
+
+// 近5天各通路總訂單數(顯示在公告下方,給大家看的簡化總覽)
+async function loadOverview(){
+  await waitForFirebase();
+  const {db, collection, query, where, getDocs} = window.__fb;
+  const box = document.getElementById('overviewBox');
+  try{
+    const start = new Date();
+    start.setDate(start.getDate() - 4);
+    const startStr = ymd(start);
+    const q = query(collection(db, PICK_RECORDS_COLLECTION), where('date','>=',startStr));
+    const snap = await getDocs(q);
+    const totals = {line:0, shop:0, shopee:0, pinkoi:0};
+    snap.forEach(d=>{
+      const data = d.data();
+      if(totals[data.channel] !== undefined){
+        totals[data.channel] += (data.totalOrders || 0);
+      }
+    });
+    const labels = {line:'LINE', shop:'官網', shopee:'蝦皮', pinkoi:'PINKOI'};
+    document.getElementById('overviewRow').innerHTML = Object.keys(labels).map(ch => `
+      <div class="ov-cell"><div class="ov-num">${totals[ch]}</div><div class="ov-lbl">${labels[ch]}</div></div>
+    `).join('');
+    box.style.display = 'block';
+  }catch(err){
+    box.style.display = 'none';
+  }
+}
 
 async function savePickRecord(channel, categoryCounts, totalOrders, totalItems, doneCount, skuBreakdown){
   await waitForFirebase();
@@ -2472,6 +2516,25 @@ function parseCombo(comboStr, ownSku){
   }).filter(c => c.sku !== ownSku);
 }
 
+// 從訂單編號抓出訂單本來的日期(不同通路編號規則不同,抓不到就回傳空字串)
+function extractOrderDate(orderId, channel){
+  const id = String(orderId||'');
+  if(channel === 'line'){
+    const m = id.match(/^(\d{4})(\d{2})(\d{2})/);
+    if(m){
+      const mm = parseInt(m[2],10), dd = parseInt(m[3],10);
+      if(mm>=1 && mm<=12 && dd>=1 && dd<=31) return m[2] + '/' + m[3];
+    }
+  }else if(channel === 'shopee'){
+    const m = id.match(/^(\d{2})(\d{2})(\d{2})/);
+    if(m){
+      const mm = parseInt(m[2],10), dd = parseInt(m[3],10);
+      if(mm>=1 && mm<=12 && dd>=1 && dd<=31) return m[2] + '/' + m[3];
+    }
+  }
+  return '';
+}
+
 function renderPickList(){
   const container = document.getElementById('pickList');
   const orderIds = [];
@@ -2516,7 +2579,10 @@ function renderPickList(){
     const shipTag = shipCat
       ? '<span class="pc-ship-tag pc-ship-' + shipCat + '">' + CHANNEL_LABEL[currentChannel] + '・' + SHIP_CATEGORY_LABEL[shipCat] + '</span>'
       : '';
-    const orderBadge = (name !== oid) ? '<span class="pc-order">' + escapeHtml(oid) + '</span>' : '';
+    const orderDate = extractOrderDate(oid, currentChannel);
+    const orderBadge = (name !== oid)
+      ? '<span class="pc-order">' + (orderDate ? escapeHtml(orderDate) + ' ' : '') + escapeHtml(oid) + '</span>'
+      : (orderDate ? '<span class="pc-order">' + escapeHtml(orderDate) + '</span>' : '');
     return '<div class="' + cardClass + '" id="pick-card-' + idx + '">' +
       noteBlock +
       '<div class="pc-top">' +
@@ -2762,6 +2828,8 @@ function fmtDate(){
   const d = getShipDate();
   return d.getFullYear() + pad(d.getMonth()+1) + pad(d.getDate());
 }
+
+document.getElementById('headerDateLabel').textContent = today.getFullYear() + '/' + pad(today.getMonth()+1) + '/' + pad(today.getDate());
 
 // 頁面載入時,嘗試還原上次的處理進度(重新整理不會遺失)
 restoreState();
