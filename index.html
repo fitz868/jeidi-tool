@@ -768,8 +768,9 @@
         <div class="report-toggle-group">
           <button type="button" class="stype-btn active" id="rpt-dim-channel" onclick="setReportDimension('channel')">依通路</button>
           <button type="button" class="stype-btn" id="rpt-dim-category" onclick="setReportDimension('category')">依物流方式</button>
+          <button type="button" class="stype-btn" id="rpt-dim-product" onclick="setReportDimension('product')">依商品(銷量排行)</button>
         </div>
-        <div class="report-toggle-group">
+        <div class="report-toggle-group" id="rpt-gran-group">
           <button type="button" class="stype-btn active" id="rpt-gran-day" onclick="setReportGranularity('day')">按日</button>
           <button type="button" class="stype-btn" id="rpt-gran-month" onclick="setReportGranularity('month')">按月</button>
         </div>
@@ -998,6 +999,8 @@ function setReportDimension(dim){
   reportDimension = dim;
   document.getElementById('rpt-dim-channel').classList.toggle('active', dim==='channel');
   document.getElementById('rpt-dim-category').classList.toggle('active', dim==='category');
+  document.getElementById('rpt-dim-product').classList.toggle('active', dim==='product');
+  document.getElementById('rpt-gran-group').style.display = dim==='product' ? 'none' : 'flex';
   renderReport();
 }
 
@@ -1023,6 +1026,11 @@ async function loadReportData(){
 }
 
 function renderReport(){
+  if(reportDimension === 'product'){
+    renderProductReport();
+    return;
+  }
+
   const periodKeyFn = reportGranularity === 'day' ? (d => d) : (d => d.slice(0,7));
   const CHANNEL_LABEL2 = {line:'LINE', shop:'官網', shopee:'蝦皮', pinkoi:'PINKOI'};
   const seriesKeys = reportDimension === 'channel' ? Object.keys(CHANNEL_LABEL2) : CATEGORY_TOTAL_KEYS;
@@ -1079,12 +1087,75 @@ function renderReport(){
   html += '</tbody></table>';
   document.getElementById('reportTableWrap').innerHTML = periods.length > 0 ? html : '<div class="resend-empty">目前沒有資料</div>';
 
-  window.__reportExportData = {periods, seriesKeys, seriesLabels, dataMap};
+  window.__reportExportData = {mode: 'trend', periods, seriesKeys, seriesLabels, dataMap};
+}
+
+// 依商品:彙整所有揀貨記錄裡的 SKU 銷量,做成排行榜(不分日期,累積全部)
+function renderProductReport(){
+  const skuTotals = {};
+  reportRawRecords.forEach(rec=>{
+    (rec.items || []).forEach(it=>{
+      if(!it.sku) return;
+      if(!skuTotals[it.sku]) skuTotals[it.sku] = {sku: it.sku, name: it.name || '', qty: 0};
+      skuTotals[it.sku].qty += it.qty || 0;
+      if(!skuTotals[it.sku].name && it.name) skuTotals[it.sku].name = it.name;
+    });
+  });
+  const ranked = Object.values(skuTotals).sort((a,b) => b.qty - a.qty);
+  const top = ranked.slice(0, 15);
+
+  const ctx = document.getElementById('reportChart').getContext('2d');
+  if(reportChartInstance) reportChartInstance.destroy();
+  reportChartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: top.map(r => r.name || r.sku),
+      datasets: [{
+        label: '銷售件數',
+        data: top.map(r => r.qty),
+        backgroundColor: CHART_COLORS[0]
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { x: { beginAtZero: true } }
+    }
+  });
+
+  let html = '<table class="report-table"><thead><tr><th>排名</th><th>SKU</th><th>品名</th><th>總銷量</th></tr></thead><tbody>';
+  ranked.forEach((r, i)=>{
+    html += '<tr><td>' + (i+1) + '</td><td>' + escapeHtml(r.sku) + '</td><td>' + escapeHtml(r.name) + '</td><td>' + r.qty + '</td></tr>';
+  });
+  html += '</tbody></table>';
+  document.getElementById('reportTableWrap').innerHTML = ranked.length > 0 ? html : '<div class="resend-empty">目前沒有資料</div>';
+
+  window.__reportExportData = {mode: 'product', ranked};
 }
 
 function exportReportExcel(){
   const data = window.__reportExportData;
-  if(!data || data.periods.length === 0){
+  if(!data){
+    alert('目前沒有資料可以匯出。');
+    return;
+  }
+
+  if(data.mode === 'product'){
+    if(!data.ranked || data.ranked.length === 0){
+      alert('目前沒有資料可以匯出。');
+      return;
+    }
+    const aoa = [['排名','SKU','品名','總銷量']];
+    data.ranked.forEach((r,i) => aoa.push([i+1, r.sku, r.name, r.qty]));
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '銷量報表');
+    XLSX.writeFile(wb, '銷量報表_' + ymd(new Date()) + '.xlsx');
+    return;
+  }
+
+  if(!data.periods || data.periods.length === 0){
     alert('目前沒有資料可以匯出。');
     return;
   }
