@@ -13,6 +13,9 @@
   import {
     getFirestore, collection, addDoc, query, where, getDocs, doc, updateDoc, getDoc, setDoc, serverTimestamp
   } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+  import {
+    getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut
+  } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyC_D5YGb7RTUMXOrw_DCXwYLg83Fy8GNEw",
@@ -25,8 +28,13 @@
 
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
+  const auth = getAuth(app);
+  const googleProvider = new GoogleAuthProvider();
 
-  window.__fb = { db, collection, addDoc, query, where, getDocs, doc, updateDoc, getDoc, setDoc, serverTimestamp };
+  window.__fb = {
+    db, collection, addDoc, query, where, getDocs, doc, updateDoc, getDoc, setDoc, serverTimestamp,
+    auth, googleProvider, signInWithPopup, onAuthStateChanged, signOut
+  };
   window.__fbReady = true;
   window.dispatchEvent(new Event('fbready'));
 </script>
@@ -333,14 +341,52 @@
   }
 
   footer.note{color:var(--ink-soft);font-size:12px;margin-top:30px;text-align:center;}
+
+  .auth-overlay{
+    position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;
+    z-index:9999;padding:20px;
+  }
+  .auth-box{
+    background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:40px 36px;
+    text-align:center;max-width:320px;width:100%;
+  }
+  .auth-icon{margin-bottom:16px;display:flex;justify-content:center;}
+  .auth-title{font-family:'Source Serif 4',Georgia,serif;font-size:22px;font-weight:600;margin-bottom:8px;color:var(--ink);}
+  .auth-desc{color:var(--ink-soft);font-size:14px;margin-bottom:24px;line-height:1.6;}
+  .auth-msg{margin-top:14px;font-size:13px;color:var(--warn);line-height:1.6;}
+  #authSignInBtn{width:100%;}
+
+  .header-row{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;}
+  .user-info{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--ink-soft);}
 </style>
 </head>
 <body>
-<div class="shell">
+
+<div class="auth-overlay" id="authOverlay">
+  <div class="auth-box">
+    <div class="auth-icon">
+      <svg viewBox="0 0 64 64" width="48" height="48"><rect width="64" height="64" rx="14" fill="#6E7D5E"/><rect x="26" y="30" width="12" height="22" rx="2" fill="#F5F3EE"/><rect x="30.5" y="25" width="3" height="6" fill="#3A2E20"/><path d="M32 10 C37 18 39 23 32 30 C25 23 27 18 32 10 Z" fill="#E2A64B"/></svg>
+    </div>
+    <div class="auth-title">JEIDI 出貨助手</div>
+    <div class="auth-desc" id="authDesc">請使用公司登記過的 Google 帳號登入</div>
+    <button class="primary" id="authSignInBtn" onclick="signInWithGoogle()">使用 Google 帳號登入</button>
+    <div class="auth-msg" id="authMsg"></div>
+  </div>
+</div>
+
+<div class="shell" id="mainShell" style="display:none;">
 
   <header class="top">
-    <div class="eyebrow">JEIDI 內部工具・第一階段</div>
-    <h1>出貨助手</h1>
+    <div class="header-row no-print">
+      <div>
+        <div class="eyebrow">JEIDI 內部工具・第一階段</div>
+        <h1>出貨助手</h1>
+      </div>
+      <div class="user-info">
+        <span id="userEmailLabel"></span>
+        <button class="ghost" onclick="signOutUser()">登出</button>
+      </div>
+    </div>
   </header>
 
   <div class="top-boxes no-print">
@@ -703,7 +749,6 @@ async function loadAnnouncements(){
     document.getElementById('announceBox').style.display = 'none';
   }
 }
-loadAnnouncements();
 
 // ===== 補寄記錄(Firestore 讀寫)=====
 const RESEND_COLLECTION = 'resend_records';
@@ -714,6 +759,73 @@ function waitForFirebase(){
     else window.addEventListener('fbready', ()=>resolve(), {once:true});
   });
 }
+
+// ===== Google 登入 + 白名單權限驗證 =====
+const USER_ROLES_COLLECTION = 'user_roles';
+let currentUserEmail = null;
+let currentUserRole = null;
+
+async function signInWithGoogle(){
+  await waitForFirebase();
+  const {auth, googleProvider, signInWithPopup} = window.__fb;
+  const msgEl = document.getElementById('authMsg');
+  msgEl.textContent = '';
+  try{
+    await signInWithPopup(auth, googleProvider);
+  }catch(err){
+    msgEl.textContent = '登入失敗: ' + err.message;
+  }
+}
+
+function signOutUser(){
+  waitForFirebase().then(()=>{
+    const {auth, signOut} = window.__fb;
+    signOut(auth);
+  });
+}
+
+async function handleAuthStateChange(user){
+  const overlay = document.getElementById('authOverlay');
+  const shell = document.getElementById('mainShell');
+  const msgEl = document.getElementById('authMsg');
+  const desc = document.getElementById('authDesc');
+
+  if(!user){
+    currentUserEmail = null;
+    currentUserRole = null;
+    overlay.style.display = 'flex';
+    shell.style.display = 'none';
+    return;
+  }
+
+  const {db, doc, getDoc} = window.__fb;
+  try{
+    const ref = doc(db, USER_ROLES_COLLECTION, user.email);
+    const snap = await getDoc(ref);
+    if(snap.exists()){
+      currentUserEmail = user.email;
+      currentUserRole = snap.data().role || 'staff';
+      overlay.style.display = 'none';
+      shell.style.display = 'block';
+      document.getElementById('userEmailLabel').textContent = user.email + (currentUserRole === 'admin' ? '(管理者)' : '');
+      loadAnnouncements();
+      loadResendRecords();
+      loadDailyNotes();
+    }else{
+      desc.textContent = '這個帳號還沒被登記,沒有使用權限';
+      msgEl.textContent = user.email + ' 尚未獲得授權,請聯絡管理者新增這個帳號。';
+      signOutUser();
+    }
+  }catch(err){
+    msgEl.textContent = '驗證權限時發生問題: ' + err.message;
+    signOutUser();
+  }
+}
+
+waitForFirebase().then(()=>{
+  const {auth, onAuthStateChanged} = window.__fb;
+  onAuthStateChanged(auth, handleAuthStateChange);
+});
 
 // ===== 隔天待處理清單(訂單今天沒被黑貓收走,自動記錄延遲天數)=====
 const PENDING_SHIPMENTS_COLLECTION = 'pending_shipments';
@@ -899,8 +1011,6 @@ async function submitResendForm(){
   }
 }
 
-loadResendRecords();
-
 // ===== 每日出貨檢核(填寫人、打勾、一般性備註提醒)=====
 const DAILY_CHECKLIST_COLLECTION = 'daily_checklist';
 let selectedFiller = null;
@@ -982,14 +1092,13 @@ async function resolveDailyNote(id){
   }
 }
 
-loadDailyNotes();
-
 // ===== 訂單備註(客戶要求延後出貨、收件人資料未填等例外狀況,即時從 Google 試算表讀取)=====
 const ORDER_NOTES_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1JwRKd39wCJ4KAM6BuwWDwypq2xtrSWNaQEh8O9rdiOo/export?format=csv&gid=0';
 let orderNotesMap = {};
 let pendingShipmentMap = {};
 let pendingPickMap = {};
 let pickOrderGroups = [];
+let currentBatchConfirmed = true;
 
 async function loadOrderNotes(){
   if(!ORDER_NOTES_SHEET_URL) return;
@@ -1106,6 +1215,11 @@ let shopeeShipType = 'next';
 let pinkoiShipType = 'seven';
 
 function selectChannel(ch){
+  if(ch === currentChannel) return;
+  if(pickOrderGroups.length > 0 && !currentBatchConfirmed){
+    const proceed = confirm('目前這批還沒按「確認完成揀貨」,切換通路會遺失這批的勾選進度、不會記錄到資料庫。確定要切換嗎?');
+    if(!proceed) return;
+  }
   currentChannel = ch;
   document.getElementById('chan-line').classList.toggle('active', ch==='line');
   document.getElementById('chan-shop').classList.toggle('active', ch==='shop');
@@ -1692,6 +1806,8 @@ function resetAll(){
   currentFile = null;
   parsedItems = [];
   custItems = [];
+  pickOrderGroups = [];
+  currentBatchConfirmed = true;
   document.getElementById('dz-filename').textContent = '';
   document.getElementById('dz-text').textContent = '將檔案拖曳到這裡,或點擊選擇檔案';
   document.getElementById('processBtn').disabled = true;
@@ -1704,6 +1820,10 @@ function resetAll(){
 }
 
 function explicitReset(){
+  if(pickOrderGroups.length > 0 && !currentBatchConfirmed){
+    const proceed = confirm('目前這批還沒按「確認完成揀貨」,重新開始會遺失這批的勾選進度、不會記錄到資料庫。確定要重新開始嗎?');
+    if(!proceed) return;
+  }
   resetAll();
   clearSavedState();
 }
@@ -1829,6 +1949,12 @@ function parseShopRows(dataRows, headers){
 
 async function processFile(){
   if(!currentFile) return;
+
+  if(pickOrderGroups.length > 0 && !currentBatchConfirmed){
+    const proceed = confirm('上一批還沒按「確認完成揀貨」,現在處理新的檔案,上一批的勾選進度會遺失、不會記錄到資料庫。確定要繼續嗎?');
+    if(!proceed) return;
+  }
+
   document.getElementById('errorPanel').style.display = 'none';
 
   let items = null;
@@ -2209,6 +2335,7 @@ async function finishProcessing(rawItems){
 
   renderResult();
   renderPickList();
+  currentBatchConfirmed = false;
   saveState();
 }
 
@@ -2225,6 +2352,7 @@ function saveState(){
       parsedItems: parsedItems,
       channelProgress: channelProgress,
       doneIndices: doneIndices,
+      batchConfirmed: currentBatchConfirmed,
       savedAt: new Date().toISOString()
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -2249,6 +2377,7 @@ function restoreState(){
     shopeeShipType = state.shopeeType || 'next';
     parsedItems = state.parsedItems;
     custItems = parsedItems.filter(it => it.hasCust);
+    currentBatchConfirmed = state.batchConfirmed !== undefined ? state.batchConfirmed : true;
 
     document.getElementById('chan-line').classList.toggle('active', currentChannel==='line');
     document.getElementById('chan-shop').classList.toggle('active', currentChannel==='shop');
@@ -2443,6 +2572,7 @@ function confirmPickProgress(){
     return;
   }
   channelProgress[currentChannel] = {total, done, time: new Date()};
+  currentBatchConfirmed = true;
   const note = document.getElementById('pickConfirmNote');
   const label = currentChannel === 'line' ? 'LINE' : (currentChannel === 'shop' ? '官網' : '蝦皮');
   note.textContent = '✓ 已確認:' + label + ' 揀貨進度 ' + done + ' / ' + total + '(已記錄到出貨核對頁面)';
