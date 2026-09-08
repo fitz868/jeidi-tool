@@ -329,6 +329,7 @@
     .no-print{display:none !important;}
     body{background:#fff;}
     .pick-card{page-break-inside:avoid;border:1.5px solid #333;}
+    body.print-incomplete-only .pick-card-done{display:none !important;}
   }
 
   footer.note{color:var(--ink-soft);font-size:12px;margin-top:30px;text-align:center;}
@@ -487,6 +488,7 @@
       <div class="pc-head-actions">
         <span class="pick-progress" id="pickProgress"></span>
         <button class="primary" onclick="confirmPickProgress()">確認完成揀貨</button>
+        <button class="ghost" onclick="printIncomplete()">列印未完成清單</button>
         <button class="ghost" onclick="window.print()">列印檢貨單</button>
       </div>
     </div>
@@ -714,19 +716,20 @@ function waitForFirebase(){
 }
 
 // ===== 隔天待處理清單(訂單今天沒被黑貓收走,自動記錄延遲天數)=====
-const PENDING_COLLECTION = 'pending_shipments';
+const PENDING_SHIPMENTS_COLLECTION = 'pending_shipments';
+const PENDING_PICKS_COLLECTION = 'pending_picks';
 
 function ymd(d){
   return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
 }
 
-// 訂單今天沒配對到單號:第一次出現就建立記錄,之後每天比對還是沒配對到就更新「最後確認日期」
-async function markPendingShipment(channel, orderId, name){
+// 通用:某訂單今天沒完成(不管是「沒被黑貓收走」還是「沒揀貨完成」),記錄/更新待處理狀態
+async function markPendingRecord(collectionName, channel, orderId, name){
   await waitForFirebase();
   const {db, doc, getDoc, setDoc, serverTimestamp} = window.__fb;
   const id = channel + '_' + orderId;
   try{
-    const ref = doc(db, PENDING_COLLECTION, id);
+    const ref = doc(db, collectionName, id);
     const snap = await getDoc(ref);
     const today = ymd(new Date());
     if(snap.exists() && snap.data().status === 'pending'){
@@ -739,17 +742,17 @@ async function markPendingShipment(channel, orderId, name){
       });
     }
   }catch(err){
-    // 寫入失敗不影響主要的比對流程,安靜跳過
+    // 寫入失敗不影響主要流程,安靜跳過
   }
 }
 
-// 訂單這次比對到單號了(表示出貨了):如果之前有卡在待處理清單裡,標記解決
-async function resolvePendingShipment(channel, orderId){
+// 通用:訂單這次完成了(出貨了 或 揀貨完成了),如果之前卡在待處理清單裡就解除
+async function resolvePendingRecord(collectionName, channel, orderId){
   await waitForFirebase();
   const {db, doc, getDoc, setDoc} = window.__fb;
   const id = channel + '_' + orderId;
   try{
-    const ref = doc(db, PENDING_COLLECTION, id);
+    const ref = doc(db, collectionName, id);
     const snap = await getDoc(ref);
     if(snap.exists() && snap.data().status === 'pending'){
       await setDoc(ref, {status: 'resolved'}, {merge: true});
@@ -759,13 +762,13 @@ async function resolvePendingShipment(channel, orderId){
   }
 }
 
-// 讀取某通路目前所有還「待處理」的訂單,回傳 {訂單編號: 已延遲天數} 的對照表
-async function loadPendingShipmentsMap(channel){
+// 通用:讀取某通路目前所有還「待處理」的訂單,回傳 {訂單編號: 已延遲天數} 的對照表
+async function loadPendingRecordsMap(collectionName, channel){
   await waitForFirebase();
   const {db, collection, query, where, getDocs} = window.__fb;
   const map = {};
   try{
-    const q = query(collection(db, PENDING_COLLECTION), where('channel','==',channel), where('status','==','pending'));
+    const q = query(collection(db, collectionName), where('channel','==',channel), where('status','==','pending'));
     const snap = await getDocs(q);
     const today = new Date();
     snap.forEach(d=>{
@@ -779,6 +782,14 @@ async function loadPendingShipmentsMap(channel){
   }
   return map;
 }
+
+const markPendingShipment = (channel, orderId, name) => markPendingRecord(PENDING_SHIPMENTS_COLLECTION, channel, orderId, name);
+const resolvePendingShipment = (channel, orderId) => resolvePendingRecord(PENDING_SHIPMENTS_COLLECTION, channel, orderId);
+const loadPendingShipmentsMap = (channel) => loadPendingRecordsMap(PENDING_SHIPMENTS_COLLECTION, channel);
+
+const markPendingPick = (channel, orderId, name) => markPendingRecord(PENDING_PICKS_COLLECTION, channel, orderId, name);
+const resolvePendingPick = (channel, orderId) => resolvePendingRecord(PENDING_PICKS_COLLECTION, channel, orderId);
+const loadPendingPicksMap = (channel) => loadPendingRecordsMap(PENDING_PICKS_COLLECTION, channel);
 
 // ===== 揀貨記錄(確認完成揀貨時寫入,含每個SKU的數量,供之後扣庫存/報表用)=====
 const PICK_RECORDS_COLLECTION = 'pick_records';
@@ -977,6 +988,7 @@ loadDailyNotes();
 const ORDER_NOTES_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1JwRKd39wCJ4KAM6BuwWDwypq2xtrSWNaQEh8O9rdiOo/export?format=csv&gid=0';
 let orderNotesMap = {};
 let pendingShipmentMap = {};
+let pendingPickMap = {};
 let pickOrderGroups = [];
 
 async function loadOrderNotes(){
@@ -2169,6 +2181,7 @@ async function finishProcessing(rawItems){
   await loadOrderNotes();
   await loadScentColors();
   pendingShipmentMap = await loadPendingShipmentsMap(currentChannel);
+  pendingPickMap = await loadPendingPicksMap(currentChannel);
   let matchedSkuCount = 0;
   items.forEach(it=>{
     const info = skuMap[it.sku];
@@ -2362,6 +2375,9 @@ function renderPickList(){
     if(pendingShipmentMap[oid]){
       notes.push('已延遲 ' + pendingShipmentMap[oid] + ' 天未出貨,今天優先處理');
     }
+    if(pendingPickMap[oid]){
+      notes.push('已連續 ' + pendingPickMap[oid] + ' 天未完成揀貨,請優先處理');
+    }
     const noteBlock = notes.length > 0
       ? '<div class="pc-alert">⚠ ' + notes.map(escapeHtml).join('<br>⚠ ') + '</div>'
       : '';
@@ -2394,6 +2410,19 @@ function togglePickDone(idx, done){
   updatePickProgress();
   saveState();
 }
+
+function printIncomplete(){
+  const remaining = document.querySelectorAll('#pickList .pick-card:not(.pick-card-done)').length;
+  if(remaining === 0){
+    alert('今天全部都已經打勾完成了,沒有未完成的可以列印。');
+    return;
+  }
+  document.body.classList.add('print-incomplete-only');
+  window.print();
+}
+window.addEventListener('afterprint', ()=>{
+  document.body.classList.remove('print-incomplete-only');
+});
 
 function updatePickProgress(){
   const total = document.querySelectorAll('#pickList .pick-card').length;
@@ -2440,6 +2469,19 @@ function confirmPickProgress(){
   });
   const skuBreakdown = Object.values(skuTotals);
   savePickRecord(currentChannel, categoryCounts, total, totalItemCount, done, skuBreakdown);
+
+  // 沒打勾的訂單,記錄到「揀貨未完成」清單;打勾的,如果之前卡在清單裡就解除
+  const doneIdxSet = new Set(doneCards.map(c => parseInt(c.id.replace('pick-card-',''), 10)));
+  pickOrderGroups.forEach((its, idx)=>{
+    if(!its || its.length === 0) return;
+    const oid = its[0].orderId;
+    const name = its[0].name;
+    if(doneIdxSet.has(idx)){
+      resolvePendingPick(currentChannel, oid);
+    }else{
+      markPendingPick(currentChannel, oid, name);
+    }
+  });
 }
 
 function showError(lines){
