@@ -12,7 +12,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
   import {
-    getFirestore, collection, addDoc, query, where, getDocs, doc, updateDoc, getDoc, setDoc, serverTimestamp
+    getFirestore, collection, addDoc, query, where, getDocs, doc, updateDoc, getDoc, setDoc, serverTimestamp, onSnapshot
   } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
   import {
     getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut
@@ -33,7 +33,7 @@
   const googleProvider = new GoogleAuthProvider();
 
   window.__fb = {
-    db, collection, addDoc, query, where, getDocs, doc, updateDoc, getDoc, setDoc, serverTimestamp,
+    db, collection, addDoc, query, where, getDocs, doc, updateDoc, getDoc, setDoc, serverTimestamp, onSnapshot,
     auth, googleProvider, signInWithPopup, onAuthStateChanged, signOut
   };
   window.__fbReady = true;
@@ -246,6 +246,9 @@
   .pp-cell .pp-num{font-family:'Source Serif 4',Georgia,serif;font-size:24px;font-weight:600;}
   .pp-cell .pp-num.pp-done{color:var(--ok);}
   .pp-cell .pp-empty{font-size:13px;color:var(--ink-soft);}
+  .pp-cell .pp-status{font-size:11px;color:var(--ink-soft);margin-top:4px;}
+  .pp-cell .pp-status.pp-live{color:var(--sage-dark);font-weight:600;}
+  .pp-missing-list{margin-top:8px;text-align:left;font-size:12px;color:var(--warn);line-height:1.6;}
 
   .stat-row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:18px;}
   .rc-cell{min-width:220px;}
@@ -728,6 +731,12 @@
         <button class="primary" onclick="submitDailyChecklist()">送出</button>
       </div>
       <div class="form-msg" id="checklistMsg"></div>
+    </div>
+
+    <div class="panel no-print" id="p3-livePanel">
+      <h2>即時進行中</h2>
+      <div class="desc">兼職正在處理、還沒按「確認完成揀貨」的即時狀態,幾秒內會自動更新,不用重新整理頁面。</div>
+      <div id="p3-liveRow" class="pick-progress-row"></div>
     </div>
 
     <div class="panel no-print" id="p3-pickPanel">
@@ -1474,6 +1483,8 @@ function selectChannel(ch){
     const proceed = confirm('目前這批還沒按「確認完成揀貨」,切換通路會遺失這批的勾選進度、不會記錄到資料庫。確定要切換嗎?');
     if(!proceed) return;
   }
+  const oldChannel = currentChannel;
+  clearLiveSession(oldChannel);
   currentChannel = ch;
   document.getElementById('chan-line').classList.toggle('active', ch==='line');
   document.getElementById('chan-shop').classList.toggle('active', ch==='shop');
@@ -1525,11 +1536,11 @@ function switchPage(n){
   document.getElementById('tab-page1').classList.toggle('active', n===1);
   document.getElementById('tab-page2').classList.toggle('active', n===2);
   document.getElementById('tab-page3').classList.toggle('active', n===3);
-  if(n===3){ updatePage3PickProgress(); loadCategoryTotals(); }
+  if(n===3){ updatePage3PickProgress(); loadCategoryTotals(); startLiveSessionListener(); }
 }
 
 function updatePage3PickProgress(){
-  const labels = {line:'LINE', shop:'官網', shopee:'蝦皮'};
+  const labels = {line:'LINE', shop:'官網', shopee:'蝦皮', pinkoi:'PINKOI'};
   const row = document.getElementById('p3-pickRow');
   if(!row) return;
   row.innerHTML = Object.keys(labels).map(ch=>{
@@ -1538,6 +1549,49 @@ function updatePage3PickProgress(){
       return '<div class="pp-cell"><div class="pp-name">' + labels[ch] + '</div><div class="pp-empty">今天還沒確認</div></div>';
     }
     return '<div class="pp-cell"><div class="pp-name">' + labels[ch] + '</div><div class="pp-num pp-done">' + p.done + ' / ' + p.total + '</div></div>';
+  }).join('');
+}
+
+// ===== 即時進行中(監聽 live_sessions,不用重新整理就能看到兼職現在進度)=====
+let liveSessionUnsub = null;
+
+async function startLiveSessionListener(){
+  await waitForFirebase();
+  const {db, collection, onSnapshot} = window.__fb;
+  if(liveSessionUnsub) return; // 已經在監聽就不用重複訂閱
+  liveSessionUnsub = onSnapshot(collection(db, 'live_sessions'), (snap)=>{
+    const sessions = {};
+    snap.forEach(d => sessions[d.id] = d.data());
+    renderLiveSessions(sessions);
+  }, (err)=>{
+    const row = document.getElementById('p3-liveRow');
+    if(row) row.innerHTML = '<div class="resend-empty">讀取失敗: ' + err.message + '</div>';
+  });
+}
+
+function renderLiveSessions(sessions){
+  const labels = {line:'LINE', shop:'官網', shopee:'蝦皮', pinkoi:'PINKOI'};
+  const row = document.getElementById('p3-liveRow');
+  if(!row) return;
+  row.innerHTML = Object.keys(labels).map(ch=>{
+    const s = sessions[ch];
+    if(!s || !s.total){
+      return '<div class="pp-cell"><div class="pp-name">' + labels[ch] + '</div><div class="pp-empty">目前沒有進行中</div></div>';
+    }
+    const statusText = s.confirmed ? '已確認完成' : '進行中';
+    const statusClass = s.confirmed ? 'pp-status' : 'pp-status pp-live';
+    let missingHtml = '';
+    if(!s.confirmed && s.pendingSkus && s.pendingSkus.length > 0){
+      missingHtml = '<div class="pp-missing-list">還缺:' +
+        s.pendingSkus.slice(0,8).map(p => escapeHtml(p.name || p.sku) + ' x' + p.qty).join('、') +
+        (s.pendingSkus.length > 8 ? ' 等' + s.pendingSkus.length + '項' : '') +
+        '</div>';
+    }
+    return '<div class="pp-cell"><div class="pp-name">' + labels[ch] + '</div>' +
+      '<div class="pp-num pp-done">' + s.done + ' / ' + s.total + '</div>' +
+      '<div class="' + statusClass + '">' + statusText + '</div>' +
+      missingHtml +
+      '</div>';
   }).join('');
 }
 
@@ -2079,6 +2133,7 @@ function explicitReset(){
     const proceed = confirm('目前這批還沒按「確認完成揀貨」,重新開始會遺失這批的勾選進度、不會記錄到資料庫。確定要重新開始嗎?');
     if(!proceed) return;
   }
+  clearLiveSession(currentChannel);
   resetAll();
   clearSavedState();
 }
@@ -2835,6 +2890,59 @@ function updatePickProgress(){
   const done = document.querySelectorAll('#pickList .pick-card-done').length;
   const el = document.getElementById('pickProgress');
   if(el) el.textContent = total > 0 ? ('已檢貨 ' + done + ' / ' + total) : '';
+  syncLiveProgress(total, done);
+}
+
+// 彙整「還沒打勾」的訂單裡,各SKU還缺多少件(不含配件/組合成分,只算主商品)
+function getPendingSkuBreakdown(){
+  const doneIdxSet = new Set(
+    Array.from(document.querySelectorAll('#pickList .pick-card-done'))
+      .map(el => parseInt(el.id.replace('pick-card-',''), 10))
+  );
+  const totals = {};
+  pickOrderGroups.forEach((its, idx)=>{
+    if(!its || doneIdxSet.has(idx)) return;
+    its.forEach(it=>{
+      if(!it.sku) return;
+      if(!totals[it.sku]) totals[it.sku] = {sku: it.sku, name: it.displayName || it.itemName, qty: 0};
+      totals[it.sku].qty += it.qty;
+    });
+  });
+  return Object.values(totals).sort((a,b) => b.qty - a.qty);
+}
+
+// 即時把目前進度(含還缺哪些SKU)同步到資料庫(debounce,避免連續勾選時瘋狂寫入)
+let liveSyncTimer = null;
+function syncLiveProgress(total, done){
+  clearTimeout(liveSyncTimer);
+  liveSyncTimer = setTimeout(async ()=>{
+    await waitForFirebase();
+    const {db, doc, setDoc, serverTimestamp} = window.__fb;
+    const pendingSkus = getPendingSkuBreakdown().slice(0, 30); // 最多存30項,避免資料過大
+    try{
+      await setDoc(doc(db, 'live_sessions', currentChannel), {
+        channel: currentChannel, total, done, confirmed: currentBatchConfirmed,
+        pendingSkus,
+        updatedAt: serverTimestamp(), updatedBy: currentUserEmail || ''
+      });
+    }catch(err){
+      // 即時同步失敗不影響主要出貨功能,安靜跳過
+    }
+  }, 400);
+}
+
+// 指定通路清除即時狀態(切換通路時用,清掉「離開的那個通路」,不是新通路)
+async function clearLiveSession(channel){
+  await waitForFirebase();
+  const {db, doc, setDoc, serverTimestamp} = window.__fb;
+  try{
+    await setDoc(doc(db, 'live_sessions', channel), {
+      channel, total: 0, done: 0, confirmed: true, pendingSkus: [],
+      updatedAt: serverTimestamp(), updatedBy: currentUserEmail || ''
+    });
+  }catch(err){
+    // 清除失敗不影響主要功能,安靜跳過
+  }
 }
 
 // 各通路的揀貨進度(按下「確認完成揀貨」才會記錄,不是勾選當下就即時送出)
@@ -2850,6 +2958,7 @@ function confirmPickProgress(){
   }
   channelProgress[currentChannel] = {total, done, time: new Date()};
   currentBatchConfirmed = true;
+  syncLiveProgress(total, done);
   const note = document.getElementById('pickConfirmNote');
   const label = currentChannel === 'line' ? 'LINE' : (currentChannel === 'shop' ? '官網' : '蝦皮');
   note.textContent = '✓ 已確認:' + label + ' 揀貨進度 ' + done + ' / ' + total + '(已記錄到出貨核對頁面)';
