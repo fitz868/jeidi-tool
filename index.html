@@ -12,7 +12,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
   import {
-    getFirestore, collection, addDoc, query, where, getDocs, doc, updateDoc, getDoc, setDoc, serverTimestamp, onSnapshot
+    getFirestore, collection, addDoc, query, where, getDocs, doc, updateDoc, getDoc, setDoc, serverTimestamp, onSnapshot, increment
   } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
   import {
     getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut
@@ -33,7 +33,7 @@
   const googleProvider = new GoogleAuthProvider();
 
   window.__fb = {
-    db, collection, addDoc, query, where, getDocs, doc, updateDoc, getDoc, setDoc, serverTimestamp, onSnapshot,
+    db, collection, addDoc, query, where, getDocs, doc, updateDoc, getDoc, setDoc, serverTimestamp, onSnapshot, increment,
     auth, googleProvider, signInWithPopup, onAuthStateChanged, signOut
   };
   window.__fbReady = true;
@@ -250,6 +250,11 @@
   .pp-cell .pp-status.pp-live{color:var(--sage-dark);font-weight:600;}
   .pp-missing-list{margin-top:8px;text-align:left;font-size:12px;color:var(--warn);line-height:1.6;}
 
+  .today-summary-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;}
+  .ts-item{background:var(--bg);border-radius:8px;padding:10px 12px;}
+  .ts-item .ts-name{font-size:13px;font-weight:600;color:var(--ink);}
+  .ts-item .ts-qty{font-family:'Source Serif 4',Georgia,serif;font-size:20px;font-weight:600;color:var(--warn);margin-top:2px;}
+
   .stat-row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:18px;}
   .rc-cell{min-width:220px;}
   .rc-input-row{margin-top:10px;display:flex;align-items:center;gap:8px;}
@@ -419,7 +424,7 @@
 
   <div class="mode-tabs no-print" id="modeTabs" style="display:none;">
     <button class="tab-btn active" id="tab-mode-helper" onclick="switchMode('helper')">出貨助手</button>
-    <button class="tab-btn" id="tab-mode-report" onclick="switchMode('report')" style="display:none;">出貨報表</button>
+    <button class="tab-btn" id="tab-mode-report" onclick="switchMode('report')" style="display:none;">報表</button>
   </div>
 
   <div id="helperMode">
@@ -472,6 +477,12 @@
   </div>
 
   <div id="page1">
+
+  <div class="panel no-print" id="todaySummaryPanel" style="display:none;">
+    <h2>今日還剩要出貨的商品</h2>
+    <div class="desc">合併所有通路,今天累積匯入過的訂單裡,還沒打勾「已檢貨」的商品總數。打勾後會即時扣除,不用重新整理。</div>
+    <div id="todaySummaryList"></div>
+  </div>
 
   <div class="channels no-print">
     <button class="chan-btn active" id="chan-line" onclick="selectChannel('line')">
@@ -761,7 +772,7 @@
 
   <div id="reportMode" style="display:none;">
     <div class="panel no-print">
-      <h2>出貨報表</h2>
+      <h2>報表</h2>
       <div class="desc">依通路或物流方式,查看每日/每月出貨累積趨勢(僅管理者可見)。</div>
       <div class="report-controls">
         <div class="report-toggle-group">
@@ -881,6 +892,7 @@ async function handleAuthStateChange(user){
       loadAnnouncements();
       loadResendRecords();
       loadDailyNotes();
+      startTodaySummaryListener();
     }else{
       desc.textContent = '這個帳號還沒被登記,沒有使用權限';
       msgEl.textContent = user.email + ' 尚未獲得授權,請聯絡管理者新增這個帳號。';
@@ -977,7 +989,7 @@ const loadPendingPicksMap = (channel) => loadPendingRecordsMap(PENDING_PICKS_COL
 const PICK_RECORDS_COLLECTION = 'pick_records';
 
 // 近5天各通路總訂單數(顯示在公告下方,給大家看的簡化總覽)
-// ===== 出貨報表(僅管理者可見)=====
+// ===== 報表(僅管理者可見)=====
 let reportDimension = 'channel';
 let reportGranularity = 'day';
 let reportChartInstance = null;
@@ -1165,8 +1177,8 @@ function exportReportExcel(){
   });
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, '出貨報表');
-  XLSX.writeFile(wb, '出貨報表_' + ymd(new Date()) + '.xlsx');
+  XLSX.utils.book_append_sheet(wb, ws, '報表');
+  XLSX.writeFile(wb, '報表_' + ymd(new Date()) + '.xlsx');
 }
 
 async function savePickRecord(channel, categoryCounts, totalOrders, totalItems, doneCount, skuBreakdown){
@@ -2647,6 +2659,15 @@ async function finishProcessing(rawItems){
   renderPickList();
   currentBatchConfirmed = false;
   saveState();
+
+  // 新批次的所有商品(不管有沒有勾),都是「還沒出貨」,加進今日總覽累加
+  const newBatchDeltas = {};
+  items.forEach(it=>{
+    if(!it.sku) return;
+    if(!newBatchDeltas[it.sku]) newBatchDeltas[it.sku] = {name: it.displayName || it.itemName, delta: 0};
+    newBatchDeltas[it.sku].delta += it.qty;
+  });
+  adjustTodaySummary(newBatchDeltas);
 }
 
 // ===== 本機儲存:重新整理頁面不會遺失目前進度 =====
@@ -2870,6 +2891,16 @@ function togglePickDone(idx, done){
   if(card) card.classList.toggle('pick-card-done', done);
   updatePickProgress();
   saveState();
+
+  // 打勾代表這張訂單的商品已經檢貨完成,從今日總覽扣除;取消打勾則加回去
+  const its = pickOrderGroups[idx] || [];
+  const deltas = {};
+  its.forEach(it=>{
+    if(!it.sku) return;
+    if(!deltas[it.sku]) deltas[it.sku] = {name: it.displayName || it.itemName, delta: 0};
+    deltas[it.sku].delta += done ? -it.qty : it.qty;
+  });
+  adjustTodaySummary(deltas);
 }
 
 function printIncomplete(){
@@ -2943,6 +2974,72 @@ async function clearLiveSession(channel){
   }catch(err){
     // 清除失敗不影響主要功能,安靜跳過
   }
+}
+
+// ===== 今日還剩要出貨的商品(合併所有通路,原子累加/扣除,支援多人同時操作)=====
+const TODAY_SUMMARY_COLLECTION = 'today_summary';
+
+function sanitizeFieldKey(sku){
+  return String(sku).replace(/[.\/\[\]#$]/g, '_');
+}
+
+// deltas: {sku: {name, delta}} - delta 正數代表增加還剩件數,負數代表扣除(已檢貨)
+async function adjustTodaySummary(deltas){
+  const skus = Object.keys(deltas);
+  if(skus.length === 0) return;
+  await waitForFirebase();
+  const {db, doc, setDoc, serverTimestamp, increment} = window.__fb;
+  const dateStr = ymd(new Date());
+  const ref = doc(db, TODAY_SUMMARY_COLLECTION, dateStr);
+  const updates = {updatedAt: serverTimestamp()};
+  skus.forEach(sku=>{
+    const key = sanitizeFieldKey(sku);
+    updates['qty.' + key] = increment(deltas[sku].delta);
+    updates['names.' + key] = deltas[sku].name || sku;
+  });
+  try{
+    await setDoc(ref, updates, {merge: true});
+  }catch(err){
+    // 累加失敗不影響主要出貨流程,安靜跳過
+  }
+}
+
+let todaySummaryUnsub = null;
+
+async function startTodaySummaryListener(){
+  await waitForFirebase();
+  const {db, doc, onSnapshot} = window.__fb;
+  if(todaySummaryUnsub) return;
+  const dateStr = ymd(new Date());
+  todaySummaryUnsub = onSnapshot(doc(db, TODAY_SUMMARY_COLLECTION, dateStr), (snap)=>{
+    if(!snap.exists()){
+      document.getElementById('todaySummaryPanel').style.display = 'none';
+      return;
+    }
+    renderTodaySummary(snap.data());
+  }, (err)=>{
+    document.getElementById('todaySummaryPanel').style.display = 'none';
+  });
+}
+
+function renderTodaySummary(data){
+  const qtyMap = data.qty || {};
+  const namesMap = data.names || {};
+  const rows = Object.keys(qtyMap)
+    .map(key => ({key, name: namesMap[key] || key, qty: qtyMap[key]}))
+    .filter(r => r.qty > 0)
+    .sort((a,b) => b.qty - a.qty);
+
+  const panel = document.getElementById('todaySummaryPanel');
+  if(rows.length === 0){
+    panel.style.display = 'none';
+    return;
+  }
+  document.getElementById('todaySummaryList').innerHTML =
+    '<div class="today-summary-grid">' +
+    rows.map(r => '<div class="ts-item"><div class="ts-name">' + escapeHtml(r.name) + '</div><div class="ts-qty">' + r.qty + '</div></div>').join('') +
+    '</div>';
+  panel.style.display = 'block';
 }
 
 // 各通路的揀貨進度(按下「確認完成揀貨」才會記錄,不是勾選當下就即時送出)
