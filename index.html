@@ -784,6 +784,13 @@
           <button type="button" class="stype-btn active" id="rpt-gran-day" onclick="setReportGranularity('day')">按日</button>
           <button type="button" class="stype-btn" id="rpt-gran-month" onclick="setReportGranularity('month')">按月</button>
         </div>
+        <div class="report-toggle-group" id="rpt-product-channel-group" style="display:none;">
+          <button type="button" class="stype-btn active" data-ch="all" onclick="setReportProductChannel('all')">全部通路</button>
+          <button type="button" class="stype-btn" data-ch="line" onclick="setReportProductChannel('line')">LINE</button>
+          <button type="button" class="stype-btn" data-ch="shop" onclick="setReportProductChannel('shop')">官網</button>
+          <button type="button" class="stype-btn" data-ch="shopee" onclick="setReportProductChannel('shopee')">蝦皮</button>
+          <button type="button" class="stype-btn" data-ch="pinkoi" onclick="setReportProductChannel('pinkoi')">PINKOI</button>
+        </div>
         <button class="ghost" onclick="exportReportExcel()">匯出 Excel</button>
       </div>
       <div class="report-chart-wrap">
@@ -1011,6 +1018,16 @@ function setReportDimension(dim){
   document.getElementById('rpt-dim-category').classList.toggle('active', dim==='category');
   document.getElementById('rpt-dim-product').classList.toggle('active', dim==='product');
   document.getElementById('rpt-gran-group').style.display = dim==='product' ? 'none' : 'flex';
+  document.getElementById('rpt-product-channel-group').style.display = dim==='product' ? 'flex' : 'none';
+  renderReport();
+}
+
+let reportProductChannel = 'all';
+function setReportProductChannel(ch){
+  reportProductChannel = ch;
+  document.querySelectorAll('#rpt-product-channel-group .stype-btn').forEach(b=>{
+    b.classList.toggle('active', b.dataset.ch === ch);
+  });
   renderReport();
 }
 
@@ -1056,7 +1073,7 @@ function renderReport(){
     if(!dataMap[period]) dataMap[period] = {};
     if(reportDimension === 'channel'){
       const k = rec.channel;
-      dataMap[period][k] = (dataMap[period][k] || 0) + (rec.totalOrders || 0);
+      dataMap[period][k] = (dataMap[period][k] || 0) + (rec.totalItems || 0);
     }else{
       const counts = rec.categoryCounts || {};
       Object.keys(counts).forEach(cat=>{
@@ -1103,7 +1120,10 @@ function renderReport(){
 // 依商品:彙整所有揀貨記錄裡的 SKU 銷量,做成排行榜(不分日期,累積全部)
 function renderProductReport(){
   const skuTotals = {};
-  reportRawRecords.forEach(rec=>{
+  const records = reportProductChannel === 'all'
+    ? reportRawRecords
+    : reportRawRecords.filter(rec => rec.channel === reportProductChannel);
+  records.forEach(rec=>{
     (rec.items || []).forEach(it=>{
       if(!it.sku) return;
       if(!skuTotals[it.sku]) skuTotals[it.sku] = {sku: it.sku, name: it.name || '', qty: 0};
