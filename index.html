@@ -489,6 +489,7 @@
     <button class="tab-btn active" id="tab-page1" onclick="switchPage(1)">出貨準備</button>
     <button class="tab-btn" id="tab-page2" onclick="switchPage(2)">出貨回報</button>
     <button class="tab-btn" id="tab-page3" onclick="switchPage(3)">出貨核對</button>
+    <button class="tab-btn" id="tab-page4" onclick="switchPage(4)">補寄清單</button>
   </div>
 
   <div id="page1">
@@ -783,6 +784,15 @@
 
   </div><!-- /page3 -->
 
+  <div id="page4" style="display:none;">
+    <div class="panel no-print">
+      <h2>已完成補寄清單</h2>
+      <div class="desc">找補寄單號或哪張訂單補寄過用這裡查,依完成時間新到舊排序。</div>
+      <input type="text" id="resendSearchInput" placeholder="搜尋訂單編號或補寄單號" oninput="renderCompletedResends()">
+      <div id="completedResendList" style="margin-top:14px;"></div>
+    </div>
+  </div><!-- /page4 -->
+
   </div><!-- /helperMode -->
 
   <div id="reportMode" style="display:none;">
@@ -816,13 +826,6 @@
         <canvas id="reportChart"></canvas>
       </div>
       <div id="reportTableWrap"></div>
-    </div>
-
-    <div class="panel no-print">
-      <h2>已完成補寄清單</h2>
-      <div class="desc">找補寄單號或哪張訂單補寄過用這裡查,依完成時間新到舊排序。</div>
-      <input type="text" id="resendSearchInput" placeholder="搜尋訂單編號或補寄單號" oninput="renderCompletedResends()">
-      <div id="completedResendList" style="margin-top:14px;"></div>
     </div>
 
     <div class="panel no-print">
@@ -1048,7 +1051,6 @@ function switchMode(mode){
   if(mode === 'report'){
     loadReportData();
     loadSkuMap().then(()=>{ if(reportDimension === 'product') renderReport(); });
-    loadCompletedResends();
   }
 }
 
@@ -1790,10 +1792,13 @@ function switchPage(n){
   document.getElementById('page1').style.display = n===1 ? 'block' : 'none';
   document.getElementById('page2').style.display = n===2 ? 'block' : 'none';
   document.getElementById('page3').style.display = n===3 ? 'block' : 'none';
+  document.getElementById('page4').style.display = n===4 ? 'block' : 'none';
   document.getElementById('tab-page1').classList.toggle('active', n===1);
   document.getElementById('tab-page2').classList.toggle('active', n===2);
   document.getElementById('tab-page3').classList.toggle('active', n===3);
+  document.getElementById('tab-page4').classList.toggle('active', n===4);
   if(n===3){ updatePage3PickProgress(); loadCategoryTotals(); startLiveSessionListener(); }
+  if(n===4){ loadCompletedResends(); }
 }
 
 function updatePage3PickProgress(){
