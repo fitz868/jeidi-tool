@@ -12,7 +12,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
   import {
-    getFirestore, collection, addDoc, query, where, getDocs, doc, updateDoc, getDoc, setDoc, serverTimestamp, onSnapshot, increment
+    getFirestore, collection, addDoc, query, where, getDocs, doc, updateDoc, getDoc, setDoc, serverTimestamp, onSnapshot, increment, writeBatch
   } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
   import {
     getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut
@@ -33,7 +33,7 @@
   const googleProvider = new GoogleAuthProvider();
 
   window.__fb = {
-    db, collection, addDoc, query, where, getDocs, doc, updateDoc, getDoc, setDoc, serverTimestamp, onSnapshot, increment,
+    db, collection, addDoc, query, where, getDocs, doc, updateDoc, getDoc, setDoc, serverTimestamp, onSnapshot, increment, writeBatch,
     auth, googleProvider, signInWithPopup, onAuthStateChanged, signOut
   };
   window.__fbReady = true;
@@ -798,6 +798,16 @@
       </div>
       <div id="reportTableWrap"></div>
     </div>
+
+    <div class="panel no-print">
+      <h2>匯入歷史紀錄</h2>
+      <div class="desc">上傳已經整理好的歷史紀錄 JSON 檔(由 Claude 協助從舊資料轉換而成),補齊使用這個工具之前的出貨數字。每筆記錄只會新增,不會影響現有資料,重複匯入同一份檔案會造成數字重複計算,請留意。</div>
+      <input type="file" id="historyImportFile" accept=".json">
+      <div class="btn-row">
+        <button class="primary" onclick="importHistoricalRecords()">開始匯入</button>
+      </div>
+      <div class="form-msg" id="historyImportMsg"></div>
+    </div>
   </div>
 
 </div>
@@ -1199,6 +1209,65 @@ function exportReportExcel(){
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, '報表');
   XLSX.writeFile(wb, '報表_' + ymd(new Date()) + '.xlsx');
+}
+
+async function importHistoricalRecords(){
+  const fileInput = document.getElementById('historyImportFile');
+  const msgEl = document.getElementById('historyImportMsg');
+  const file = fileInput.files[0];
+  if(!file){
+    msgEl.textContent = '請先選擇要匯入的 JSON 檔案。';
+    return;
+  }
+
+  let records;
+  try{
+    const text = await file.text();
+    records = JSON.parse(text);
+    if(!Array.isArray(records)) throw new Error('檔案格式不對,應該是一個列表');
+  }catch(err){
+    msgEl.textContent = '讀取檔案失敗: ' + err.message;
+    return;
+  }
+
+  if(!confirm('確定要匯入 ' + records.length + ' 筆歷史紀錄嗎?重複匯入同一份檔案會造成數字重複計算,請確認這是第一次匯入這份資料。')){
+    return;
+  }
+
+  await waitForFirebase();
+  const {db, collection, writeBatch, doc, serverTimestamp} = window.__fb;
+
+  msgEl.textContent = '匯入中,請稍候...';
+  try{
+    // Firestore 一次批次最多 500 筆,超過就分批處理
+    const chunkSize = 450;
+    let imported = 0;
+    for(let i = 0; i < records.length; i += chunkSize){
+      const chunk = records.slice(i, i + chunkSize);
+      const batch = writeBatch(db);
+      chunk.forEach(rec=>{
+        const ref = doc(collection(db, PICK_RECORDS_COLLECTION));
+        batch.set(ref, {
+          date: rec.date,
+          channel: rec.channel,
+          categoryCounts: rec.categoryCounts || {},
+          totalOrders: rec.totalOrders || 0,
+          totalItems: rec.totalItems || 0,
+          doneCount: rec.doneCount || 0,
+          items: rec.items || [],
+          isHistoricalImport: true,
+          confirmedAt: serverTimestamp()
+        });
+      });
+      await batch.commit();
+      imported += chunk.length;
+      msgEl.textContent = '匯入中... ' + imported + ' / ' + records.length;
+    }
+    msgEl.textContent = '✓ 匯入完成,共 ' + imported + ' 筆。切換報表的日期範圍應該可以看到歷史資料了。';
+    fileInput.value = '';
+  }catch(err){
+    msgEl.textContent = '匯入過程發生錯誤: ' + err.message + '(可能只完成部分匯入,請檢查 pick_records 集合)';
+  }
 }
 
 async function savePickRecord(channel, categoryCounts, totalOrders, totalItems, doneCount, skuBreakdown){
