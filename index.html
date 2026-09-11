@@ -1358,6 +1358,7 @@ async function importHistoricalRecords(){
           totalItems: rec.totalItems || 0,
           doneCount: rec.doneCount || 0,
           items: rec.items || [],
+          revenue: rec.revenue || 0,
           isHistoricalImport: true,
           confirmedAt: serverTimestamp()
         });
