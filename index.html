@@ -160,6 +160,18 @@
   .resend-order{color:var(--ink-soft);font-size:12px;}
   .resend-line{color:var(--ink);margin-bottom:2px;}
   .resend-item button{margin-top:6px;font-size:12px;padding:5px 12px;}
+  .resend-tracking-input{
+    width:100%;box-sizing:border-box;margin-top:8px;font-family:inherit;font-size:12.5px;
+    padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--paper);color:var(--ink);
+  }
+
+  #resendSearchInput{
+    width:100%;box-sizing:border-box;font-family:inherit;font-size:14px;padding:9px 12px;
+    border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);
+  }
+  .plain-table{width:100%;border-collapse:collapse;font-size:13px;}
+  .plain-table th, .plain-table td{border-bottom:1px solid var(--line);padding:8px 10px;text-align:left;}
+  .plain-table th{color:var(--ink-soft);font-weight:600;font-size:12px;}
 
   .resend-form-details{margin-top:10px;}
   .resend-form-details summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--sage-dark);}
@@ -446,7 +458,7 @@
             <option value="官網">官網</option>
             <option value="蝦皮">蝦皮</option>
           </select>
-          <input id="rf-order" placeholder="補寄單號">
+          <input id="rf-order" placeholder="訂單編號">
           <select id="rf-category">
             <option value="kerry">黑貓</option>
             <option value="seven">7-11</option>
@@ -782,6 +794,7 @@
           <button type="button" class="stype-btn active" id="rpt-dim-channel" onclick="setReportDimension('channel')">依通路</button>
           <button type="button" class="stype-btn" id="rpt-dim-category" onclick="setReportDimension('category')">依物流方式</button>
           <button type="button" class="stype-btn" id="rpt-dim-product" onclick="setReportDimension('product')">依商品(銷量排行)</button>
+          <button type="button" class="stype-btn" id="rpt-dim-revenue" onclick="setReportDimension('revenue')">營收</button>
         </div>
         <div class="report-toggle-group" id="rpt-gran-group">
           <button type="button" class="stype-btn active" id="rpt-gran-day" onclick="setReportGranularity('day')">按日</button>
@@ -803,6 +816,13 @@
         <canvas id="reportChart"></canvas>
       </div>
       <div id="reportTableWrap"></div>
+    </div>
+
+    <div class="panel no-print">
+      <h2>已完成補寄清單</h2>
+      <div class="desc">找補寄單號或哪張訂單補寄過用這裡查,依完成時間新到舊排序。</div>
+      <input type="text" id="resendSearchInput" placeholder="搜尋訂單編號或補寄單號" oninput="renderCompletedResends()">
+      <div id="completedResendList" style="margin-top:14px;"></div>
     </div>
 
     <div class="panel no-print">
@@ -1028,6 +1048,7 @@ function switchMode(mode){
   if(mode === 'report'){
     loadReportData();
     loadSkuMap().then(()=>{ if(reportDimension === 'product') renderReport(); });
+    loadCompletedResends();
   }
 }
 
@@ -1036,6 +1057,7 @@ function setReportDimension(dim){
   document.getElementById('rpt-dim-channel').classList.toggle('active', dim==='channel');
   document.getElementById('rpt-dim-category').classList.toggle('active', dim==='category');
   document.getElementById('rpt-dim-product').classList.toggle('active', dim==='product');
+  document.getElementById('rpt-dim-revenue').classList.toggle('active', dim==='revenue');
   document.getElementById('rpt-gran-group').style.display = dim==='product' ? 'none' : 'flex';
   document.getElementById('rpt-trend-toggle').style.display = dim==='product' ? 'none' : 'flex';
   document.getElementById('rpt-product-channel-group').style.display = dim==='product' ? 'flex' : 'none';
@@ -1111,8 +1133,8 @@ function renderReport(){
 
   const periodKeyFn = reportGranularity === 'day' ? (d => d) : (d => d.slice(0,7));
   const CHANNEL_LABEL2 = {line:'LINE', shop:'官網', shopee:'蝦皮', pinkoi:'PINKOI'};
-  const seriesKeys = reportDimension === 'channel' ? Object.keys(CHANNEL_LABEL2) : CATEGORY_TOTAL_KEYS;
-  const seriesLabels = reportDimension === 'channel' ? CHANNEL_LABEL2 : SHIP_CATEGORY_LABEL;
+  const seriesKeys = (reportDimension === 'channel' || reportDimension === 'revenue') ? Object.keys(CHANNEL_LABEL2) : CATEGORY_TOTAL_KEYS;
+  const seriesLabels = (reportDimension === 'channel' || reportDimension === 'revenue') ? CHANNEL_LABEL2 : SHIP_CATEGORY_LABEL;
 
   const periodsSet = new Set();
   const dataMap = {};
@@ -1125,6 +1147,9 @@ function renderReport(){
     if(reportDimension === 'channel'){
       const k = rec.channel;
       dataMap[period][k] = (dataMap[period][k] || 0) + (rec.totalItems || 0);
+    }else if(reportDimension === 'revenue'){
+      const k = rec.channel;
+      dataMap[period][k] = (dataMap[period][k] || 0) + (rec.revenue || 0);
     }else{
       const counts = rec.categoryCounts || {};
       Object.keys(counts).forEach(cat=>{
@@ -1396,16 +1421,23 @@ function renderResendRecords(records){
       <div class="resend-line">${escapeHtml(r.name||'')}　${escapeHtml(r.phone||'')}</div>
       <div class="resend-line">${escapeHtml(SHIP_CATEGORY_LABEL[r.category]||r.category||'')}${r.address ? '｜' : ''}${escapeHtml(r.address||'')}</div>
       <div class="resend-line">內容:${escapeHtml(r.contents||'')}</div>
+      <input type="text" class="resend-tracking-input" id="tracking-${r.id}" placeholder="補寄單號(寄出後填這裡)">
       <button class="ghost" onclick="confirmResendDone('${r.id}', '${r.category||''}')">確認完成</button>
     </div>
   `).join('');
 }
 
 async function confirmResendDone(id, category){
+  const trackingInput = document.getElementById('tracking-' + id);
+  const trackingNumber = trackingInput ? trackingInput.value.trim() : '';
+  if(!trackingNumber){
+    alert('請先填寫補寄單號,才能確認完成。');
+    return;
+  }
   await waitForFirebase();
   const {db, doc, updateDoc} = window.__fb;
   try{
-    await updateDoc(doc(db, RESEND_COLLECTION, id), {status: '已完成'});
+    await updateDoc(doc(db, RESEND_COLLECTION, id), {status: '已完成', trackingNumber});
     // 補寄實際寄出也算今天的物流件數,一起記進揀貨記錄的統計裡
     if(category){
       const counts = {}; counts[category] = 1;
@@ -1415,6 +1447,54 @@ async function confirmResendDone(id, category){
   }catch(err){
     alert('更新失敗: ' + err.message);
   }
+}
+
+// ===== 已完成補寄清單(報表頁面用,方便回頭查是哪張訂單、補寄單號是多少)=====
+let completedResendRecords = [];
+
+async function loadCompletedResends(){
+  await waitForFirebase();
+  const {db, collection, query, where, getDocs} = window.__fb;
+  const box = document.getElementById('completedResendList');
+  try{
+    const q = query(collection(db, RESEND_COLLECTION), where('status','==','已完成'));
+    const snap = await getDocs(q);
+    completedResendRecords = [];
+    snap.forEach(d => completedResendRecords.push({id: d.id, ...d.data()}));
+    renderCompletedResends();
+  }catch(err){
+    if(box) box.innerHTML = '<div class="resend-empty">讀取失敗: ' + err.message + '</div>';
+  }
+}
+
+function renderCompletedResends(){
+  const box = document.getElementById('completedResendList');
+  if(!box) return;
+  const searchEl = document.getElementById('resendSearchInput');
+  const q = searchEl ? searchEl.value.trim().toLowerCase() : '';
+  let list = completedResendRecords;
+  if(q){
+    list = list.filter(r =>
+      (r.orderNumber||'').toLowerCase().includes(q) ||
+      (r.trackingNumber||'').toLowerCase().includes(q)
+    );
+  }
+  list = list.slice().sort((a,b)=>{
+    const ta = a.createdAt && a.createdAt.seconds || 0;
+    const tb = b.createdAt && b.createdAt.seconds || 0;
+    return tb - ta;
+  });
+  if(list.length === 0){
+    box.innerHTML = '<div class="resend-empty">沒有符合的紀錄</div>';
+    return;
+  }
+  box.innerHTML = '<table class="plain-table"><thead><tr><th>通路</th><th>訂單編號</th><th>物流方式</th><th>補寄單號</th><th>姓名</th></tr></thead><tbody>' +
+    list.map(r =>
+      '<tr><td>' + escapeHtml(r.channel||'') + '</td><td>' + escapeHtml(r.orderNumber||'') + '</td><td>' +
+      escapeHtml(SHIP_CATEGORY_LABEL[r.category] || r.category || '') + '</td><td>' + escapeHtml(r.trackingNumber||'') + '</td><td>' +
+      escapeHtml(r.name||'') + '</td></tr>'
+    ).join('') +
+    '</tbody></table>';
 }
 
 async function submitResendForm(){
@@ -1431,7 +1511,7 @@ async function submitResendForm(){
   const msgEl = document.getElementById('resendFormMsg');
 
   if(!orderNumber || !name){
-    msgEl.textContent = '請至少填寫補寄單號跟姓名。';
+    msgEl.textContent = '請至少填寫訂單編號跟姓名。';
     return;
   }
 
