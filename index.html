@@ -112,6 +112,7 @@
 
   .report-controls{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:20px;}
   .report-toggle-group{display:flex;gap:6px;}
+  .trend-toggle{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--ink-soft);cursor:pointer;}
   .report-chart-wrap{background:var(--bg);border-radius:8px;padding:16px;margin-bottom:20px;height:520px;}
   #reportTableWrap{overflow-x:auto;}
   .report-table{width:100%;border-collapse:collapse;font-size:13px;}
@@ -786,6 +787,9 @@
           <button type="button" class="stype-btn active" id="rpt-gran-day" onclick="setReportGranularity('day')">按日</button>
           <button type="button" class="stype-btn" id="rpt-gran-month" onclick="setReportGranularity('month')">按月</button>
         </div>
+        <label class="trend-toggle" id="rpt-trend-toggle">
+          <input type="checkbox" id="rpt-trend-checkbox" onchange="toggleTrendLines(this.checked)"> 顯示趨勢線
+        </label>
         <div class="report-toggle-group" id="rpt-product-channel-group" style="display:none;">
           <button type="button" class="stype-btn active" data-ch="all" onclick="setReportProductChannel('all')">全部通路</button>
           <button type="button" class="stype-btn" data-ch="line" onclick="setReportProductChannel('line')">LINE</button>
@@ -1033,6 +1037,7 @@ function setReportDimension(dim){
   document.getElementById('rpt-dim-category').classList.toggle('active', dim==='category');
   document.getElementById('rpt-dim-product').classList.toggle('active', dim==='product');
   document.getElementById('rpt-gran-group').style.display = dim==='product' ? 'none' : 'flex';
+  document.getElementById('rpt-trend-toggle').style.display = dim==='product' ? 'none' : 'flex';
   document.getElementById('rpt-product-channel-group').style.display = dim==='product' ? 'flex' : 'none';
   renderReport();
 }
@@ -1067,6 +1072,37 @@ async function loadReportData(){
   }
 }
 
+// 移動平均:把每個點換成「自己跟前面 window-1 個點」的平均值,拉平日常波動
+function computeMovingAverage(values, window){
+  return values.map((_, i)=>{
+    const start = Math.max(0, i - window + 1);
+    const slice = values.slice(start, i+1);
+    return slice.reduce((a,b)=>a+b, 0) / slice.length;
+  });
+}
+
+// 線性回歸:用最小平方法算出一條最貼合資料的直線,顯示整體是成長還是下降
+function computeLinearTrend(values){
+  const n = values.length;
+  if(n < 2) return values.slice();
+  const xs = values.map((_,i)=>i);
+  const sumX = xs.reduce((a,b)=>a+b, 0);
+  const sumY = values.reduce((a,b)=>a+b, 0);
+  const sumXY = xs.reduce((a,x,i)=>a + x*values[i], 0);
+  const sumX2 = xs.reduce((a,x)=>a + x*x, 0);
+  const denom = (n*sumX2 - sumX*sumX);
+  if(denom === 0) return values.map(()=> sumY/n);
+  const slope = (n*sumXY - sumX*sumY) / denom;
+  const intercept = (sumY - slope*sumX) / n;
+  return xs.map(x => slope*x + intercept);
+}
+
+let showTrendLines = false;
+function toggleTrendLines(checked){
+  showTrendLines = checked;
+  renderReport();
+}
+
 function renderReport(){
   if(reportDimension === 'product'){
     renderProductReport();
@@ -1099,14 +1135,45 @@ function renderReport(){
 
   const periods = Array.from(periodsSet).sort();
 
-  const datasets = seriesKeys.map((k,i)=>({
-    label: seriesLabels[k],
-    data: periods.map(p => (dataMap[p] && dataMap[p][k]) || 0),
-    borderColor: CHART_COLORS[i % CHART_COLORS.length],
-    backgroundColor: CHART_COLORS[i % CHART_COLORS.length],
-    tension: 0.3,
-    fill: false
-  }));
+  const datasets = [];
+  seriesKeys.forEach((k, i)=>{
+    const color = CHART_COLORS[i % CHART_COLORS.length];
+    const values = periods.map(p => (dataMap[p] && dataMap[p][k]) || 0);
+    datasets.push({
+      label: seriesLabels[k],
+      data: values,
+      borderColor: color,
+      backgroundColor: color,
+      tension: 0.3,
+      fill: false,
+      pointRadius: showTrendLines ? 1.5 : 3
+    });
+    if(showTrendLines && values.length >= 3 && values.some(v => v > 0)){
+      const maWindow = reportGranularity === 'day' ? 7 : 2;
+      datasets.push({
+        label: seriesLabels[k] + '・移動平均',
+        data: computeMovingAverage(values, maWindow),
+        borderColor: color,
+        backgroundColor: 'transparent',
+        borderDash: [3,3],
+        borderWidth: 1.5,
+        pointRadius: 0,
+        tension: 0.3,
+        fill: false
+      });
+      datasets.push({
+        label: seriesLabels[k] + '・成長趨勢',
+        data: computeLinearTrend(values),
+        borderColor: color,
+        backgroundColor: 'transparent',
+        borderDash: [8,4],
+        borderWidth: 1.5,
+        pointRadius: 0,
+        tension: 0,
+        fill: false
+      });
+    }
+  });
 
   const ctx = document.getElementById('reportChart').getContext('2d');
   if(reportChartInstance) reportChartInstance.destroy();
