@@ -1021,7 +1021,10 @@ function switchMode(mode){
   document.getElementById('reportMode').style.display = mode==='report' ? 'block' : 'none';
   document.getElementById('tab-mode-helper').classList.toggle('active', mode==='helper');
   document.getElementById('tab-mode-report').classList.toggle('active', mode==='report');
-  if(mode === 'report') loadReportData();
+  if(mode === 'report'){
+    loadReportData();
+    loadSkuMap().then(()=>{ if(reportDimension === 'product') renderReport(); });
+  }
 }
 
 function setReportDimension(dim){
@@ -1138,10 +1141,14 @@ function renderProductReport(){
   records.forEach(rec=>{
     (rec.items || []).forEach(it=>{
       if(!it.sku) return;
-      if(!skuTotals[it.sku]) skuTotals[it.sku] = {sku: it.sku, name: it.name || '', qty: 0};
+      if(!skuTotals[it.sku]) skuTotals[it.sku] = {sku: it.sku, qty: 0};
       skuTotals[it.sku].qty += it.qty || 0;
-      if(!skuTotals[it.sku].name && it.name) skuTotals[it.sku].name = it.name;
     });
+  });
+  // 品名優先查 SKU 主檔(即時對照,以後主檔改名字報表也會自動更新);查不到才用匯入資料裡帶的名稱或直接顯示 SKU
+  Object.values(skuTotals).forEach(r=>{
+    const info = skuMap[r.sku];
+    r.name = info ? info.name : r.sku;
   });
   const ranked = Object.values(skuTotals).sort((a,b) => b.qty - a.qty);
   const top = ranked.slice(0, 15);
