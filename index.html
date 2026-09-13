@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>JEIDI</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%236E7D5E%22/%3E%3Crect%20x%3D%2226%22%20y%3D%2230%22%20width%3D%2212%22%20height%3D%2222%22%20rx%3D%222%22%20fill%3D%22%23F5F3EE%22/%3E%3Crect%20x%3D%2230.5%22%20y%3D%2225%22%20width%3D%223%22%20height%3D%226%22%20fill%3D%22%233A2E20%22/%3E%3Cpath%20d%3D%22M32%2010%20C37%2018%2039%2023%2032%2030%20C25%2023%2027%2018%2032%2010%20Z%22%20fill%3D%22%23E2A64B%22/%3E%3C/svg%3E">
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#6E7D5E">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="JEIDI">
+<meta name="mobile-web-app-capable" content="yes">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -1737,14 +1745,68 @@ let currentChannel = 'line';
 let shopeeShipType = 'next';
 let pinkoiShipType = 'seven';
 
+let channelBatches = {line: null, shop: null, shopee: null, pinkoi: null};
+
+// 把目前作用中的批次存進該通路的專屬儲存格,之後切回來還能繼續
+function saveChannelBatch(ch){
+  if(!parsedItems || parsedItems.length === 0){
+    channelBatches[ch] = null;
+    return;
+  }
+  const doneIndices = Array.from(document.querySelectorAll('#pickList .pick-card-done'))
+    .map(el => el.id.replace('pick-card-',''));
+  channelBatches[ch] = {
+    parsedItems: parsedItems,
+    doneIndices: doneIndices,
+    currentBatchConfirmed: currentBatchConfirmed
+  };
+}
+
+// 從該通路的專屬儲存格,把批次還原成目前作用中的畫面
+function loadChannelBatch(ch){
+  const batch = channelBatches[ch];
+  currentFile = null;
+  fileInput.value = '';
+  document.getElementById('dz-filename').textContent = '';
+  document.getElementById('dz-text').textContent = '將檔案拖曳到這裡,或點擊選擇檔案';
+  document.getElementById('processBtn').disabled = true;
+  document.getElementById('errorPanel').style.display = 'none';
+
+  if(!batch){
+    parsedItems = [];
+    custItems = [];
+    pickOrderGroups = [];
+    currentBatchConfirmed = true;
+    document.getElementById('resetBtn').style.display = 'none';
+    document.getElementById('resultPanel').style.display = 'none';
+    document.getElementById('pickPanel').style.display = 'none';
+    document.getElementById('sfPanel').style.display = 'none';
+    document.getElementById('islandPanel').style.display = 'none';
+    return;
+  }
+
+  parsedItems = batch.parsedItems;
+  custItems = parsedItems.filter(it => it.hasCust);
+  currentBatchConfirmed = batch.currentBatchConfirmed;
+
+  renderResult();
+  renderPickList();
+
+  (batch.doneIndices || []).forEach(idx=>{
+    const card = document.getElementById('pick-card-' + idx);
+    if(card){
+      card.classList.add('pick-card-done');
+      const cb = card.querySelector('.pc-check input');
+      if(cb) cb.checked = true;
+    }
+  });
+  updatePickProgress();
+  document.getElementById('resetBtn').style.display = 'inline-block';
+}
+
 function selectChannel(ch){
   if(ch === currentChannel) return;
-  if(pickOrderGroups.length > 0 && !currentBatchConfirmed){
-    const proceed = confirm('目前這批還沒按「確認完成揀貨」,切換通路會遺失這批的勾選進度、不會記錄到資料庫。確定要切換嗎?');
-    if(!proceed) return;
-  }
-  const oldChannel = currentChannel;
-  clearLiveSession(oldChannel);
+  saveChannelBatch(currentChannel);
   currentChannel = ch;
   document.getElementById('chan-line').classList.toggle('active', ch==='line');
   document.getElementById('chan-shop').classList.toggle('active', ch==='shop');
@@ -1771,7 +1833,8 @@ function selectChannel(ch){
     fileInputEl.accept = '.xlsx,.xls,.csv,.txt';
     pinkoiSelector.style.display = 'block';
   }
-  resetAll();
+  loadChannelBatch(ch);
+  saveState();
 }
 
 function selectShopeeType(t){
@@ -1802,16 +1865,38 @@ function switchPage(n){
   if(n===4){ loadCompletedResends(); }
 }
 
-function updatePage3PickProgress(){
+async function updatePage3PickProgress(){
   const labels = {line:'LINE', shop:'官網', shopee:'蝦皮', pinkoi:'PINKOI'};
   const row = document.getElementById('p3-pickRow');
   if(!row) return;
+  row.innerHTML = Object.keys(labels).map(ch =>
+    '<div class="pp-cell"><div class="pp-name">' + labels[ch] + '</div><div class="pp-empty">讀取中...</div></div>'
+  ).join('');
+
+  await waitForFirebase();
+  const {db, collection, query, where, getDocs} = window.__fb;
+  const todayStr = ymd(new Date());
+  const sums = {};
+  try{
+    const q = query(collection(db, PICK_RECORDS_COLLECTION), where('date','==',todayStr));
+    const snap = await getDocs(q);
+    snap.forEach(d=>{
+      const data = d.data();
+      const ch = data.channel;
+      if(!sums[ch]) sums[ch] = {total:0, done:0};
+      sums[ch].total += data.totalOrders || 0;
+      sums[ch].done += data.doneCount || 0;
+    });
+  }catch(err){
+    // 讀取失敗就顯示空的,不影響其他功能
+  }
+
   row.innerHTML = Object.keys(labels).map(ch=>{
-    const p = channelProgress[ch];
-    if(!p){
+    const s = sums[ch];
+    if(!s || s.total === 0){
       return '<div class="pp-cell"><div class="pp-name">' + labels[ch] + '</div><div class="pp-empty">今天還沒確認</div></div>';
     }
-    return '<div class="pp-cell"><div class="pp-name">' + labels[ch] + '</div><div class="pp-num pp-done">' + p.done + ' / ' + p.total + '</div></div>';
+    return '<div class="pp-cell"><div class="pp-name">' + labels[ch] + '</div><div class="pp-num pp-done">' + s.done + ' / ' + s.total + '</div></div>';
   }).join('');
 }
 
@@ -2397,8 +2482,9 @@ function explicitReset(){
     if(!proceed) return;
   }
   clearLiveSession(currentChannel);
+  channelBatches[currentChannel] = null;
   resetAll();
-  clearSavedState();
+  saveState();
 }
 
 function normHeader(h){
@@ -2524,7 +2610,7 @@ async function processFile(){
   if(!currentFile) return;
 
   if(pickOrderGroups.length > 0 && !currentBatchConfirmed){
-    const proceed = confirm('上一批還沒按「確認完成揀貨」,現在處理新的檔案,上一批的勾選進度會遺失、不會記錄到資料庫。確定要繼續嗎?');
+    const proceed = confirm('上一批還沒按「確認完成揀貨」,現在處理新的檔案,上一批還沒檢完的訂單會自動合併帶到新的一批裡,已檢完的不會重複出現。確定要繼續嗎?');
     if(!proceed) return;
   }
 
@@ -2864,6 +2950,27 @@ async function readPinkoiItems(){
 async function finishProcessing(rawItems){
   let items = rawItems;
 
+  // 如果上一批(同一個通路)還有沒檢完的訂單,合併進這一批一起顯示,不要讓它憑空消失
+  let carryOverCount = 0;
+  if(pickOrderGroups.length > 0){
+    const doneIdxSet = new Set(
+      Array.from(document.querySelectorAll('#pickList .pick-card-done'))
+        .map(el => parseInt(el.id.replace('pick-card-',''), 10))
+    );
+    const newOrderIds = new Set(items.map(it => it.orderId));
+    const carryOverItems = [];
+    pickOrderGroups.forEach((its, idx)=>{
+      if(!its || its.length === 0) return;
+      if(doneIdxSet.has(idx)) return; // 已經檢完的不用留著
+      if(newOrderIds.has(its[0].orderId)) return; // 新批次裡本來就有這張,不用重複加
+      carryOverItems.push(...its);
+    });
+    if(carryOverItems.length > 0){
+      carryOverCount = new Set(carryOverItems.map(it => it.orderId)).size;
+      items = carryOverItems.concat(items);
+    }
+  }
+
   // 排序:物流方式分組(黑貓/超商/順豐)→ 客製優先 → 數量多到少 → 金額高到低 → SKU
   const SHIP_ORDER = {kerry:0, store:1, sf:2};
   items.sort((a,b)=>{
@@ -2907,13 +3014,18 @@ async function finishProcessing(rawItems){
   custItems = items.filter(it => it.hasCust);
 
   renderResult();
+  if(carryOverCount > 0){
+    const desc = document.getElementById('resultDesc');
+    if(desc) desc.textContent += '(其中 ' + carryOverCount + ' 張是上一批還沒檢貨完成、自動帶過來的)';
+  }
   renderPickList();
   currentBatchConfirmed = false;
   saveState();
 
   // 新批次的所有商品(不管有沒有勾),都是「還沒出貨」,加進今日總覽累加
+  // 注意:只算真正「新匯入」的這批,帶過來的舊訂單在上一批處理時已經算過,不能重複加
   const newBatchDeltas = {};
-  items.forEach(it=>{
+  rawItems.forEach(it=>{
     if(!it.sku) return;
     if(!newBatchDeltas[it.sku]) newBatchDeltas[it.sku] = {name: it.displayName || it.itemName, delta: 0};
     newBatchDeltas[it.sku].delta += it.qty;
@@ -2926,15 +3038,12 @@ const STORAGE_KEY = 'jeidi_shipping_state_v1';
 
 function saveState(){
   try{
-    const doneIndices = Array.from(document.querySelectorAll('#pickList .pick-card-done'))
-      .map(el => el.id.replace('pick-card-',''));
+    saveChannelBatch(currentChannel); // 先把目前畫面存進channelBatches,確保是最新的
     const state = {
       channel: currentChannel,
       shopeeType: shopeeShipType,
-      parsedItems: parsedItems,
+      channelBatches: channelBatches,
       channelProgress: channelProgress,
-      doneIndices: doneIndices,
-      batchConfirmed: currentBatchConfirmed,
       savedAt: new Date().toISOString()
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -2953,38 +3062,29 @@ function restoreState(){
     if(!raw) return;
     const state = JSON.parse(raw);
     if(state.channelProgress) channelProgress = state.channelProgress;
-    if(!state.parsedItems || state.parsedItems.length === 0) return;
+    if(state.channelBatches) channelBatches = state.channelBatches;
+    if(!channelBatches || !Object.values(channelBatches).some(b => b)) return; // 沒有任何通路有資料,不用還原
 
     currentChannel = state.channel || 'line';
     shopeeShipType = state.shopeeType || 'next';
-    parsedItems = state.parsedItems;
-    custItems = parsedItems.filter(it => it.hasCust);
-    currentBatchConfirmed = state.batchConfirmed !== undefined ? state.batchConfirmed : true;
 
     document.getElementById('chan-line').classList.toggle('active', currentChannel==='line');
     document.getElementById('chan-shop').classList.toggle('active', currentChannel==='shop');
     document.getElementById('chan-shopee').classList.toggle('active', currentChannel==='shopee');
+    document.getElementById('chan-pinkoi').classList.toggle('active', currentChannel==='pinkoi');
     document.getElementById('shopeeTypeSelector').style.display = currentChannel==='shopee' ? 'block' : 'none';
+    document.getElementById('pinkoiTypeSelector').style.display = currentChannel==='pinkoi' ? 'block' : 'none';
     document.querySelectorAll('.stype-btn').forEach(b=>{
       b.classList.toggle('active', b.dataset.type === shopeeShipType);
     });
 
-    renderResult();
-    renderPickList();
+    loadChannelBatch(currentChannel);
 
-    (state.doneIndices || []).forEach(idx=>{
-      const card = document.getElementById('pick-card-' + idx);
-      if(card){
-        card.classList.add('pick-card-done');
-        const cb = card.querySelector('.pc-check input');
-        if(cb) cb.checked = true;
-      }
-    });
-    updatePickProgress();
-
-    const savedTime = state.savedAt ? new Date(state.savedAt).toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'}) : '';
-    const desc = document.getElementById('resultDesc');
-    if(desc) desc.textContent += '(已自動還原 ' + savedTime + ' 的處理紀錄,重新整理不會遺失進度)';
+    if(parsedItems.length > 0){
+      const savedTime = state.savedAt ? new Date(state.savedAt).toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'}) : '';
+      const desc = document.getElementById('resultDesc');
+      if(desc) desc.textContent += '(已自動還原 ' + savedTime + ' 的處理紀錄,重新整理不會遺失進度)';
+    }
   }catch(err){
     // 還原失敗就當作沒有存過,不影響正常使用
   }
@@ -3111,7 +3211,8 @@ function renderPickList(){
     const noteBlock = notes.length > 0
       ? '<div class="pc-alert">⚠ ' + notes.map(escapeHtml).join('<br>⚠ ') + '</div>'
       : '';
-    const cardClass = notes.length > 0 ? 'pick-card pick-card-alert' : 'pick-card';
+    const hasOverQty = its.some(it => it.qty > 2);
+    const cardClass = (notes.length > 0 || hasOverQty) ? 'pick-card pick-card-alert' : 'pick-card';
     const shipCat = its[0].shippingCategory;
     const CHANNEL_LABEL = {line:'LINE', shop:'官網', shopee:'蝦皮', pinkoi:'PINKOI'};
     const shipTag = shipCat
@@ -3524,6 +3625,15 @@ document.getElementById('headerDateLabel').textContent = today.getFullYear() + '
 
 // 頁面載入時,嘗試還原上次的處理進度(重新整理不會遺失)
 restoreState();
+
+// 註冊 service worker,讓瀏覽器認定這個網站可以「加入主畫面」
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('service-worker.js').catch(()=>{
+      // 註冊失敗不影響主要功能,安靜跳過
+    });
+  });
+}
 </script>
 </body>
 </html>
