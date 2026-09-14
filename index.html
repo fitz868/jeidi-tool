@@ -20,7 +20,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
   import {
-    getFirestore, collection, addDoc, query, where, getDocs, doc, updateDoc, getDoc, setDoc, serverTimestamp, onSnapshot, increment, writeBatch
+    getFirestore, collection, addDoc, query, where, getDocs, doc, updateDoc, getDoc, setDoc, serverTimestamp, onSnapshot, increment, writeBatch, orderBy, limit
   } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
   import {
     getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut
@@ -41,7 +41,7 @@
   const googleProvider = new GoogleAuthProvider();
 
   window.__fb = {
-    db, collection, addDoc, query, where, getDocs, doc, updateDoc, getDoc, setDoc, serverTimestamp, onSnapshot, increment, writeBatch,
+    db, collection, addDoc, query, where, getDocs, doc, updateDoc, getDoc, setDoc, serverTimestamp, onSnapshot, increment, writeBatch, orderBy, limit,
     auth, googleProvider, signInWithPopup, onAuthStateChanged, signOut
   };
   window.__fbReady = true;
@@ -177,6 +177,21 @@
     width:100%;box-sizing:border-box;font-family:inherit;font-size:14px;padding:9px 12px;
     border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);
   }
+  .order-search-row{display:flex;gap:10px;}
+  .order-search-row input{
+    flex:1;box-sizing:border-box;font-family:inherit;font-size:14px;padding:9px 12px;
+    border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);
+  }
+  .order-history-item{
+    background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:8px;font-size:13px;
+  }
+  .order-history-item:last-child{margin-bottom:0;}
+  .ohi-head{display:flex;justify-content:space-between;margin-bottom:4px;}
+  .ohi-head .ohi-order{font-weight:700;color:var(--ink);}
+  .ohi-head .ohi-date{color:var(--ink-soft);font-size:12px;}
+  .ohi-line{color:var(--ink-soft);margin-bottom:2px;}
+  .ohi-items{margin-top:6px;padding-top:6px;border-top:1px dashed var(--line);}
+  .ohi-item-row{display:flex;justify-content:space-between;padding:2px 0;}
   .plain-table{width:100%;border-collapse:collapse;font-size:13px;}
   .plain-table th, .plain-table td{border-bottom:1px solid var(--line);padding:8px 10px;text-align:left;}
   .plain-table th{color:var(--ink-soft);font-weight:600;font-size:12px;}
@@ -273,10 +288,11 @@
   .pp-cell .pp-status.pp-live{color:var(--sage-dark);font-weight:600;}
   .pp-missing-list{margin-top:8px;text-align:left;font-size:12px;color:var(--warn);line-height:1.6;}
 
-  .today-summary-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;}
-  .ts-item{background:var(--bg);border-radius:8px;padding:10px 12px;}
-  .ts-item .ts-name{font-size:13px;font-weight:600;color:var(--ink);}
-  .ts-item .ts-qty{font-family:'Source Serif 4',Georgia,serif;font-size:20px;font-weight:600;color:var(--warn);margin-top:2px;}
+  .today-summary-grid{display:flex;flex-direction:column;}
+  .ts-item{display:flex;justify-content:space-between;align-items:baseline;padding:7px 0;border-bottom:1px solid var(--line);gap:8px;}
+  .ts-item:last-child{border-bottom:none;}
+  .ts-item .ts-name{font-size:13px;color:var(--ink);}
+  .ts-item .ts-qty{font-family:'Source Serif 4',Georgia,serif;font-size:16px;font-weight:600;color:var(--warn);flex-shrink:0;}
 
   .stat-row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:18px;}
   .rc-cell{min-width:220px;}
@@ -390,9 +406,26 @@
   #pickSearchInput{
     width:100%;box-sizing:border-box;font-family:inherit;font-size:15px;padding:10px 14px;
     border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);
-    margin-bottom:16px;
   }
   .panel-head-row h2{margin:0;}
+
+  .pick-layout{display:flex;gap:20px;align-items:flex-start;margin-top:16px;}
+  .pick-sidebar{
+    position:sticky;top:16px;width:240px;flex-shrink:0;
+    max-height:calc(100vh - 32px);overflow-y:auto;
+    display:flex;flex-direction:column;gap:14px;
+  }
+  .pick-grid-wrap{flex:1;min-width:0;}
+  .sidebar-summary{background:var(--bg);border-radius:10px;padding:14px 16px;}
+  .sidebar-summary-title{font-size:13px;font-weight:700;color:var(--ink-soft);letter-spacing:0.02em;margin-bottom:6px;}
+  @media (max-width:900px){
+    .pick-layout{flex-direction:column;}
+    .pick-sidebar{position:static;width:100%;max-height:none;}
+  }
+  @media print{
+    .pick-layout{display:block;}
+    .pick-sidebar{display:none;}
+  }
 
   @media print{
     .no-print{display:none !important;}
@@ -502,16 +535,10 @@
     <button class="tab-btn active" id="tab-page1" onclick="switchPage(1)">出貨準備</button>
     <button class="tab-btn" id="tab-page2" onclick="switchPage(2)">出貨回報</button>
     <button class="tab-btn" id="tab-page3" onclick="switchPage(3)">出貨核對</button>
-    <button class="tab-btn" id="tab-page4" onclick="switchPage(4)">補寄清單</button>
+    <button class="tab-btn" id="tab-page4" onclick="switchPage(4)">訂單查詢</button>
   </div>
 
   <div id="page1">
-
-  <div class="panel no-print" id="todaySummaryPanel" style="display:none;">
-    <h2>這批還剩要出貨的商品</h2>
-    <div class="desc">目前這個通路、這批檢貨單裡,還沒打勾「已檢貨」的商品總數。打勾後會即時扣除,切換通路會換成該通路的批次。</div>
-    <div id="todaySummaryList"></div>
-  </div>
 
   <div class="channels no-print">
     <button class="chan-btn active" id="chan-line" onclick="selectChannel('line')">
@@ -614,15 +641,26 @@
       <h2>檢貨單</h2>
       <div class="pc-head-actions">
         <span class="pick-progress" id="pickProgress"></span>
-        <button class="ghost" onclick="markAllPicked()">全部已檢貨完成</button>
+        <button class="ghost" onclick="toggleSelectAll()">全選</button>
         <button class="primary" onclick="confirmPickProgress()">確認完成揀貨</button>
         <button class="ghost" onclick="printIncomplete()">列印未完成清單</button>
         <button class="ghost" onclick="window.print()">列印檢貨單</button>
       </div>
     </div>
     <div class="desc no-print" id="pickConfirmNote">依排序往下滑檢查,或直接列印成紙本。品名已對照 SKU 表顯示簡單品名,配件會列在該項目下方。揀貨完成後按上方「確認完成揀貨」,進度會記錄到「出貨核對」頁面。</div>
-    <input type="text" id="pickSearchInput" class="no-print" placeholder="搜尋訂單編號或姓名,方便對照紙本找到對應卡片" oninput="filterPickList(this.value)">
-    <div id="pickList" class="pick-grid"></div>
+
+    <div class="pick-layout">
+      <aside class="pick-sidebar no-print">
+        <input type="text" id="pickSearchInput" placeholder="搜尋訂單編號或姓名" oninput="filterPickList(this.value)">
+        <div class="sidebar-summary" id="todaySummaryPanel" style="display:none;">
+          <div class="sidebar-summary-title">這批還剩要出貨</div>
+          <div id="todaySummaryList"></div>
+        </div>
+      </aside>
+      <div class="pick-grid-wrap">
+        <div id="pickList" class="pick-grid"></div>
+      </div>
+    </div>
   </div>
 
   </div><!-- /page1 -->
@@ -800,6 +838,16 @@
   </div><!-- /page3 -->
 
   <div id="page4" style="display:none;">
+    <div class="panel no-print">
+      <h2>歷史訂單查詢</h2>
+      <div class="desc">搜尋訂單編號、姓名,或商品名稱/SKU,查最近確認完成揀貨的訂單明細。輸入後按 Enter 或按鈕搜尋(資料量較大,不會自動即時篩選)。</div>
+      <div class="order-search-row">
+        <input type="text" id="orderHistorySearchInput" placeholder="輸入訂單編號、姓名或商品名稱" onkeydown="if(event.key==='Enter') searchOrderHistory()">
+        <button class="primary" onclick="searchOrderHistory()">搜尋</button>
+      </div>
+      <div id="orderHistoryResults" style="margin-top:14px;"></div>
+    </div>
+
     <div class="panel no-print">
       <h2>已完成補寄清單</h2>
       <div class="desc">找補寄單號或哪張訂單補寄過用這裡查,依完成時間新到舊排序。</div>
@@ -1401,6 +1449,79 @@ async function savePickRecord(channel, categoryCounts, totalOrders, totalItems, 
     });
   }catch(err){
     // 寫入失敗不影響「確認完成揀貨」這個動作本身的其他效果
+  }
+}
+
+// ===== 訂單歷史庫(每張確認完成揀貨的訂單完整明細,供之後搜尋訂單編號/姓名/商品名稱)=====
+const ORDER_HISTORY_COLLECTION = 'order_history';
+
+async function saveOrderHistory(records){
+  if(records.length === 0) return;
+  await waitForFirebase();
+  const {db, collection, doc, writeBatch, serverTimestamp} = window.__fb;
+  try{
+    const chunkSize = 450;
+    for(let i = 0; i < records.length; i += chunkSize){
+      const chunk = records.slice(i, i + chunkSize);
+      const batch = writeBatch(db);
+      chunk.forEach(rec=>{
+        const ref = doc(collection(db, ORDER_HISTORY_COLLECTION));
+        batch.set(ref, {
+          ...rec,
+          date: ymd(new Date()),
+          confirmedAt: serverTimestamp()
+        });
+      });
+      await batch.commit();
+    }
+  }catch(err){
+    // 寫入失敗不影響「確認完成揀貨」這個動作本身的其他效果
+  }
+}
+
+async function searchOrderHistory(){
+  const kw = document.getElementById('orderHistorySearchInput').value.trim().toLowerCase();
+  const box = document.getElementById('orderHistoryResults');
+  if(!kw){
+    box.innerHTML = '<div class="resend-empty">請輸入訂單編號、姓名或商品名稱後搜尋</div>';
+    return;
+  }
+  box.innerHTML = '<div class="resend-empty">搜尋中...</div>';
+  await waitForFirebase();
+  const {db, collection, query, orderBy, limit, getDocs} = window.__fb;
+  try{
+    // 只抓最近一批(依確認時間新到舊,最多2000筆)回來,在本機比對關鍵字,避免資料量成長後查詢太慢
+    const q = query(collection(db, ORDER_HISTORY_COLLECTION), orderBy('confirmedAt', 'desc'), limit(2000));
+    const snap = await getDocs(q);
+    const matches = [];
+    snap.forEach(d=>{
+      const data = d.data();
+      const haystack = [
+        data.orderId, data.name,
+        ...(data.items || []).map(it => it.name), ...(data.items || []).map(it => it.sku)
+      ].join(' ').toLowerCase();
+      if(haystack.includes(kw)) matches.push(data);
+    });
+    if(matches.length === 0){
+      box.innerHTML = '<div class="resend-empty">最近的紀錄裡找不到符合的結果(只搜尋最近確認過的訂單,太久以前的可能搜不到)</div>';
+      return;
+    }
+    const CHANNEL_LABEL3 = {line:'LINE', shop:'官網', shopee:'蝦皮', pinkoi:'PINKOI'};
+    box.innerHTML = matches.slice(0, 100).map(r => `
+      <div class="order-history-item">
+        <div class="ohi-head">
+          <span class="ohi-order">${escapeHtml(r.orderId||'')}・${escapeHtml(CHANNEL_LABEL3[r.channel]||r.channel||'')}</span>
+          <span class="ohi-date">${escapeHtml(r.date||'')}</span>
+        </div>
+        <div class="ohi-line">${escapeHtml(r.name||'')}　${escapeHtml(r.phone||'')}</div>
+        <div class="ohi-line">${escapeHtml(r.address||'')}</div>
+        <div class="ohi-items">
+          ${(r.items||[]).map(it => '<div class="ohi-item-row"><span>' + escapeHtml(it.name||it.sku) + '</span><span>x' + it.qty + '</span></div>').join('')}
+        </div>
+      </div>
+    `).join('') + (matches.length > 100 ? '<div class="resend-empty">找到 ' + matches.length + ' 筆,只顯示前 100 筆,請輸入更精確的關鍵字</div>' : '');
+  }catch(err){
+    box.innerHTML = '<div class="resend-empty">搜尋失敗: ' + err.message + '</div>';
   }
 }
 
@@ -3254,17 +3375,17 @@ function togglePickDone(idx, done){
 }
 
 // 一鍵把所有還沒打勾的卡片,全部標記成已檢貨完成
-function markAllPicked(){
-  const cards = document.querySelectorAll('#pickList .pick-card:not(.pick-card-done)');
-  if(cards.length === 0){
-    alert('目前全部都已經打勾完成了。');
-    return;
-  }
-  cards.forEach(card=>{
+function toggleSelectAll(){
+  const allCards = document.querySelectorAll('#pickList .pick-card');
+  if(allCards.length === 0) return;
+  const doneCards = document.querySelectorAll('#pickList .pick-card-done');
+  const allSelected = allCards.length === doneCards.length;
+
+  allCards.forEach(card=>{
     const checkbox = card.querySelector('.pc-check input');
-    if(checkbox) checkbox.checked = true;
+    if(checkbox) checkbox.checked = !allSelected;
     const idx = parseInt(card.id.replace('pick-card-',''), 10);
-    togglePickDone(idx, true);
+    togglePickDone(idx, !allSelected);
   });
 }
 
@@ -3412,6 +3533,24 @@ function confirmPickProgress(){
   });
   const skuBreakdown = Object.values(skuTotals);
   savePickRecord(currentChannel, categoryCounts, total, totalItemCount, done, skuBreakdown);
+
+  // 把每張已檢貨完成的訂單完整明細存進訂單歷史庫,方便之後搜尋(訂單編號/姓名/商品名稱都能查)
+  const historyRecords = [];
+  doneCards.forEach(card=>{
+    const idx = parseInt(card.id.replace('pick-card-',''), 10);
+    const its = pickOrderGroups[idx] || [];
+    if(its.length === 0) return;
+    historyRecords.push({
+      orderId: its[0].orderId,
+      name: its[0].name,
+      phone: its[0].phone || '',
+      address: its[0].address || '',
+      channel: currentChannel,
+      shippingCategory: its[0].shippingCategory || '',
+      items: its.map(it => ({sku: it.sku, name: it.displayName || it.itemName, qty: it.qty}))
+    });
+  });
+  saveOrderHistory(historyRecords);
 
   // 沒打勾的訂單,記錄到「揀貨未完成」清單;打勾的,如果之前卡在清單裡就解除
   const doneIdxSet = new Set(doneCards.map(c => parseInt(c.id.replace('pick-card-',''), 10)));
