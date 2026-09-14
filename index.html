@@ -508,8 +508,8 @@
   <div id="page1">
 
   <div class="panel no-print" id="todaySummaryPanel" style="display:none;">
-    <h2>今日還剩要出貨的商品</h2>
-    <div class="desc">合併所有通路,今天累積匯入過的訂單裡,還沒打勾「已檢貨」的商品總數。打勾後會即時扣除,不用重新整理。</div>
+    <h2>這批還剩要出貨的商品</h2>
+    <div class="desc">目前這個通路、這批檢貨單裡,還沒打勾「已檢貨」的商品總數。打勾後會即時扣除,切換通路會換成該通路的批次。</div>
     <div id="todaySummaryList"></div>
   </div>
 
@@ -953,7 +953,6 @@ async function handleAuthStateChange(user){
       loadAnnouncements();
       loadResendRecords();
       loadDailyNotes();
-      startTodaySummaryListener();
     }else{
       desc.textContent = '這個帳號還沒被登記,沒有使用權限';
       msgEl.textContent = user.email + ' 尚未獲得授權,請聯絡管理者新增這個帳號。';
@@ -1789,6 +1788,7 @@ function loadChannelBatch(ch){
     document.getElementById('pickPanel').style.display = 'none';
     document.getElementById('sfPanel').style.display = 'none';
     document.getElementById('islandPanel').style.display = 'none';
+    document.getElementById('todaySummaryPanel').style.display = 'none';
     return;
   }
 
@@ -2486,6 +2486,7 @@ function resetAll(){
   document.getElementById('pickPanel').style.display = 'none';
   document.getElementById('sfPanel').style.display = 'none';
   document.getElementById('islandPanel').style.display = 'none';
+  document.getElementById('todaySummaryPanel').style.display = 'none';
   fileInput.value = '';
 }
 
@@ -3036,16 +3037,6 @@ async function finishProcessing(rawItems){
   renderPickList();
   currentBatchConfirmed = false;
   saveState();
-
-  // 新批次的所有商品(不管有沒有勾),都是「還沒出貨」,加進今日總覽累加
-  // 注意:只算真正「新匯入」的這批,帶過來的舊訂單在上一批處理時已經算過,不能重複加
-  const newBatchDeltas = {};
-  rawItems.forEach(it=>{
-    if(!it.sku) return;
-    if(!newBatchDeltas[it.sku]) newBatchDeltas[it.sku] = {name: it.displayName || it.itemName, delta: 0};
-    newBatchDeltas[it.sku].delta += it.qty;
-  });
-  adjustTodaySummary(newBatchDeltas);
 }
 
 // ===== 本機儲存:重新整理頁面不會遺失目前進度 =====
@@ -3260,16 +3251,6 @@ function togglePickDone(idx, done){
   if(card) card.classList.toggle('pick-card-done', done);
   updatePickProgress();
   saveState();
-
-  // 打勾代表這張訂單的商品已經檢貨完成,從今日總覽扣除;取消打勾則加回去
-  const its = pickOrderGroups[idx] || [];
-  const deltas = {};
-  its.forEach(it=>{
-    if(!it.sku) return;
-    if(!deltas[it.sku]) deltas[it.sku] = {name: it.displayName || it.itemName, delta: 0};
-    deltas[it.sku].delta += done ? -it.qty : it.qty;
-  });
-  adjustTodaySummary(deltas);
 }
 
 // 一鍵把所有還沒打勾的卡片,全部標記成已檢貨完成
@@ -3320,6 +3301,7 @@ function updatePickProgress(){
   const el = document.getElementById('pickProgress');
   if(el) el.textContent = total > 0 ? ('已檢貨 ' + done + ' / ' + total) : '';
   syncLiveProgress(total, done);
+  renderTodaySummary();
 }
 
 // 彙整「還沒打勾」的訂單裡,各SKU還缺多少件(不含配件/組合成分,只算主商品)
@@ -3374,61 +3356,11 @@ async function clearLiveSession(channel){
   }
 }
 
-// ===== 今日還剩要出貨的商品(合併所有通路,原子累加/扣除,支援多人同時操作)=====
-const TODAY_SUMMARY_COLLECTION = 'today_summary';
-
-function sanitizeFieldKey(sku){
-  return String(sku).replace(/[.\/\[\]#$]/g, '_');
-}
-
-// deltas: {sku: {name, delta}} - delta 正數代表增加還剩件數,負數代表扣除(已檢貨)
-async function adjustTodaySummary(deltas){
-  const skus = Object.keys(deltas);
-  if(skus.length === 0) return;
-  await waitForFirebase();
-  const {db, doc, setDoc, serverTimestamp, increment} = window.__fb;
-  const dateStr = ymd(new Date());
-  const ref = doc(db, TODAY_SUMMARY_COLLECTION, dateStr);
-  const updates = {updatedAt: serverTimestamp()};
-  skus.forEach(sku=>{
-    const key = sanitizeFieldKey(sku);
-    updates['qty.' + key] = increment(deltas[sku].delta);
-    updates['names.' + key] = deltas[sku].name || sku;
-  });
-  try{
-    await setDoc(ref, updates, {merge: true});
-  }catch(err){
-    // 累加失敗不影響主要出貨流程,安靜跳過
-  }
-}
-
-let todaySummaryUnsub = null;
-
-async function startTodaySummaryListener(){
-  await waitForFirebase();
-  const {db, doc, onSnapshot} = window.__fb;
-  if(todaySummaryUnsub) return;
-  const dateStr = ymd(new Date());
-  todaySummaryUnsub = onSnapshot(doc(db, TODAY_SUMMARY_COLLECTION, dateStr), (snap)=>{
-    if(!snap.exists()){
-      document.getElementById('todaySummaryPanel').style.display = 'none';
-      return;
-    }
-    renderTodaySummary(snap.data());
-  }, (err)=>{
-    document.getElementById('todaySummaryPanel').style.display = 'none';
-  });
-}
-
-function renderTodaySummary(data){
-  const qtyMap = data.qty || {};
-  const namesMap = data.names || {};
-  const rows = Object.keys(qtyMap)
-    .map(key => ({key, name: namesMap[key] || key, qty: qtyMap[key]}))
-    .filter(r => r.qty > 0)
-    .sort((a,b) => b.qty - a.qty);
-
+// ===== 今日還剩要出貨的商品(目前這批還沒打勾的,本機直接算,不透過資料庫,即時又可靠)=====
+function renderTodaySummary(){
+  const rows = getPendingSkuBreakdown();
   const panel = document.getElementById('todaySummaryPanel');
+  if(!panel) return;
   if(rows.length === 0){
     panel.style.display = 'none';
     return;
