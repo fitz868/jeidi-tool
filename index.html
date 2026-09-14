@@ -387,6 +387,11 @@
 
   .panel-head-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;flex-wrap:wrap;gap:10px;}
   .pc-head-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  #pickSearchInput{
+    width:100%;box-sizing:border-box;font-family:inherit;font-size:15px;padding:10px 14px;
+    border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);
+    margin-bottom:16px;
+  }
   .panel-head-row h2{margin:0;}
 
   @media print{
@@ -616,6 +621,7 @@
       </div>
     </div>
     <div class="desc no-print" id="pickConfirmNote">依排序往下滑檢查,或直接列印成紙本。品名已對照 SKU 表顯示簡單品名,配件會列在該項目下方。揀貨完成後按上方「確認完成揀貨」,進度會記錄到「出貨核對」頁面。</div>
+    <input type="text" id="pickSearchInput" class="no-print" placeholder="搜尋訂單編號或姓名,方便對照紙本找到對應卡片" oninput="filterPickList(this.value)">
     <div id="pickList" class="pick-grid"></div>
   </div>
 
@@ -3244,6 +3250,8 @@ function renderPickList(){
 
   document.getElementById('pickPanel').style.display = 'block';
   document.getElementById('pickConfirmNote').textContent = '依排序往下滑檢查,或直接列印成紙本。品名已對照 SKU 表顯示簡單品名,配件會列在該項目下方。揀貨完成後按上方「確認完成揀貨」,進度會記錄到「出貨核對」頁面。';
+  const searchInput = document.getElementById('pickSearchInput');
+  if(searchInput) searchInput.value = '';
   updatePickProgress();
 }
 
@@ -3276,6 +3284,20 @@ function markAllPicked(){
     if(checkbox) checkbox.checked = true;
     const idx = parseInt(card.id.replace('pick-card-',''), 10);
     togglePickDone(idx, true);
+  });
+}
+
+// 依訂單編號或姓名搜尋,找不到就隱藏,方便對照紙本快速找到對應卡片
+function filterPickList(keyword){
+  const kw = keyword.trim().toLowerCase();
+  const cards = document.querySelectorAll('#pickList .pick-card');
+  cards.forEach(card=>{
+    if(!kw){
+      card.style.display = '';
+      return;
+    }
+    const text = card.textContent.toLowerCase();
+    card.style.display = text.includes(kw) ? '' : 'none';
   });
 }
 
