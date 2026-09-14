@@ -609,6 +609,7 @@
       <h2>檢貨單</h2>
       <div class="pc-head-actions">
         <span class="pick-progress" id="pickProgress"></span>
+        <button class="ghost" onclick="markAllPicked()">全部已檢貨完成</button>
         <button class="primary" onclick="confirmPickProgress()">確認完成揀貨</button>
         <button class="ghost" onclick="printIncomplete()">列印未完成清單</button>
         <button class="ghost" onclick="window.print()">列印檢貨單</button>
@@ -1861,7 +1862,13 @@ function switchPage(n){
   document.getElementById('tab-page2').classList.toggle('active', n===2);
   document.getElementById('tab-page3').classList.toggle('active', n===3);
   document.getElementById('tab-page4').classList.toggle('active', n===4);
-  if(n===3){ updatePage3PickProgress(); loadCategoryTotals(); startLiveSessionListener(); }
+  if(n===3){
+    updatePage3PickProgress(); loadCategoryTotals(); startLiveSessionListener();
+  }else if(liveSessionUnsub){
+    // 離開頁面3就真的停止監聽,不要一直耗用讀取次數
+    liveSessionUnsub();
+    liveSessionUnsub = null;
+  }
   if(n===4){ loadCompletedResends(); }
 }
 
@@ -2971,16 +2978,18 @@ async function finishProcessing(rawItems){
     }
   }
 
-  // 排序:物流方式分組(黑貓/超商/順豐)→ 客製優先 → 數量多到少 → 金額高到低 → SKU
-  const SHIP_ORDER = {kerry:0, store:1, sf:2};
-  items.sort((a,b)=>{
-    const sa = SHIP_ORDER[a.shippingCategory] ?? 0, sb = SHIP_ORDER[b.shippingCategory] ?? 0;
-    if(sa !== sb) return sa - sb;
-    if(a.hasCust !== b.hasCust) return a.hasCust ? -1 : 1;
-    if(b.qty !== a.qty) return b.qty - a.qty;
-    if(b.subtotal !== a.subtotal) return b.subtotal - a.subtotal;
-    return a.sku.localeCompare(b.sku);
-  });
+  // 排序:蝦皮保持原始檔案順序(方便對照蝦皮自己的出貨單),其他通路才做智慧排序
+  if(currentChannel !== 'shopee'){
+    const SHIP_ORDER = {kerry:0, store:1, sf:2};
+    items.sort((a,b)=>{
+      const sa = SHIP_ORDER[a.shippingCategory] ?? 0, sb = SHIP_ORDER[b.shippingCategory] ?? 0;
+      if(sa !== sb) return sa - sb;
+      if(a.hasCust !== b.hasCust) return a.hasCust ? -1 : 1;
+      if(b.qty !== a.qty) return b.qty - a.qty;
+      if(b.subtotal !== a.subtotal) return b.subtotal - a.subtotal;
+      return a.sku.localeCompare(b.sku);
+    });
+  }
 
   // 套用 SKU 對照表:有查到就用乾淨品名,查不到就維持原始平台品名
   await loadSkuMap();
@@ -3253,6 +3262,21 @@ function togglePickDone(idx, done){
     deltas[it.sku].delta += done ? -it.qty : it.qty;
   });
   adjustTodaySummary(deltas);
+}
+
+// 一鍵把所有還沒打勾的卡片,全部標記成已檢貨完成
+function markAllPicked(){
+  const cards = document.querySelectorAll('#pickList .pick-card:not(.pick-card-done)');
+  if(cards.length === 0){
+    alert('目前全部都已經打勾完成了。');
+    return;
+  }
+  cards.forEach(card=>{
+    const checkbox = card.querySelector('.pc-check input');
+    if(checkbox) checkbox.checked = true;
+    const idx = parseInt(card.id.replace('pick-card-',''), 10);
+    togglePickDone(idx, true);
+  });
 }
 
 function printIncomplete(){
