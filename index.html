@@ -73,6 +73,33 @@
     line-height:1.55;
   }
   .shell{max-width:1200px;margin:0 auto;padding:40px 24px 100px;}
+
+  .global-live-sidebar{
+    position:fixed;top:0;right:0;height:100vh;width:260px;
+    background:var(--paper);border-left:1px solid var(--line);
+    z-index:500;display:flex;flex-direction:column;
+    box-shadow:-2px 0 8px rgba(0,0,0,0.06);
+  }
+  .global-live-sidebar.collapsed{width:auto;}
+  .global-live-sidebar.collapsed .gls-body{display:none;}
+  .gls-header{
+    padding:14px 16px;font-size:13px;font-weight:700;color:var(--sage-dark);
+    display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer;
+    border-bottom:1px solid var(--line);background:var(--ok-soft);white-space:nowrap;
+  }
+  .gls-body{flex:1;overflow-y:auto;padding:14px 16px;}
+  .gls-cell{margin-bottom:16px;}
+  .gls-cell:last-child{margin-bottom:0;}
+  .gls-cell .gls-name{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:2px;}
+  .gls-cell .gls-num{font-family:'Source Serif 4',Georgia,serif;font-size:18px;font-weight:600;}
+  .gls-cell .gls-status{font-size:11px;color:var(--ink-soft);margin-top:2px;}
+  .gls-cell .gls-status.gls-live{color:var(--sage-dark);font-weight:600;}
+  .gls-missing{margin-top:6px;font-size:11.5px;color:var(--warn);line-height:1.6;}
+  .gls-empty{font-size:12.5px;color:var(--ink-soft);}
+  @media (max-width:900px){
+    .global-live-sidebar{width:auto;max-width:80vw;}
+    .global-live-sidebar:not(.collapsed) .gls-body{width:240px;}
+  }
   header.top{margin-bottom:36px;}
   header.top .eyebrow{
     font-size:13px;color:var(--sage-dark);font-weight:600;letter-spacing:0.02em;margin-bottom:6px;
@@ -471,6 +498,17 @@
 
 <div class="shell" id="mainShell" style="display:none;">
 
+<div class="global-live-sidebar no-print" id="globalLiveSidebar">
+  <div class="gls-header" onclick="toggleGlobalSidebar()">
+    <span>即時進行中</span>
+    <span id="glsToggleIcon">▸</span>
+  </div>
+  <div class="gls-body" id="glsBody">
+    <div id="glsRow"></div>
+  </div>
+</div>
+
+
   <header class="top">
     <div class="header-row no-print">
       <div>
@@ -813,12 +851,6 @@
       <div class="form-msg" id="checklistMsg"></div>
     </div>
 
-    <div class="panel no-print" id="p3-livePanel">
-      <h2>即時進行中</h2>
-      <div class="desc">兼職正在處理、還沒按「確認完成揀貨」的即時狀態,幾秒內會自動更新,不用重新整理頁面。</div>
-      <div id="p3-liveRow" class="pick-progress-row"></div>
-    </div>
-
     <div class="panel no-print" id="p3-pickPanel">
       <h2>揀貨進度</h2>
       <div class="desc">來自頁面1每個通路按下「確認完成揀貨」時記錄的進度。</div>
@@ -1001,6 +1033,7 @@ async function handleAuthStateChange(user){
       loadAnnouncements();
       loadResendRecords();
       loadDailyNotes();
+      startLiveSessionListener();
     }else{
       desc.textContent = '這個帳號還沒被登記,沒有使用權限';
       msgEl.textContent = user.email + ' 尚未獲得授權,請聯絡管理者新增這個帳號。';
@@ -1989,13 +2022,7 @@ function switchPage(n){
   document.getElementById('tab-page2').classList.toggle('active', n===2);
   document.getElementById('tab-page3').classList.toggle('active', n===3);
   document.getElementById('tab-page4').classList.toggle('active', n===4);
-  if(n===3){
-    updatePage3PickProgress(); loadCategoryTotals(); startLiveSessionListener();
-  }else if(liveSessionUnsub){
-    // 離開頁面3就真的停止監聽,不要一直耗用讀取次數
-    liveSessionUnsub();
-    liveSessionUnsub = null;
-  }
+  if(n===3){ updatePage3PickProgress(); loadCategoryTotals(); }
   if(n===4){ loadCompletedResends(); }
 }
 
@@ -2046,35 +2073,44 @@ async function startLiveSessionListener(){
     snap.forEach(d => sessions[d.id] = d.data());
     renderLiveSessions(sessions);
   }, (err)=>{
-    const row = document.getElementById('p3-liveRow');
-    if(row) row.innerHTML = '<div class="resend-empty">讀取失敗: ' + err.message + '</div>';
+    const row = document.getElementById('glsRow');
+    if(row) row.innerHTML = '<div class="gls-empty">讀取失敗: ' + err.message + '</div>';
   });
 }
 
 function renderLiveSessions(sessions){
   const labels = {line:'LINE', shop:'官網', shopee:'蝦皮', pinkoi:'PINKOI'};
-  const row = document.getElementById('p3-liveRow');
+  const row = document.getElementById('glsRow');
   if(!row) return;
-  row.innerHTML = Object.keys(labels).map(ch=>{
+  const activeChannels = Object.keys(labels).filter(ch => sessions[ch] && sessions[ch].total);
+  if(activeChannels.length === 0){
+    row.innerHTML = '<div class="gls-empty">目前沒有進行中的揀貨</div>';
+    return;
+  }
+  row.innerHTML = activeChannels.map(ch=>{
     const s = sessions[ch];
-    if(!s || !s.total){
-      return '<div class="pp-cell"><div class="pp-name">' + labels[ch] + '</div><div class="pp-empty">目前沒有進行中</div></div>';
-    }
     const statusText = s.confirmed ? '已確認完成' : '進行中';
-    const statusClass = s.confirmed ? 'pp-status' : 'pp-status pp-live';
+    const statusClass = s.confirmed ? 'gls-status' : 'gls-status gls-live';
     let missingHtml = '';
     if(!s.confirmed && s.pendingSkus && s.pendingSkus.length > 0){
-      missingHtml = '<div class="pp-missing-list">還缺:' +
-        s.pendingSkus.slice(0,8).map(p => escapeHtml(p.name || p.sku) + ' x' + p.qty).join('、') +
-        (s.pendingSkus.length > 8 ? ' 等' + s.pendingSkus.length + '項' : '') +
+      missingHtml = '<div class="gls-missing">還缺:' +
+        s.pendingSkus.slice(0,6).map(p => escapeHtml(p.name || p.sku) + ' x' + p.qty).join('、') +
+        (s.pendingSkus.length > 6 ? ' 等' + s.pendingSkus.length + '項' : '') +
         '</div>';
     }
-    return '<div class="pp-cell"><div class="pp-name">' + labels[ch] + '</div>' +
-      '<div class="pp-num pp-done">' + s.done + ' / ' + s.total + '</div>' +
+    return '<div class="gls-cell"><div class="gls-name">' + labels[ch] + '</div>' +
+      '<div class="gls-num">' + s.done + ' / ' + s.total + '</div>' +
       '<div class="' + statusClass + '">' + statusText + '</div>' +
       missingHtml +
       '</div>';
   }).join('');
+}
+
+function toggleGlobalSidebar(){
+  document.getElementById('globalLiveSidebar').classList.toggle('collapsed');
+  const icon = document.getElementById('glsToggleIcon');
+  const collapsed = document.getElementById('globalLiveSidebar').classList.contains('collapsed');
+  icon.textContent = collapsed ? '◂' : '▸';
 }
 
 function switchReportChannel(ch){
