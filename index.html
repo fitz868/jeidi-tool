@@ -1609,9 +1609,9 @@ async function confirmResendDone(id, category){
     return;
   }
   await waitForFirebase();
-  const {db, doc, updateDoc} = window.__fb;
+  const {db, doc, updateDoc, serverTimestamp} = window.__fb;
   try{
-    await updateDoc(doc(db, RESEND_COLLECTION, id), {status: '已完成', trackingNumber});
+    await updateDoc(doc(db, RESEND_COLLECTION, id), {status: '已完成', trackingNumber, completedAt: serverTimestamp()});
     // 補寄實際寄出也算今天的物流件數,一起記進揀貨記錄的統計裡
     if(category){
       const counts = {}; counts[category] = 1;
@@ -1654,20 +1654,23 @@ function renderCompletedResends(){
     );
   }
   list = list.slice().sort((a,b)=>{
-    const ta = a.createdAt && a.createdAt.seconds || 0;
-    const tb = b.createdAt && b.createdAt.seconds || 0;
+    const ta = (a.completedAt && a.completedAt.seconds) || (a.createdAt && a.createdAt.seconds) || 0;
+    const tb = (b.completedAt && b.completedAt.seconds) || (b.createdAt && b.createdAt.seconds) || 0;
     return tb - ta;
   });
   if(list.length === 0){
     box.innerHTML = '<div class="resend-empty">沒有符合的紀錄</div>';
     return;
   }
-  box.innerHTML = '<table class="plain-table"><thead><tr><th>通路</th><th>訂單編號</th><th>物流方式</th><th>補寄單號</th><th>姓名</th></tr></thead><tbody>' +
-    list.map(r =>
-      '<tr><td>' + escapeHtml(r.channel||'') + '</td><td>' + escapeHtml(r.orderNumber||'') + '</td><td>' +
+  box.innerHTML = '<table class="plain-table"><thead><tr><th>完成日期</th><th>通路</th><th>訂單編號</th><th>物流方式</th><th>補寄單號</th><th>姓名</th></tr></thead><tbody>' +
+    list.map(r =>{
+      const dateStr = r.completedAt && r.completedAt.seconds
+        ? new Date(r.completedAt.seconds * 1000).toLocaleDateString('zh-TW')
+        : '-';
+      return '<tr><td>' + escapeHtml(dateStr) + '</td><td>' + escapeHtml(r.channel||'') + '</td><td>' + escapeHtml(r.orderNumber||'') + '</td><td>' +
       escapeHtml(SHIP_CATEGORY_LABEL[r.category] || r.category || '') + '</td><td>' + escapeHtml(r.trackingNumber||'') + '</td><td>' +
-      escapeHtml(r.name||'') + '</td></tr>'
-    ).join('') +
+      escapeHtml(r.name||'') + '</td></tr>';
+    }).join('') +
     '</tbody></table>';
 }
 
