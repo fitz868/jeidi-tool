@@ -386,6 +386,7 @@
   .pick-card-done{opacity:0.45;}
   .pick-card-done .pc-item-name, .pick-card-done .pc-name{text-decoration:line-through;}
   .pick-card-alert{border:2px solid var(--warn);}
+  .pick-card-highqty{background:#FBEAEA;}
   .pick-card .pc-alert{
     background:var(--warn-soft);padding:8px 18px;
     font-size:13.5px;font-weight:700;color:var(--warn);line-height:1.6;
@@ -3439,7 +3440,9 @@ function renderPickList(){
       ? '<div class="pc-alert">⚠ ' + notes.map(escapeHtml).join('<br>⚠ ') + '</div>'
       : '';
     const hasOverQty = its.some(it => it.qty > 2);
-    const cardClass = (notes.length > 0 || hasOverQty) ? 'pick-card pick-card-alert' : 'pick-card';
+    let cardClass = 'pick-card';
+    if(notes.length > 0) cardClass += ' pick-card-alert';
+    if(hasOverQty) cardClass += ' pick-card-highqty';
     const shipCat = its[0].shippingCategory;
     const CHANNEL_LABEL = {line:'LINE', shop:'官網', shopee:'蝦皮', pinkoi:'PINKOI'};
     const shipTag = shipCat
@@ -3573,16 +3576,20 @@ function getPendingSkuBreakdown(){
 }
 
 // 即時把目前進度(含還缺哪些SKU)同步到資料庫(debounce,避免連續勾選時瘋狂寫入)
-let liveSyncTimer = null;
+let liveSyncTimers = {}; // 每個通路各自獨立的計時器,避免切換通路時互相取消對方的寫入
 function syncLiveProgress(total, done){
-  clearTimeout(liveSyncTimer);
-  liveSyncTimer = setTimeout(async ()=>{
+  // 在呼叫的「當下」就把通路、狀態、還缺的商品都算好鎖定,避免非同步等待的0.4秒內畫面已經切換成別的通路
+  const channel = currentChannel;
+  const confirmed = currentBatchConfirmed;
+  const pendingSkus = getPendingSkuBreakdown().slice(0, 30); // 最多存30項,避免資料過大
+
+  clearTimeout(liveSyncTimers[channel]);
+  liveSyncTimers[channel] = setTimeout(async ()=>{
     await waitForFirebase();
     const {db, doc, setDoc, serverTimestamp} = window.__fb;
-    const pendingSkus = getPendingSkuBreakdown().slice(0, 30); // 最多存30項,避免資料過大
     try{
-      await setDoc(doc(db, 'live_sessions', currentChannel), {
-        channel: currentChannel, total, done, confirmed: currentBatchConfirmed,
+      await setDoc(doc(db, 'live_sessions', channel), {
+        channel, total, done, confirmed,
         pendingSkus, date: ymd(new Date()),
         updatedAt: serverTimestamp(), updatedBy: currentUserEmail || ''
       });
