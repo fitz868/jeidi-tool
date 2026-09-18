@@ -3482,6 +3482,8 @@ function togglePickDone(idx, done){
       if(cb) cb.checked = done;
     });
   }
+  // 確認完成之後如果又有新的勾選動作,代表狀態已經跟剛剛確認的不一樣了,重新標記為「進行中」
+  currentBatchConfirmed = false;
   updatePickProgress();
   saveState();
 }
@@ -3502,6 +3504,8 @@ function toggleItemPicked(cardIdx, itemIdx, checked){
   card.classList.toggle('pick-card-done', allDone);
   card.classList.toggle('pick-card-partial', !allDone && !noneDone);
 
+  // 同上,勾選動作發生後代表狀態異動了,重新標記為「進行中」,要再按一次確認完成才會變回已確認
+  currentBatchConfirmed = false;
   updatePickProgress();
   saveState();
 }
