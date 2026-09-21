@@ -1547,9 +1547,10 @@ async function searchOrderHistory(){
   }
   box.innerHTML = '<div class="resend-empty">搜尋中...</div>';
   await waitForFirebase();
-  const {db, collection, query, orderBy, limit, getDocs} = window.__fb;
+  const {db, collection, query, where, orderBy, limit, getDocs} = window.__fb;
+  const CHANNEL_LABEL3 = {line:'LINE', shop:'官網', shopee:'蝦皮', pinkoi:'PINKOI'};
   try{
-    // 只抓最近一批(依確認時間新到舊,最多2000筆)回來,在本機比對關鍵字,避免資料量成長後查詢太慢
+    // 一般揀貨完成的訂單:只抓最近一批(依確認時間新到舊,最多2000筆)回來,在本機比對關鍵字
     const q = query(collection(db, ORDER_HISTORY_COLLECTION), orderBy('confirmedAt', 'desc'), limit(2000));
     const snap = await getDocs(q);
     const matches = [];
@@ -1559,24 +1560,46 @@ async function searchOrderHistory(){
         data.orderId, data.name,
         ...(data.items || []).map(it => it.name), ...(data.items || []).map(it => it.sku)
       ].join(' ').toLowerCase();
-      if(haystack.includes(kw)) matches.push(data);
+      if(haystack.includes(kw)) matches.push({...data, __source: 'normal'});
     });
+
+    // 補寄完成的訂單也一起搜,不然像補寄過的訂單會查不到(明明已經處理完成卻顯示找不到)
+    const resendQ = query(collection(db, RESEND_COLLECTION), where('status','==','已完成'));
+    const resendSnap = await getDocs(resendQ);
+    resendSnap.forEach(d=>{
+      const data = d.data();
+      const haystack = [data.orderNumber, data.name, data.trackingNumber, data.contents].join(' ').toLowerCase();
+      if(haystack.includes(kw)){
+        matches.push({
+          orderId: data.orderNumber, name: data.name, phone: data.phone || '',
+          address: data.address || '', channel: data.channel,
+          date: data.completedAt && data.completedAt.seconds
+            ? new Date(data.completedAt.seconds*1000).toLocaleDateString('zh-TW') : '',
+          items: [], __source: 'resend', trackingNumber: data.trackingNumber, contents: data.contents
+        });
+      }
+    });
+
     if(matches.length === 0){
       box.innerHTML = '<div class="resend-empty">最近的紀錄裡找不到符合的結果(只搜尋最近確認過的訂單,太久以前的可能搜不到)</div>';
       return;
     }
-    const CHANNEL_LABEL3 = {line:'LINE', shop:'官網', shopee:'蝦皮', pinkoi:'PINKOI'};
     box.innerHTML = matches.slice(0, 100).map(r => `
       <div class="order-history-item">
         <div class="ohi-head">
-          <span class="ohi-order">${escapeHtml(r.orderId||'')}・${escapeHtml(CHANNEL_LABEL3[r.channel]||r.channel||'')}</span>
+          <span class="ohi-order">${escapeHtml(r.orderId||'')}・${escapeHtml(CHANNEL_LABEL3[r.channel]||r.channel||'')}${r.__source==='resend' ? '・補寄' : ''}</span>
           <span class="ohi-date">${escapeHtml(r.date||'')}</span>
         </div>
         <div class="ohi-line">${escapeHtml(r.name||'')}　${escapeHtml(r.phone||'')}</div>
         <div class="ohi-line">${escapeHtml(r.address||'')}</div>
+        ${r.__source==='resend' ? `
+        <div class="ohi-line">補寄單號:${escapeHtml(r.trackingNumber||'')}</div>
+        <div class="ohi-line">內容:${escapeHtml(r.contents||'')}</div>
+        ` : `
         <div class="ohi-items">
           ${(r.items||[]).map(it => '<div class="ohi-item-row"><span>' + escapeHtml(it.name||it.sku) + '</span><span>x' + it.qty + '</span></div>').join('')}
         </div>
+        `}
       </div>
     `).join('') + (matches.length > 100 ? '<div class="resend-empty">找到 ' + matches.length + ' 筆,只顯示前 100 筆,請輸入更精確的關鍵字</div>' : '');
   }catch(err){
