@@ -912,6 +912,12 @@
       <input type="text" id="resendSearchInput" placeholder="搜尋訂單編號或補寄單號" oninput="renderCompletedResends()">
       <div id="completedResendList" style="margin-top:14px;"></div>
     </div>
+
+    <div class="panel no-print">
+      <h2>補寄清單</h2>
+      <div class="desc">還沒完成的補寄,跟頁面1「出貨準備」下面那份是同一份資料,這裡也能直接填單號、確認完成。</div>
+      <div id="resendListBoxPage4" class="resend-list"><div class="resend-empty">讀取中...</div></div>
+    </div>
   </div><!-- /page4 -->
 
   </div><!-- /helperMode -->
@@ -1622,12 +1628,15 @@ async function loadResendRecords(){
     });
     renderResendRecords(records);
   }catch(err){
-    document.getElementById('resendListBox').innerHTML = '<div class="resend-empty">讀取失敗: ' + err.message + '</div>';
+    const msg = '<div class="resend-empty">讀取失敗: ' + err.message + '</div>';
+    document.getElementById('resendListBox').innerHTML = msg;
+    const box2 = document.getElementById('resendListBoxPage4');
+    if(box2) box2.innerHTML = msg;
   }
 }
 
-function renderResendRecords(records){
-  const box = document.getElementById('resendListBox');
+function renderResendListInto(box, records){
+  if(!box) return;
   if(records.length === 0){
     box.innerHTML = '<div class="resend-empty">目前沒有待處理的補寄</div>';
     return;
@@ -1641,14 +1650,21 @@ function renderResendRecords(records){
       <div class="resend-line">${escapeHtml(r.name||'')}　${escapeHtml(r.phone||'')}</div>
       <div class="resend-line">${escapeHtml(SHIP_CATEGORY_LABEL[r.category]||r.category||'')}${r.address ? '｜' : ''}${escapeHtml(r.address||'')}</div>
       <div class="resend-line">內容:${escapeHtml(r.contents||'')}</div>
-      <input type="text" class="resend-tracking-input" id="tracking-${r.id}" placeholder="補寄單號(寄出後填這裡)">
-      <button class="ghost" onclick="confirmResendDone('${r.id}', '${r.category||''}')">確認完成</button>
+      <input type="text" class="resend-tracking-input" placeholder="補寄單號(寄出後填這裡)">
+      <button class="ghost" onclick="confirmResendDone(this, '${r.id}', '${r.category||''}')">確認完成</button>
     </div>
   `).join('');
 }
 
-async function confirmResendDone(id, category){
-  const trackingInput = document.getElementById('tracking-' + id);
+// 待處理清單同時顯示在頁面1(出貨助手)跟頁面4(訂單查詢),兩邊都是同一份資料
+function renderResendRecords(records){
+  renderResendListInto(document.getElementById('resendListBox'), records);
+  renderResendListInto(document.getElementById('resendListBoxPage4'), records);
+}
+
+async function confirmResendDone(btnEl, id, category){
+  const item = btnEl.closest('.resend-item');
+  const trackingInput = item ? item.querySelector('.resend-tracking-input') : null;
   const trackingNumber = trackingInput ? trackingInput.value.trim() : '';
   if(!trackingNumber){
     alert('請先填寫補寄單號,才能確認完成。');
@@ -3730,23 +3746,24 @@ function confirmPickProgress(){
     alert('目前沒有檢貨單資料,請先處理訂單檔案。');
     return;
   }
+  if(done === 0){
+    alert('目前還沒有任何訂單打勾已檢貨,沒有東西可以確認。');
+    return;
+  }
   channelProgress[currentChannel] = {total, done, time: new Date()};
-  currentBatchConfirmed = true;
-  syncLiveProgress(total, done);
   const note = document.getElementById('pickConfirmNote');
-  const label = currentChannel === 'line' ? 'LINE' : (currentChannel === 'shop' ? '官網' : '蝦皮');
-  note.textContent = '✓ 已確認:' + label + ' 揀貨進度 ' + done + ' / ' + total + '(已記錄到出貨核對頁面)';
-  updatePage3PickProgress();
-  saveState();
+  const label = {line:'LINE', shop:'官網', shopee:'蝦皮', pinkoi:'PINKOI'}[currentChannel] || currentChannel;
 
-  // 彙整已勾選(已檢貨)訂單裡每個SKU賣了幾件,以及每種物流分類各幾張,存進揀貨記錄
+  // 彙整這次確認完成的訂單(已勾選的)裡每個SKU賣了幾件,以及每種物流分類各幾張
   const skuTotals = {};
   const categoryCounts = {};
   let totalItemCount = 0;
+  const doneOrderIds = new Set();
   doneCards.forEach(card=>{
     const idx = parseInt(card.id.replace('pick-card-',''), 10);
     const its = pickOrderGroups[idx] || [];
     if(its.length > 0){
+      doneOrderIds.add(its[0].orderId);
       const cat = its[0].shippingCategory || 'kerry';
       categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
     }
@@ -3758,9 +3775,10 @@ function confirmPickProgress(){
     });
   });
   const skuBreakdown = Object.values(skuTotals);
-  savePickRecord(currentChannel, categoryCounts, total, totalItemCount, done, skuBreakdown);
+  // 這裡只回報「這次新完成」的數量(done),不是整批的總數(total),避免同一批分好幾次確認時,總數被重複疊加
+  savePickRecord(currentChannel, categoryCounts, done, totalItemCount, done, skuBreakdown);
 
-  // 把每張已檢貨完成的訂單完整明細存進訂單歷史庫,方便之後搜尋(訂單編號/姓名/商品名稱都能查)
+  // 把這次確認完成的訂單完整明細存進訂單歷史庫,方便之後搜尋(訂單編號/姓名/商品名稱都能查)
   const historyRecords = [];
   doneCards.forEach(card=>{
     const idx = parseInt(card.id.replace('pick-card-',''), 10);
@@ -3778,18 +3796,27 @@ function confirmPickProgress(){
   });
   saveOrderHistory(historyRecords);
 
-  // 沒打勾的訂單,記錄到「揀貨未完成」清單;打勾的,如果之前卡在清單裡就解除
-  const doneIdxSet = new Set(doneCards.map(c => parseInt(c.id.replace('pick-card-',''), 10)));
+  // 已勾選確認完成的訂單,解除「揀貨未完成」的追蹤(不管有沒有留在畫面上,都已經處理完了)
+  doneOrderIds.forEach(oid => resolvePendingPick(currentChannel, oid));
+  // 還沒勾選的,記錄到「揀貨未完成」清單,方便跨天追蹤有沒有一直被漏掉
   pickOrderGroups.forEach((its, idx)=>{
     if(!its || its.length === 0) return;
     const oid = its[0].orderId;
-    const name = its[0].name;
-    if(doneIdxSet.has(idx)){
-      resolvePendingPick(currentChannel, oid);
-    }else{
-      markPendingPick(currentChannel, oid, name);
-    }
+    if(!doneOrderIds.has(oid)) markPendingPick(currentChannel, oid, its[0].name);
   });
+
+  // 已確認完成的訂單,從畫面上移除,只留下還沒檢完的——這樣下次再按確認,回報的才會是「新完成的量」,不會把同一批的總數重複算好幾次
+  parsedItems = parsedItems.filter(it => !doneOrderIds.has(it.orderId));
+  custItems = parsedItems.filter(it => it.hasCust);
+  currentBatchConfirmed = parsedItems.length === 0; // 全部都確認完了才算真的完成,還有剩就還是「進行中」
+  renderPickList();
+  if(parsedItems.length === 0){
+    note.textContent = '✓ ' + label + ' 這批全部確認完成(共 ' + total + ' 張),已記錄到出貨核對頁面。';
+  }else{
+    note.textContent = '✓ 已確認 ' + label + ' ' + done + ' 張,還剩 ' + parsedItems.length + ' 張訂單還沒檢貨完成,留在下面繼續處理。';
+  }
+  updatePage3PickProgress();
+  saveState();
 }
 
 function showError(lines){
