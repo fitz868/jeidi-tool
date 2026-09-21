@@ -261,6 +261,8 @@
   .chan-btn:hover:not(:disabled){border-color:var(--sage);transform:translateY(-1px);}
   .chan-btn.active{border-color:var(--sage);background:var(--ok-soft);}
   .chan-btn:disabled{opacity:.45;cursor:not-allowed;}
+  .chan-btn-incomplete{background:#FBEAEA;border-color:#D99;}
+  .chan-btn-incomplete.active{background:#F7D9D9;border-color:#D99;}
   .chan-btn .name{font-weight:600;font-size:15px;display:block;margin-bottom:3px;}
   .chan-btn .tag{font-size:12px;color:var(--ink-soft);}
 
@@ -449,6 +451,10 @@
   #pickSearchInput{
     width:100%;box-sizing:border-box;font-family:inherit;font-size:15px;padding:10px 14px;
     border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);
+  }
+  .hide-done-toggle{
+    display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--ink-soft);
+    margin-top:10px;cursor:pointer;
   }
   .panel-head-row h2{margin:0;}
 
@@ -706,7 +712,10 @@
 
     <div class="pick-layout">
       <aside class="pick-sidebar no-print">
-        <input type="text" id="pickSearchInput" placeholder="搜尋訂單編號或姓名" oninput="filterPickList(this.value)">
+        <input type="text" id="pickSearchInput" placeholder="搜尋訂單編號或姓名" oninput="filterPickList()">
+        <label class="hide-done-toggle no-print">
+          <input type="checkbox" id="hideDoneCheckbox" onchange="toggleHideDone(this.checked)"> 只顯示未檢貨
+        </label>
         <div class="sidebar-summary" id="todaySummaryPanel" style="display:none;">
           <div class="sidebar-summary-title">這批還剩要出貨</div>
           <div id="todaySummaryList"></div>
@@ -2002,6 +2011,7 @@ function loadChannelBatch(ch){
     if(masterCb) masterCb.checked = allDone;
   });
   updatePickProgress();
+  filterPickList();
   document.getElementById('resetBtn').style.display = 'inline-block';
 }
 
@@ -2066,14 +2076,8 @@ function switchPage(n){
   if(n===4){ loadCompletedResends(); }
 }
 
-async function updatePage3PickProgress(){
-  const labels = {line:'LINE', shop:'官網', shopee:'蝦皮', pinkoi:'PINKOI'};
-  const row = document.getElementById('p3-pickRow');
-  if(!row) return;
-  row.innerHTML = Object.keys(labels).map(ch =>
-    '<div class="pp-cell"><div class="pp-name">' + labels[ch] + '</div><div class="pp-empty">讀取中...</div></div>'
-  ).join('');
-
+// 查詢今天 pick_records 裡,每個通路累加的總數/完成數(所有場次加總,不是只看最後一次)
+async function getCumulativePickTotals(){
   await waitForFirebase();
   const {db, collection, query, where, getDocs} = window.__fb;
   const todayStr = ymd(new Date());
@@ -2089,8 +2093,20 @@ async function updatePage3PickProgress(){
       sums[ch].done += data.doneCount || 0;
     });
   }catch(err){
-    // 讀取失敗就顯示空的,不影響其他功能
+    // 讀取失敗就回傳空的,不影響其他功能
   }
+  return sums;
+}
+
+async function updatePage3PickProgress(){
+  const labels = {line:'LINE', shop:'官網', shopee:'蝦皮', pinkoi:'PINKOI'};
+  const row = document.getElementById('p3-pickRow');
+  if(!row) return;
+  row.innerHTML = Object.keys(labels).map(ch =>
+    '<div class="pp-cell"><div class="pp-name">' + labels[ch] + '</div><div class="pp-empty">讀取中...</div></div>'
+  ).join('');
+
+  const sums = await getCumulativePickTotals();
 
   row.innerHTML = Object.keys(labels).map(ch=>{
     const s = sums[ch];
@@ -2108,10 +2124,11 @@ async function startLiveSessionListener(){
   await waitForFirebase();
   const {db, collection, onSnapshot} = window.__fb;
   if(liveSessionUnsub) return; // 已經在監聽就不用重複訂閱
-  liveSessionUnsub = onSnapshot(collection(db, 'live_sessions'), (snap)=>{
+  liveSessionUnsub = onSnapshot(collection(db, 'live_sessions'), async (snap)=>{
     const sessions = {};
     snap.forEach(d => sessions[d.id] = d.data());
-    renderLiveSessions(sessions);
+    const cumulative = await getCumulativePickTotals();
+    renderLiveSessions(sessions, cumulative);
   }, (err)=>{
     const row = document.getElementById('glsRow');
     if(row) row.innerHTML = '<div class="gls-empty">讀取失敗: ' + err.message + '</div>';
@@ -2128,7 +2145,8 @@ async function refreshLiveSessions(){
     const snap = await getDocs(collection(db, 'live_sessions'));
     const sessions = {};
     snap.forEach(d => sessions[d.id] = d.data());
-    renderLiveSessions(sessions);
+    const cumulative = await getCumulativePickTotals();
+    renderLiveSessions(sessions, cumulative);
   }catch(err){
     const row = document.getElementById('glsRow');
     if(row) row.innerHTML = '<div class="gls-empty">讀取失敗: ' + err.message + '</div>';
@@ -2136,33 +2154,43 @@ async function refreshLiveSessions(){
   if(btn) setTimeout(()=> btn.classList.remove('spinning'), 600);
 }
 
-function renderLiveSessions(sessions){
+// sessions:即時進行中的狀態(還缺哪些、有沒有在進行中);cumulative:今天所有場次累加的X/Y總數
+function renderLiveSessions(sessions, cumulative){
+  cumulative = cumulative || {};
   const labels = {line:'LINE', shop:'官網', shopee:'蝦皮', pinkoi:'PINKOI'};
   const row = document.getElementById('glsRow');
   if(!row) return;
   const todayStr = ymd(new Date());
-  // 只顯示「今天」的資料,舊資料(例如昨天忘了清空的)不再顯示,避免誤以為是現在的進度
-  const activeChannels = Object.keys(labels).filter(ch => sessions[ch] && sessions[ch].total && sessions[ch].date === todayStr);
+  // 有即時進行中的資料,或今天已經有累加紀錄,都算要顯示的通路
+  const activeChannels = Object.keys(labels).filter(ch =>
+    (sessions[ch] && sessions[ch].total && sessions[ch].date === todayStr) ||
+    (cumulative[ch] && cumulative[ch].total)
+  );
   if(activeChannels.length === 0){
     row.innerHTML = '<div class="gls-empty">目前沒有進行中的揀貨</div>';
     return;
   }
   row.innerHTML = activeChannels.map(ch=>{
-    const s = sessions[ch];
-    const statusText = s.confirmed ? '已確認完成' : '進行中';
-    const statusClass = s.confirmed ? 'gls-status' : 'gls-status gls-live';
-    const updatedTime = s.updatedAt && s.updatedAt.seconds
+    const s = sessions[ch] || {};
+    const isToday = s.date === todayStr;
+    const cum = cumulative[ch];
+    // X/Y數字優先用今天的累加總數(所有場次加起來);沒有累加紀錄時才退回用即時的那筆
+    const displayTotal = cum ? cum.total : (isToday ? s.total : 0);
+    const displayDone = cum ? cum.done : (isToday ? s.done : 0);
+    const statusText = (!isToday || s.confirmed) ? '已確認完成' : '進行中';
+    const statusClass = (isToday && !s.confirmed) ? 'gls-status gls-live' : 'gls-status';
+    const updatedTime = isToday && s.updatedAt && s.updatedAt.seconds
       ? new Date(s.updatedAt.seconds * 1000).toLocaleTimeString('zh-TW', {hour:'2-digit', minute:'2-digit'})
       : '';
     let missingHtml = '';
-    if(!s.confirmed && s.pendingSkus && s.pendingSkus.length > 0){
+    if(isToday && !s.confirmed && s.pendingSkus && s.pendingSkus.length > 0){
       missingHtml = '<div class="gls-missing-title">還缺(共' + s.pendingSkus.length + '項):</div>' +
         '<div class="gls-missing-list">' +
         s.pendingSkus.map(p => '<div class="gls-missing-row"><span>' + escapeHtml(p.name || p.sku) + '</span><span>x' + p.qty + '</span></div>').join('') +
         '</div>';
     }
     return '<div class="gls-cell"><div class="gls-name">' + labels[ch] + '</div>' +
-      '<div class="gls-num">' + s.done + ' / ' + s.total + '</div>' +
+      '<div class="gls-num">' + displayDone + ' / ' + displayTotal + '</div>' +
       '<div class="' + statusClass + '">' + statusText + (updatedTime ? '・更新於 ' + updatedTime : '') + '</div>' +
       missingHtml +
       '</div>';
@@ -3262,9 +3290,37 @@ async function finishProcessing(rawItems){
 // ===== 本機儲存:重新整理頁面不會遺失目前進度 =====
 const STORAGE_KEY = 'jeidi_shipping_state_v1';
 
+// 判斷某個通路目前儲存的批次,是不是還有品項沒有勾完
+function isChannelBatchIncomplete(ch){
+  const batch = channelBatches[ch];
+  if(!batch || !batch.parsedItems || batch.parsedItems.length === 0) return false;
+  const byOrder = {};
+  const orderIds = [];
+  batch.parsedItems.forEach(it=>{
+    if(!byOrder[it.orderId]){ byOrder[it.orderId] = []; orderIds.push(it.orderId); }
+    byOrder[it.orderId].push(it);
+  });
+  const doneItems = batch.doneItems || {};
+  for(let idx = 0; idx < orderIds.length; idx++){
+    const itemCount = byOrder[orderIds[idx]].length;
+    const doneCount = (doneItems[idx] || []).length;
+    if(doneCount < itemCount) return true; // 有還沒勾完的品項
+  }
+  return false;
+}
+
+const CHANNEL_BTN_IDS = {line:'chan-line', shop:'chan-shop', shopee:'chan-shopee', pinkoi:'chan-pinkoi'};
+function updateChannelButtonAlerts(){
+  Object.keys(CHANNEL_BTN_IDS).forEach(ch=>{
+    const btn = document.getElementById(CHANNEL_BTN_IDS[ch]);
+    if(btn) btn.classList.toggle('chan-btn-incomplete', isChannelBatchIncomplete(ch));
+  });
+}
+
 function saveState(){
   try{
     saveChannelBatch(currentChannel); // 先把目前畫面存進channelBatches,確保是最新的
+    updateChannelButtonAlerts();
     const state = {
       channel: currentChannel,
       shopeeType: shopeeShipType,
@@ -3305,6 +3361,7 @@ function restoreState(){
     });
 
     loadChannelBatch(currentChannel);
+    updateChannelButtonAlerts();
 
     if(parsedItems.length > 0){
       const savedTime = state.savedAt ? new Date(state.savedAt).toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'}) : '';
@@ -3361,7 +3418,7 @@ function tagScentCodes(name){
     const segText = match.code + restText;
 
     const bg = scentColorMap[match.code];
-    const tagStyle = bg ? ' style="background:' + lightenColor(bg, 0.72) + ';"' : '';
+    const tagStyle = bg ? ' style="background:' + lightenColor(bg, 0.15) + ';border:1.5px solid ' + bg + ';"' : '';
     result += '<span class="pc-scent-tag"' + tagStyle + '>' + escapeHtml(segText) + '</span>';
 
     cursor = segEnd;
@@ -3485,6 +3542,7 @@ function togglePickDone(idx, done){
   // 確認完成之後如果又有新的勾選動作,代表狀態已經跟剛剛確認的不一樣了,重新標記為「進行中」
   currentBatchConfirmed = false;
   updatePickProgress();
+  filterPickList();
   saveState();
 }
 
@@ -3507,6 +3565,7 @@ function toggleItemPicked(cardIdx, itemIdx, checked){
   // 同上,勾選動作發生後代表狀態異動了,重新標記為「進行中」,要再按一次確認完成才會變回已確認
   currentBatchConfirmed = false;
   updatePickProgress();
+  filterPickList();
   saveState();
 }
 
@@ -3526,17 +3585,21 @@ function toggleSelectAll(){
 }
 
 // 依訂單編號或姓名搜尋,找不到就隱藏,方便對照紙本快速找到對應卡片
-function filterPickList(keyword){
-  const kw = keyword.trim().toLowerCase();
+function filterPickList(){
+  const searchInput = document.getElementById('pickSearchInput');
+  const hideDoneCheckbox = document.getElementById('hideDoneCheckbox');
+  const kw = searchInput ? searchInput.value.trim().toLowerCase() : '';
+  const hideDone = hideDoneCheckbox ? hideDoneCheckbox.checked : false;
   const cards = document.querySelectorAll('#pickList .pick-card');
   cards.forEach(card=>{
-    if(!kw){
-      card.style.display = '';
-      return;
-    }
-    const text = card.textContent.toLowerCase();
-    card.style.display = text.includes(kw) ? '' : 'none';
+    const matchesSearch = !kw || card.textContent.toLowerCase().includes(kw);
+    const matchesHideDone = !hideDone || !card.classList.contains('pick-card-done');
+    card.style.display = (matchesSearch && matchesHideDone) ? '' : 'none';
   });
+}
+
+function toggleHideDone(checked){
+  filterPickList();
 }
 
 function printIncomplete(){
