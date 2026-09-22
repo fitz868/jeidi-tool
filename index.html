@@ -74,18 +74,15 @@
   }
   .shell{max-width:1200px;margin:0 auto;padding:40px 24px 100px;}
 
-  .side-panel-stack{
-    position:fixed;top:0;right:0;height:100vh;z-index:500;
-    display:flex;flex-direction:column;pointer-events:none;
-  }
   .side-panel{
-    pointer-events:auto;
-    background:var(--paper);border-left:1px solid var(--line);
-    display:flex;flex-direction:column;width:260px;max-height:50vh;
-    box-shadow:-2px 0 8px rgba(0,0,0,0.06);
+    position:fixed;top:0;height:100vh;z-index:500;
+    background:var(--paper);
+    display:flex;flex-direction:column;width:260px;
+    box-shadow:0 0 8px rgba(0,0,0,0.06);
   }
-  .side-panel + .side-panel{border-top:1px solid var(--line);}
-  .side-panel.collapsed{width:40px;max-height:none;}
+  .guide-sidebar{left:0;border-right:1px solid var(--line);}
+  .global-live-sidebar{right:0;border-left:1px solid var(--line);}
+  .side-panel.collapsed{width:40px;}
   .side-panel.collapsed .gls-body{display:none;}
   .side-panel.collapsed .gls-header{
     writing-mode:vertical-rl;padding:14px 8px;justify-content:flex-start;gap:8px;height:100%;
@@ -120,6 +117,9 @@
   .guide-section{margin-bottom:20px;}
   .guide-section:last-child{margin-bottom:0;}
   .guide-section-title{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:6px;}
+  .guide-changelog{list-style:none;padding-left:0;background:var(--ok-soft);border-radius:8px;padding:10px 12px;}
+  .guide-changelog li{position:relative;padding-left:14px;}
+  .guide-changelog li:before{content:'•';position:absolute;left:0;color:var(--sage-dark);}
   .guide-steps{margin:0;padding-left:18px;font-size:12.5px;color:var(--ink-soft);line-height:1.7;}
   .guide-steps li{margin-bottom:6px;}
   .guide-steps ul{margin:4px 0 4px 4px;padding-left:16px;list-style:circle;}
@@ -546,78 +546,86 @@
 
 <div class="shell" id="mainShell" style="display:none;">
 
-<div class="side-panel-stack no-print" id="sidePanelStack">
-
-  <div class="side-panel guide-sidebar" id="guideSidebar">
-    <div class="gls-header">
-      <span onclick="toggleGuideSidebar()" class="gls-header-label" style="cursor:pointer;">操作指南</span>
-      <span onclick="toggleGuideSidebar()" id="guideToggleIcon" style="cursor:pointer;">▸</span>
-    </div>
-    <div class="gls-body" id="guideBody">
-
-      <div class="guide-section">
-        <div class="guide-section-title">① 出貨準備</div>
-        <ol class="guide-steps">
-          <li>上方選通路(LINE禮物/官網/PINKOI/蝦皮)</li>
-          <li>到該平台後台下載今天的訂單檔案:
-            <ul>
-              <li>LINE禮物:賣家後台下載訂單 Excel</li>
-              <li>官網:Shopify 後台匯出訂單 CSV</li>
-              <li>蝦皮:賣家中心下載裝箱單</li>
-              <li>PINKOI:賣家後台下載訂單檔</li>
-            </ul>
-          </li>
-          <li>把檔案拖曳到框框裡,或點擊選擇檔案</li>
-          <li>按「開始處理」,系統會自動整理成檢貨單</li>
-          <li>依檢貨單核對商品,勾選「已檢貨」(整張)或個別品項打勾(部分缺貨時用)</li>
-          <li>檢完按「確認完成揀貨」——已完成的訂單會從畫面移除,還沒完成的留著繼續處理</li>
-        </ol>
-      </div>
-
-      <div class="guide-section">
-        <div class="guide-section-title">② 出貨回報(黑貓配送才需要)</div>
-        <ol class="guide-steps">
-          <li>黑貓收件後,到黑貓網站下載追蹤單號 CSV</li>
-          <li>回到這裡「出貨回報」頁面,上傳 LINE/官網的訂單檔 + 黑貓追蹤 CSV</li>
-          <li>系統自動比對,把黑貓單號填進對應訂單</li>
-          <li>7-11/全家/順豐不用這步驟,因為出貨當下就有單號了</li>
-        </ol>
-      </div>
-
-      <div class="guide-section">
-        <div class="guide-section-title">③ 出貨核對</div>
-        <ol class="guide-steps">
-          <li>填寫「今日出貨檢核」(填寫人+檢查項目)</li>
-          <li>看「即時進行中」了解各通路現在進度</li>
-          <li>看「揀貨進度」確認今天各通路總共完成幾張</li>
-          <li>核對「今日物流件數」是否跟物流商告知的件數一致</li>
-        </ol>
-      </div>
-
-      <div class="guide-section">
-        <div class="guide-section-title">需要補寄的時候</div>
-        <ol class="guide-steps">
-          <li>「出貨準備」頁面下方填補寄表單</li>
-          <li>實際寄出後,回來填補寄單號、按「確認完成」</li>
-          <li>「訂單查詢」頁面可以搜歷史訂單或補寄記錄</li>
-        </ol>
-      </div>
-
-    </div>
+<div class="side-panel guide-sidebar no-print" id="guideSidebar">
+  <div class="gls-header">
+    <span onclick="toggleGuideSidebar()" class="gls-header-label" style="cursor:pointer;">操作指南</span>
+    <span onclick="toggleGuideSidebar()" id="guideToggleIcon" style="cursor:pointer;">◂</span>
   </div>
+  <div class="gls-body" id="guideBody">
 
-  <div class="side-panel global-live-sidebar" id="globalLiveSidebar">
-    <div class="gls-header">
-      <span onclick="toggleGlobalSidebar()" class="gls-header-label" style="cursor:pointer;">即時進行中</span>
-      <button class="gls-refresh-btn" onclick="event.stopPropagation(); refreshLiveSessions();" title="手動重新整理">⟳</button>
-      <span onclick="toggleGlobalSidebar()" id="glsToggleIcon" style="cursor:pointer;">▸</span>
+    <div class="guide-section">
+      <div class="guide-section-title">📌 最近更新</div>
+      <ul class="guide-steps guide-changelog">
+        <li>檢貨單每個品項可以單獨勾選,部分缺貨時只勾有貨的部分</li>
+        <li>確認完成揀貨後,已完成的訂單會自動從畫面移除,不用再滑過去</li>
+        <li>可以刪除單一訂單(例如離島無法出貨的),不用重新匯入整批</li>
+        <li>新增「訂單查詢」頁面,可以搜尋歷史訂單、補寄記錄</li>
+        <li>右側「即時進行中」可以看到各通路目前的即時進度</li>
+      </ul>
     </div>
-    <div class="gls-body" id="glsBody">
-      <div id="glsRow"></div>
+
+    <div class="guide-section">
+      <div class="guide-section-title">① 出貨準備</div>
+      <ol class="guide-steps">
+        <li>上方選通路(LINE禮物/官網/PINKOI/蝦皮)</li>
+        <li>到該平台後台下載今天的訂單檔案:
+          <ul>
+            <li>LINE禮物:賣家後台下載訂單 Excel</li>
+            <li>官網:Shopify 後台匯出訂單 CSV</li>
+            <li>蝦皮:賣家中心下載裝箱單</li>
+            <li>PINKOI:賣家後台下載訂單檔</li>
+          </ul>
+        </li>
+        <li>把檔案拖曳到框框裡,或點擊選擇檔案</li>
+        <li>按「開始處理」,系統會自動整理成檢貨單</li>
+        <li>依檢貨單核對商品,勾選「已檢貨」(整張)或個別品項打勾(部分缺貨時用)</li>
+        <li>檢完按「確認完成揀貨」——已完成的訂單會從畫面移除,還沒完成的留著繼續處理</li>
+      </ol>
     </div>
+
+    <div class="guide-section">
+      <div class="guide-section-title">② 出貨回報(黑貓配送才需要)</div>
+      <ol class="guide-steps">
+        <li>黑貓收件後,到黑貓網站下載追蹤單號 CSV</li>
+        <li>回到這裡「出貨回報」頁面,上傳 LINE/官網的訂單檔 + 黑貓追蹤 CSV</li>
+        <li>系統自動比對,把黑貓單號填進對應訂單</li>
+        <li>7-11/全家/順豐不用這步驟,因為出貨當下就有單號了</li>
+      </ol>
+    </div>
+
+    <div class="guide-section">
+      <div class="guide-section-title">③ 出貨核對</div>
+      <ol class="guide-steps">
+        <li>填寫「今日出貨檢核」(填寫人+檢查項目)</li>
+        <li>看「即時進行中」(右側欄)了解各通路現在進度</li>
+        <li>看「揀貨進度」確認今天各通路總共完成幾張</li>
+        <li>核對「今日物流件數」是否跟物流商告知的件數一致</li>
+      </ol>
+    </div>
+
+    <div class="guide-section">
+      <div class="guide-section-title">需要補寄的時候</div>
+      <ol class="guide-steps">
+        <li>「出貨準備」頁面下方填補寄表單</li>
+        <li>實際寄出後,回來填補寄單號、按「確認完成」</li>
+        <li>「訂單查詢」頁面可以搜歷史訂單或補寄記錄</li>
+      </ol>
+    </div>
+
   </div>
-
 </div>
+
+<div class="side-panel global-live-sidebar no-print" id="globalLiveSidebar">
+  <div class="gls-header">
+    <span onclick="toggleGlobalSidebar()" class="gls-header-label" style="cursor:pointer;">即時進行中</span>
+    <button class="gls-refresh-btn" onclick="event.stopPropagation(); refreshLiveSessions();" title="手動重新整理">⟳</button>
+    <span onclick="toggleGlobalSidebar()" id="glsToggleIcon" style="cursor:pointer;">▸</span>
+  </div>
+  <div class="gls-body" id="glsBody">
+    <div id="glsRow"></div>
+  </div>
+</div>
+
 
 
   <header class="top">
