@@ -110,6 +110,26 @@
     .global-live-sidebar{width:auto;max-width:80vw;}
     .global-live-sidebar:not(.collapsed) .gls-body{width:240px;}
   }
+
+  .guide-sidebar{
+    position:fixed;top:0;left:0;height:100vh;width:280px;
+    background:var(--paper);border-right:1px solid var(--line);
+    z-index:500;display:flex;flex-direction:column;
+    box-shadow:2px 0 8px rgba(0,0,0,0.06);
+  }
+  .guide-sidebar.collapsed{width:auto;}
+  .guide-sidebar.collapsed .gls-body{display:none;}
+  .guide-section{margin-bottom:20px;}
+  .guide-section:last-child{margin-bottom:0;}
+  .guide-section-title{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:6px;}
+  .guide-steps{margin:0;padding-left:18px;font-size:12.5px;color:var(--ink-soft);line-height:1.7;}
+  .guide-steps li{margin-bottom:6px;}
+  .guide-steps ul{margin:4px 0 4px 4px;padding-left:16px;list-style:circle;}
+  .guide-steps ul li{margin-bottom:2px;}
+  @media (max-width:900px){
+    .guide-sidebar{width:auto;max-width:80vw;}
+    .guide-sidebar:not(.collapsed) .gls-body{width:250px;}
+  }
   header.top{margin-bottom:36px;}
   header.top .eyebrow{
     font-size:13px;color:var(--sage-dark);font-weight:600;letter-spacing:0.02em;margin-bottom:6px;
@@ -394,9 +414,16 @@
     font-size:13.5px;font-weight:700;color:var(--warn);line-height:1.6;
   }
   .pick-card .pc-top{padding:14px 18px 12px;}
+  .pc-top-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+  .pc-delete-btn{
+    background:none;border:1px solid var(--line);
+    border-radius:6px;color:var(--warn);font-size:11px;font-weight:600;
+    padding:3px 9px;cursor:pointer;
+  }
+  .pc-delete-btn:hover{background:var(--warn-soft);border-color:var(--warn);}
   .pick-card .pc-check{
     display:flex;align-items:center;gap:6px;font-size:12px;color:var(--sage-dark);
-    font-weight:600;cursor:pointer;margin-bottom:8px;
+    font-weight:600;cursor:pointer;
   }
   .pick-card .pc-check input{width:14px;height:14px;accent-color:var(--sage);cursor:pointer;}
   .pick-card .pc-headrow{display:flex;justify-content:space-between;align-items:baseline;}
@@ -519,6 +546,64 @@
 </div>
 
 <div class="shell" id="mainShell" style="display:none;">
+
+<div class="guide-sidebar no-print" id="guideSidebar">
+  <div class="gls-header">
+    <span onclick="toggleGuideSidebar()" style="cursor:pointer;flex:1;">操作指南</span>
+    <span onclick="toggleGuideSidebar()" id="guideToggleIcon" style="cursor:pointer;">◂</span>
+  </div>
+  <div class="gls-body" id="guideBody">
+
+    <div class="guide-section">
+      <div class="guide-section-title">① 出貨準備</div>
+      <ol class="guide-steps">
+        <li>上方選通路(LINE禮物/官網/PINKOI/蝦皮)</li>
+        <li>到該平台後台下載今天的訂單檔案:
+          <ul>
+            <li>LINE禮物:賣家後台下載訂單 Excel</li>
+            <li>官網:Shopify 後台匯出訂單 CSV</li>
+            <li>蝦皮:賣家中心下載裝箱單</li>
+            <li>PINKOI:賣家後台下載訂單檔</li>
+          </ul>
+        </li>
+        <li>把檔案拖曳到框框裡,或點擊選擇檔案</li>
+        <li>按「開始處理」,系統會自動整理成檢貨單</li>
+        <li>依檢貨單核對商品,勾選「已檢貨」(整張)或個別品項打勾(部分缺貨時用)</li>
+        <li>檢完按「確認完成揀貨」——已完成的訂單會從畫面移除,還沒完成的留著繼續處理</li>
+      </ol>
+    </div>
+
+    <div class="guide-section">
+      <div class="guide-section-title">② 出貨回報(黑貓配送才需要)</div>
+      <ol class="guide-steps">
+        <li>黑貓收件後,到黑貓網站下載追蹤單號 CSV</li>
+        <li>回到這裡「出貨回報」頁面,上傳 LINE/官網的訂單檔 + 黑貓追蹤 CSV</li>
+        <li>系統自動比對,把黑貓單號填進對應訂單</li>
+        <li>7-11/全家/順豐不用這步驟,因為出貨當下就有單號了</li>
+      </ol>
+    </div>
+
+    <div class="guide-section">
+      <div class="guide-section-title">③ 出貨核對</div>
+      <ol class="guide-steps">
+        <li>填寫「今日出貨檢核」(填寫人+檢查項目)</li>
+        <li>看「即時進行中」(右側欄)了解各通路現在進度</li>
+        <li>看「揀貨進度」確認今天各通路總共完成幾張</li>
+        <li>核對「今日物流件數」是否跟物流商告知的件數一致</li>
+      </ol>
+    </div>
+
+    <div class="guide-section">
+      <div class="guide-section-title">需要補寄的時候</div>
+      <ol class="guide-steps">
+        <li>「出貨準備」頁面下方填補寄表單</li>
+        <li>實際寄出後,回來填補寄單號、按「確認完成」</li>
+        <li>「訂單查詢」頁面可以搜歷史訂單或補寄記錄</li>
+      </ol>
+    </div>
+
+  </div>
+</div>
 
 <div class="global-live-sidebar no-print" id="globalLiveSidebar">
   <div class="gls-header">
@@ -2243,6 +2328,13 @@ function toggleGlobalSidebar(){
   icon.textContent = collapsed ? '◂' : '▸';
 }
 
+function toggleGuideSidebar(){
+  document.getElementById('guideSidebar').classList.toggle('collapsed');
+  const icon = document.getElementById('guideToggleIcon');
+  const collapsed = document.getElementById('guideSidebar').classList.contains('collapsed');
+  icon.textContent = collapsed ? '▸' : '◂';
+}
+
 function switchReportChannel(ch){
   document.getElementById('report-line').style.display = ch==='line' ? 'block' : 'none';
   document.getElementById('report-shop').style.display = ch==='shop' ? 'block' : 'none';
@@ -3551,7 +3643,10 @@ function renderPickList(){
     return '<div class="' + cardClass + '" id="pick-card-' + idx + '">' +
       noteBlock +
       '<div class="pc-top">' +
-        '<label class="pc-check no-print"><input type="checkbox" onchange="togglePickDone(' + idx + ', this.checked)"> 已檢貨</label>' +
+        '<div class="pc-top-row no-print">' +
+          '<label class="pc-check"><input type="checkbox" onchange="togglePickDone(' + idx + ', this.checked)"> 已檢貨</label>' +
+          '<button class="pc-delete-btn" onclick="deleteOrder(' + idx + ')" title="刪除這張訂單(例如離島無法出貨的訂單)">✕ 刪除</button>' +
+        '</div>' +
         '<div class="pc-headrow"><span class="pc-name">' + escapeHtml(name) + shipTag + '</span>' + orderBadge + '</div>' +
       '</div>' +
       '<div class="pc-divider"></div>' +
@@ -3605,6 +3700,25 @@ function toggleItemPicked(cardIdx, itemIdx, checked){
   currentBatchConfirmed = false;
   updatePickProgress();
   filterPickList();
+  saveState();
+}
+
+// 刪除整張訂單(例如離島地址無法出貨的訂單),不用再回去重新匯入檔案
+// 刪除後這張訂單就不在畫面上的資料裡了,之後產生黑貓CSV等匯出檔案也不會包含這張,不用另外處理
+function deleteOrder(idx){
+  const its = pickOrderGroups[idx];
+  if(!its || its.length === 0) return;
+  const oid = its[0].orderId;
+  const name = its[0].name;
+  const proceed = confirm('確定要刪除這張訂單嗎?\n\n' + escapeHtml(name) + '(' + escapeHtml(oid) + ')\n\n刪除後這張訂單會從目前這批的檢貨單、匯出檔案裡完全移除,適合用在離島地址等無法出貨的情況。這個動作沒辦法復原,如果只是還沒有貨,不用刪除,留著繼續等貨就好。');
+  if(!proceed) return;
+
+  parsedItems = parsedItems.filter(it => it.orderId !== oid);
+  custItems = parsedItems.filter(it => it.hasCust);
+  // 這張訂單不會出貨了,不算「忘記揀貨」,把它從跨天追蹤名單裡移除
+  resolvePendingPick(currentChannel, oid);
+
+  renderPickList();
   saveState();
 }
 
