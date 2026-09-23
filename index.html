@@ -120,6 +120,12 @@
   .guide-changelog{list-style:none;padding-left:0;background:var(--ok-soft);border-radius:8px;padding:10px 12px;}
   .guide-changelog li{position:relative;padding-left:14px;}
   .guide-changelog li:before{content:'•';position:absolute;left:0;color:var(--sage-dark);}
+
+  .update-banner{
+    background:var(--warn);color:#fff;text-align:center;font-size:13.5px;font-weight:600;
+    padding:10px 16px;border-radius:8px;margin-bottom:20px;cursor:pointer;
+  }
+  .update-banner:hover{opacity:0.9;}
   .guide-steps{margin:0;padding-left:18px;font-size:12.5px;color:var(--ink-soft);line-height:1.7;}
   .guide-steps li{margin-bottom:6px;}
   .guide-steps ul{margin:4px 0 4px 4px;padding-left:16px;list-style:circle;}
@@ -509,6 +515,17 @@
     body.print-incomplete-only .pick-card-done{display:none !important;}
   }
 
+  .print-only{display:none;}
+  @media print{
+    body.print-missing-mode .shell > *:not(#printMissingArea){display:none !important;}
+    body.print-missing-mode #printMissingArea{display:block !important;}
+    .print-missing-channel{margin-bottom:18px;page-break-inside:avoid;}
+    .print-missing-channel h3{font-size:15px;margin:0 0 6px;border-bottom:1px solid #333;padding-bottom:4px;}
+    .print-missing-table{width:100%;border-collapse:collapse;font-size:13px;}
+    .print-missing-table td{padding:3px 0;border-bottom:1px dashed #999;}
+    .print-missing-table td:last-child{text-align:right;font-weight:700;}
+  }
+
   footer.note{color:var(--ink-soft);font-size:12px;margin-top:30px;text-align:center;}
 
   .auth-overlay{
@@ -545,6 +562,10 @@
 </div>
 
 <div class="shell" id="mainShell" style="display:none;">
+
+<div class="update-banner no-print" id="updateBanner" style="display:none;" onclick="location.reload(true)">
+  🔄 有新版本可以用,點這裡重新整理(建議先確認手上的檢貨進度不會弄丟再點)
+</div>
 
 <div class="side-panel guide-sidebar no-print" id="guideSidebar">
   <div class="gls-header">
@@ -618,6 +639,7 @@
 <div class="side-panel global-live-sidebar no-print" id="globalLiveSidebar">
   <div class="gls-header">
     <span onclick="toggleGlobalSidebar()" class="gls-header-label" style="cursor:pointer;">即時進行中</span>
+    <button class="gls-refresh-btn" onclick="event.stopPropagation(); printMissingList();" title="列印缺貨清單">🖨</button>
     <button class="gls-refresh-btn" onclick="event.stopPropagation(); refreshLiveSessions();" title="手動重新整理">⟳</button>
     <span onclick="toggleGlobalSidebar()" id="glsToggleIcon" style="cursor:pointer;">▸</span>
   </div>
@@ -625,6 +647,8 @@
     <div id="glsRow"></div>
   </div>
 </div>
+
+<div id="printMissingArea" class="print-only"></div>
 
 
 
@@ -1065,6 +1089,7 @@
 </div>
 
 <script>
+const APP_VERSION = '20260923-1'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -2290,8 +2315,12 @@ async function refreshLiveSessions(){
 }
 
 // sessions:即時進行中的狀態(還缺哪些、有沒有在進行中);cumulative:今天所有場次累加的X/Y總數
+let latestLiveSessions = {};
+let latestLiveCumulative = {};
 function renderLiveSessions(sessions, cumulative){
   cumulative = cumulative || {};
+  latestLiveSessions = sessions;
+  latestLiveCumulative = cumulative;
   const labels = {line:'LINE', shop:'官網', shopee:'蝦皮', pinkoi:'PINKOI'};
   const row = document.getElementById('glsRow');
   if(!row) return;
@@ -2331,6 +2360,40 @@ function renderLiveSessions(sessions, cumulative){
       '</div>';
   }).join('');
 }
+
+// 列印目前側邊欄顯示的「還缺」清單,方便拿去給補貨的人參考。用標準瀏覽器列印,
+// 印表機選單選熱感應機就可以印(熱感應機在系統裡就是一台一般的印表機,不需要額外設定)。
+function printMissingList(){
+  const labels = {line:'LINE', shop:'官網', shopee:'蝦皮', pinkoi:'PINKOI'};
+  const todayStr = ymd(new Date());
+  const sessions = latestLiveSessions || {};
+  const activeChannels = Object.keys(labels).filter(ch =>
+    sessions[ch] && sessions[ch].date === todayStr && !sessions[ch].confirmed &&
+    sessions[ch].pendingSkus && sessions[ch].pendingSkus.length > 0
+  );
+
+  if(activeChannels.length === 0){
+    alert('目前沒有進行中、還缺商品的通路可以列印。');
+    return;
+  }
+
+  const area = document.getElementById('printMissingArea');
+  area.innerHTML = '<h2>缺貨清單・' + todayStr + '</h2>' + activeChannels.map(ch=>{
+    const s = sessions[ch];
+    return '<div class="print-missing-channel">' +
+      '<h3>' + labels[ch] + '(共' + s.pendingSkus.length + '項)</h3>' +
+      '<table class="print-missing-table">' +
+      s.pendingSkus.map(p => '<tr><td>' + escapeHtml(p.name || p.sku) + '</td><td>x' + p.qty + '</td></tr>').join('') +
+      '</table>' +
+      '</div>';
+  }).join('');
+
+  document.body.classList.add('print-missing-mode');
+  window.print();
+}
+window.addEventListener('afterprint', ()=>{
+  document.body.classList.remove('print-missing-mode');
+});
 
 function toggleGlobalSidebar(){
   document.getElementById('globalLiveSidebar').classList.toggle('collapsed');
@@ -4141,6 +4204,23 @@ if('serviceWorker' in navigator){
     });
   });
 }
+
+// ===== 自動偵測新版本:定期去問伺服器現在最新的版本號是多少,不一樣就提醒重新整理 =====
+// 這樣兼職不用自己記得要按 Ctrl+Shift+R,系統會自動提醒
+async function checkForNewVersion(){
+  try{
+    const res = await fetch(location.pathname + '?_=' + Date.now(), {cache: 'no-store'});
+    const text = await res.text();
+    const m = text.match(/const APP_VERSION = '([^']+)'/);
+    if(m && m[1] !== APP_VERSION){
+      document.getElementById('updateBanner').style.display = 'block';
+    }
+  }catch(err){
+    // 檢查失敗(例如離線)就安靜跳過,不影響主要功能
+  }
+}
+setTimeout(checkForNewVersion, 15000); // 頁面載入15秒後先檢查一次
+setInterval(checkForNewVersion, 5 * 60 * 1000); // 之後每5分鐘檢查一次
 </script>
 </body>
 </html>
