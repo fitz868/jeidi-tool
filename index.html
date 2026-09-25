@@ -584,12 +584,12 @@
     <div class="guide-section">
       <div class="guide-section-title">📌 最近更新</div>
       <ul class="guide-steps guide-changelog">
+        <li>修正「數量大於2」的判斷門檻,改成「2件以上」就會標紅提醒</li>
         <li>蝦皮可以一次選多個檔案上傳,不用一種物流方式分開匯入</li>
         <li>即時進行中側邊欄可以列印缺貨清單(支援熱感應印表機)</li>
         <li>系統會自動偵測新版本,有更新會跳提醒</li>
         <li>檢貨單每個品項可以單獨勾選,部分缺貨時只勾有貨的部分</li>
         <li>確認完成揀貨後,已完成的訂單會自動從畫面移除,不用再滑過去</li>
-        <li>可以刪除單一訂單(例如離島無法出貨的),不用重新匯入整批</li>
       </ul>
     </div>
 
@@ -1099,7 +1099,7 @@
 </div>
 
 <script>
-const APP_VERSION = '20260925-1'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20260925-2'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -4076,14 +4076,14 @@ function showError(lines){
 function renderResult(){
   const uniqueOrders = new Set(parsedItems.map(it=>it.orderId)).size;
   const custCount = parsedItems.filter(it => it.hasCust).length;
-  const overTwoCount = parsedItems.filter(it => it.qty > 2).length;
+  const overTwoCount = parsedItems.filter(it => it.qty >= 2).length;
 
   document.getElementById('resultDesc').textContent =
     '共整理 ' + parsedItems.length + ' 筆項目,來自 ' + uniqueOrders + ' 張訂單。';
 
   document.getElementById('reminderTable').innerHTML = `
     <div class="rt-cell"><div class="rt-num">${custCount}</div><div class="rt-lbl">需要刻印</div></div>
-    <div class="rt-cell"><div class="rt-num">${overTwoCount}</div><div class="rt-lbl">數量大於 2</div></div>
+    <div class="rt-cell"><div class="rt-num">${overTwoCount}</div><div class="rt-lbl">數量2件以上</div></div>
   `;
 
   if(currentChannel === 'shop'){
