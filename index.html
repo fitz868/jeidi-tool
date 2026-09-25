@@ -269,6 +269,13 @@
   .form-msg{font-size:12.5px;color:var(--sage-dark);}
 
   .ship-type-selector{margin-bottom:18px;}
+  #shopeeMultiFileList{margin-bottom:18px;}
+  .shopee-file-row{
+    display:flex;justify-content:space-between;align-items:center;gap:10px;
+    padding:8px 12px;background:var(--bg);border-radius:8px;margin-top:8px;
+  }
+  .shopee-file-name{font-size:13px;color:var(--ink);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .shopee-file-row select{font-family:inherit;font-size:13px;padding:4px 8px;border-radius:6px;border:1px solid var(--line);}
   .ship-type-selector label{display:block;font-size:13px;font-weight:600;margin-bottom:8px;}
   .ship-type-btns{display:flex;gap:8px;flex-wrap:wrap;}
   .stype-btn{
@@ -567,21 +574,22 @@
   🔄 有新版本可以用,點這裡重新整理(建議先確認手上的檢貨進度不會弄丟再點)
 </div>
 
-<div class="side-panel guide-sidebar no-print" id="guideSidebar">
+<div class="side-panel guide-sidebar no-print collapsed" id="guideSidebar">
   <div class="gls-header">
     <span onclick="toggleGuideSidebar()" class="gls-header-label" style="cursor:pointer;">操作指南</span>
-    <span onclick="toggleGuideSidebar()" id="guideToggleIcon" style="cursor:pointer;">◂</span>
+    <span onclick="toggleGuideSidebar()" id="guideToggleIcon" style="cursor:pointer;">▸</span>
   </div>
   <div class="gls-body" id="guideBody">
 
     <div class="guide-section">
       <div class="guide-section-title">📌 最近更新</div>
       <ul class="guide-steps guide-changelog">
+        <li>蝦皮可以一次選多個檔案上傳,不用一種物流方式分開匯入</li>
+        <li>即時進行中側邊欄可以列印缺貨清單(支援熱感應印表機)</li>
+        <li>系統會自動偵測新版本,有更新會跳提醒</li>
         <li>檢貨單每個品項可以單獨勾選,部分缺貨時只勾有貨的部分</li>
         <li>確認完成揀貨後,已完成的訂單會自動從畫面移除,不用再滑過去</li>
         <li>可以刪除單一訂單(例如離島無法出貨的),不用重新匯入整批</li>
-        <li>新增「訂單查詢」頁面,可以搜尋歷史訂單、補寄記錄</li>
-        <li>右側「即時進行中」可以看到各通路目前的即時進度</li>
       </ul>
     </div>
 
@@ -636,12 +644,12 @@
   </div>
 </div>
 
-<div class="side-panel global-live-sidebar no-print" id="globalLiveSidebar">
+<div class="side-panel global-live-sidebar no-print collapsed" id="globalLiveSidebar">
   <div class="gls-header">
     <span onclick="toggleGlobalSidebar()" class="gls-header-label" style="cursor:pointer;">即時進行中</span>
     <button class="gls-refresh-btn" onclick="event.stopPropagation(); printMissingList();" title="列印缺貨清單">🖨</button>
     <button class="gls-refresh-btn" onclick="event.stopPropagation(); refreshLiveSessions();" title="手動重新整理">⟳</button>
-    <span onclick="toggleGlobalSidebar()" id="glsToggleIcon" style="cursor:pointer;">▸</span>
+    <span onclick="toggleGlobalSidebar()" id="glsToggleIcon" style="cursor:pointer;">◂</span>
   </div>
   <div class="gls-body" id="glsBody">
     <div id="glsRow"></div>
@@ -745,7 +753,7 @@
     <div class="desc" id="upload-desc">從 LINE 禮物賣家後台下載今天的訂單 Excel 檔,拖進來或點擊選擇。</div>
 
     <div class="ship-type-selector no-print" id="shopeeTypeSelector" style="display:none;">
-      <label>這份檔案是哪種物流方式?</label>
+      <label>這份檔案是哪種物流方式?(也可以一次選多個檔案,下面會讓您逐一指定每個檔案的物流方式)</label>
       <div class="ship-type-btns">
         <button type="button" class="stype-btn active" data-type="next" onclick="selectShopeeType('next')">隔日到貨</button>
         <button type="button" class="stype-btn" data-type="shop2shop" onclick="selectShopeeType('shop2shop')">店到店</button>
@@ -755,6 +763,8 @@
         <button type="button" class="stype-btn" data-type="hct" onclick="selectShopeeType('hct')">新竹物流</button>
       </div>
     </div>
+
+    <div class="no-print" id="shopeeMultiFileList" style="display:none;"></div>
 
     <div class="ship-type-selector no-print" id="pinkoiTypeSelector" style="display:none;">
       <label>備援物流方式(如果檔案裡有物流欄位,系統會優先用檔案判斷,這裡選的只在抓不到時才會用到)</label>
@@ -1089,7 +1099,7 @@
 </div>
 
 <script>
-const APP_VERSION = '20260923-1'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20260925-1'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -2189,6 +2199,8 @@ function selectChannel(ch){
   const pinkoiSelector = document.getElementById('pinkoiTypeSelector');
   shopeeSelector.style.display = 'none';
   pinkoiSelector.style.display = 'none';
+  document.getElementById('shopeeMultiFileList').style.display = 'none';
+  fileInputEl.multiple = false;
   if(ch === 'line'){
     desc.textContent = '從 LINE 禮物賣家後台下載今天的訂單 Excel 檔,拖進來或點擊選擇。';
     fileInputEl.accept = '.xlsx,.xls';
@@ -2196,8 +2208,9 @@ function selectChannel(ch){
     desc.textContent = '從官網後台匯出今天的訂單 CSV 檔,拖進來或點擊選擇。';
     fileInputEl.accept = '.csv';
   }else if(ch === 'shopee'){
-    desc.textContent = '從蝦皮賣家中心下載的裝箱單 Excel 檔,拖進來或點擊選擇。';
+    desc.textContent = '從蝦皮賣家中心下載的裝箱單 Excel 檔,拖進來或點擊選擇——可以一次選多個檔案(例如隔日到貨+店到店一起選),不用一種一種分開上傳。';
     fileInputEl.accept = '.xlsx,.xls';
+    fileInputEl.multiple = true;
     shopeeSelector.style.display = 'block';
   }else{
     desc.textContent = '從 PINKOI 賣家後台下載今天的訂單檔,拖進來或點擊選擇。(欄位辨識為初次嘗試,如果卡住麻煩截圖錯誤訊息給我)';
@@ -2911,13 +2924,43 @@ dropzone.addEventListener('dragover', e=>{e.preventDefault(); dropzone.classList
 dropzone.addEventListener('dragleave', ()=> dropzone.classList.remove('drag'));
 dropzone.addEventListener('drop', e=>{
   e.preventDefault(); dropzone.classList.remove('drag');
-  if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+  if(e.dataTransfer.files.length) handleFiles(Array.from(e.dataTransfer.files));
 });
 fileInput.addEventListener('change', e=>{
-  if(e.target.files.length) handleFile(e.target.files[0]);
+  if(e.target.files.length) handleFiles(Array.from(e.target.files));
 });
 
-let currentFile = null;
+let currentFile = null; // 單檔案通路(LINE/官網/PINKOI)用這個
+let shopeeMultiFiles = []; // 蝦皮多檔案用這個:[{file, type}, ...]
+
+function handleFiles(files){
+  if(currentChannel === 'shopee' && files.length > 1){
+    // 蝦皮一次選多個檔案:每個檔案各自指定物流方式,不用單檔案那套流程
+    shopeeMultiFiles = files.map(f => ({file: f, type: shopeeShipType}));
+    currentFile = null;
+    document.getElementById('dz-filename').textContent = files.length + ' 個檔案已選擇(見下方逐一指定物流方式)';
+    renderShopeeMultiFileList();
+    document.getElementById('processBtn').disabled = false;
+  }else{
+    handleFile(files[0]);
+  }
+}
+
+function renderShopeeMultiFileList(){
+  const box = document.getElementById('shopeeMultiFileList');
+  const CATS = {next:'隔日到貨', shop2shop:'店到店', home:'店到家宅配', family:'全家', seven:'7-11', hct:'新竹物流'};
+  box.style.display = 'block';
+  box.innerHTML = '<div class="desc">請確認每個檔案分別是哪種物流方式:</div>' +
+    shopeeMultiFiles.map((f, i) => `
+      <div class="shopee-file-row">
+        <span class="shopee-file-name">${escapeHtml(f.file.name)}</span>
+        <select onchange="shopeeMultiFiles[${i}].type=this.value">
+          ${Object.keys(CATS).map(k => '<option value="' + k + '"' + (k===f.type?' selected':'') + '>' + CATS[k] + '</option>').join('')}
+        </select>
+      </div>
+    `).join('');
+}
+
 function handleFile(file){
   currentFile = file;
   document.getElementById('dz-filename').textContent = file.name;
@@ -2926,6 +2969,8 @@ function handleFile(file){
 
 function resetAll(){
   currentFile = null;
+  shopeeMultiFiles = [];
+  document.getElementById('shopeeMultiFileList').style.display = 'none';
   parsedItems = [];
   custItems = [];
   pickOrderGroups = [];
@@ -3074,7 +3119,8 @@ function parseShopRows(dataRows, headers){
 }
 
 async function processFile(){
-  if(!currentFile) return;
+  const isShopeeMulti = currentChannel === 'shopee' && shopeeMultiFiles.length > 0;
+  if(!currentFile && !isShopeeMulti) return;
 
   if(pickOrderGroups.length > 0 && !currentBatchConfirmed){
     const proceed = confirm('上一批還沒按「確認完成揀貨」,現在處理新的檔案,上一批還沒檢完的訂單會自動合併帶到新的一批裡,已檢完的不會重複出現。確定要繼續嗎?');
@@ -3085,7 +3131,15 @@ async function processFile(){
 
   let items = null;
 
-  if(currentChannel === 'line'){
+  if(isShopeeMulti){
+    // 蝦皮多檔案:逐一讀取每個檔案(用各自指定的物流方式),讀完合併成一批
+    items = [];
+    for(const f of shopeeMultiFiles){
+      const fileItems = await readShopeeItems(f.file, f.type);
+      if(!fileItems) return; // 任一檔案讀取失敗就中止,錯誤訊息已經顯示過了
+      items = items.concat(fileItems);
+    }
+  }else if(currentChannel === 'line'){
     items = await readLineItems();
   }else if(currentChannel === 'shop'){
     items = await readShopItems();
@@ -3240,28 +3294,30 @@ function parseProductInfo(text){
   });
 }
 
-async function readShopeeItems(){
+async function readShopeeItems(file, shipType){
+  file = file || currentFile;
+  shipType = shipType || shopeeShipType;
   let wb = null;
   let lastErr = null;
   try{
-    const buf = await readArrayBuffer(currentFile);
+    const buf = await readArrayBuffer(file);
     wb = XLSX.read(new Uint8Array(buf), {type:'array'});
   }catch(err){ lastErr = err; }
   if(!wb){
     try{
-      const bstr = await readBinaryString(currentFile);
+      const bstr = await readBinaryString(file);
       wb = XLSX.read(bstr, {type:'binary'});
     }catch(err){ lastErr = err; }
   }
   if(!wb){
-    showError(['讀取蝦皮裝箱單失敗: ' + (lastErr && lastErr.message || ''), '請確認上傳的是蝦皮賣家中心下載的裝箱單 Excel 檔。']);
+    showError(['讀取蝦皮裝箱單失敗(' + file.name + '): ' + (lastErr && lastErr.message || ''), '請確認上傳的是蝦皮賣家中心下載的裝箱單 Excel 檔。']);
     return null;
   }
 
   try{
     const ws = wb.Sheets[wb.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
-    if(rows.length < 2){ showError(['裝箱單裡沒有找到資料列。']); return null; }
+    if(rows.length < 2){ showError(['裝箱單裡沒有找到資料列(' + file.name + ')。']); return null; }
     const headers = rows[0];
     const dataRows = rows.slice(1).filter(r => r.some(c => String(c).trim() !== ''));
 
@@ -3269,7 +3325,7 @@ async function readShopeeItems(){
     const infoI = idxOf(headers, ['product_info']);
     const remarkI = idxOf(headers, ['remark_from_buyer']);
     if(orderI === -1 || infoI === -1){
-      showError(['裝箱單裡找不到「order_sn」或「product_info」欄位,請確認上傳的是蝦皮賣家中心下載的裝箱單。']);
+      showError(['裝箱單裡找不到「order_sn」或「product_info」欄位(' + file.name + '),請確認上傳的是蝦皮賣家中心下載的裝箱單。']);
       return null;
     }
 
@@ -3296,13 +3352,13 @@ async function readShopeeItems(){
           subtotal: p.price * p.qty,
           sku: p.sku,
           rawRow: r,
-          shippingCategory: shopeeShipType
+          shippingCategory: shipType
         });
       });
     });
 
     if(items.length === 0){
-      showError(['沒有解析到任何商品資料,請確認裝箱單內容是否正常。']);
+      showError(['沒有解析到任何商品資料(' + file.name + '),請確認裝箱單內容是否正常。']);
       return null;
     }
     return items;
@@ -3701,7 +3757,7 @@ function renderPickList(){
     const noteBlock = notes.length > 0
       ? '<div class="pc-alert">⚠ ' + notes.map(escapeHtml).join('<br>⚠ ') + '</div>'
       : '';
-    const hasOverQty = its.some(it => it.qty > 2);
+    const hasOverQty = its.some(it => it.qty >= 2);
     let cardClass = 'pick-card';
     if(notes.length > 0) cardClass += ' pick-card-alert';
     if(hasOverQty) cardClass += ' pick-card-highqty';
