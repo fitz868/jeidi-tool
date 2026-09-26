@@ -266,6 +266,17 @@
     background:var(--paper);color:var(--ink);
   }
   .resend-form button{align-self:flex-start;}
+  .rf-label{font-size:12px;font-weight:600;color:var(--ink-soft);margin-bottom:-4px;}
+  .resend-quick-links{
+    margin-top:8px;padding:12px 14px;background:var(--ok-soft);border-radius:8px;font-size:13px;
+  }
+  .resend-quick-links .rql-title{font-weight:700;color:var(--sage-dark);margin-bottom:6px;}
+  .resend-quick-links a{
+    display:inline-block;background:var(--sage);color:#fff;text-decoration:none;
+    padding:5px 12px;border-radius:6px;font-size:12.5px;font-weight:600;margin-right:8px;margin-bottom:6px;
+  }
+  .resend-quick-links a:hover{opacity:0.88;}
+  .resend-quick-links .rql-sender{color:var(--ink-soft);font-size:12.5px;line-height:1.7;margin-top:4px;}
   .form-msg{font-size:12.5px;color:var(--sage-dark);}
 
   .ship-type-selector{margin-bottom:18px;}
@@ -628,12 +639,12 @@
     <div class="guide-section">
       <div class="guide-section-title">📌 最近更新</div>
       <ul class="guide-steps guide-changelog">
+        <li>補寄表單加上欄位標籤,不再只顯示選到的值搞不清楚是哪一欄;選好物流方式會顯示對應的出貨網站快捷連結+寄件人資訊</li>
+        <li>檢貨單這批如果有順豐訂單,上方會顯示順豐出貨網站的快捷連結</li>
         <li>蝦皮教學截圖加上紅框標示,直接指出要點的按鈕位置</li>
         <li>上傳訂單檔案區塊旁邊多了「?」按鈕,點開有該通路的詳細圖文教學(蝦皮已完整,含3張實際截圖)</li>
         <li>修正「數量大於2」的判斷門檻,改成「2件以上」就會標紅提醒</li>
         <li>蝦皮可以一次選多個檔案上傳,不用一種物流方式分開匯入</li>
-        <li>即時進行中側邊欄可以列印缺貨清單(支援熱感應印表機)</li>
-        <li>系統會自動偵測新版本,有更新會跳提醒</li>
       </ul>
     </div>
 
@@ -742,13 +753,16 @@
       <details class="resend-form-details">
         <summary>+ 新增補寄記錄</summary>
         <div class="resend-form">
+          <label class="rf-label">通路</label>
           <select id="rf-channel">
             <option value="LINE">LINE</option>
             <option value="官網">官網</option>
             <option value="蝦皮">蝦皮</option>
           </select>
+          <label class="rf-label">訂單編號</label>
           <input id="rf-order" placeholder="訂單編號">
-          <select id="rf-category">
+          <label class="rf-label">物流方式</label>
+          <select id="rf-category" onchange="renderResendQuickLinks()">
             <option value="kerry">黑貓</option>
             <option value="seven">7-11</option>
             <option value="family">全家</option>
@@ -758,12 +772,17 @@
             <option value="home">蝦皮店到家宅配</option>
             <option value="shop2shop">蝦皮店到店</option>
           </select>
+          <label class="rf-label">地址/超商店名</label>
           <input id="rf-address" placeholder="地址/超商店名">
+          <label class="rf-label">收件人姓名</label>
           <input id="rf-name" placeholder="姓名">
+          <label class="rf-label">收件人電話</label>
           <input id="rf-phone" placeholder="電話">
+          <label class="rf-label">補寄內容物</label>
           <textarea id="rf-contents" placeholder="補寄內容物" rows="2"></textarea>
           <button class="primary" onclick="submitResendForm()">送出</button>
           <div class="form-msg" id="resendFormMsg"></div>
+          <div id="resendQuickLinks"></div>
         </div>
       </details>
     </div>
@@ -896,6 +915,7 @@
       </div>
     </div>
     <div class="desc no-print" id="pickConfirmNote">依排序往下滑檢查,或直接列印成紙本。品名已對照 SKU 表顯示簡單品名,配件會列在該項目下方。揀貨完成後按上方「確認完成揀貨」,進度會記錄到「出貨核對」頁面。</div>
+    <div id="sfQuickLinkBanner" class="no-print"></div>
 
     <div class="pick-layout">
       <aside class="pick-sidebar no-print">
@@ -1156,7 +1176,7 @@
 </div>
 
 <script>
-const APP_VERSION = '20260925-6'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20260925-8'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -1922,6 +1942,32 @@ function renderCompletedResends(){
       escapeHtml(r.name||'') + '</td></tr>';
     }).join('') +
     '</tbody></table>';
+}
+
+// 補寄常用的寄件人資訊,填快遞單/超商寄件系統時參考用
+const RESEND_SENDER_INFO = {name: '吳紹瑋', phone: '0919852772', email: 'fitz@jeidi.com.tw'};
+
+// 各物流方式對應的出貨系統連結(選好物流方式後,直接給快捷按鈕點過去)
+const SHIP_PORTAL_LINKS = {
+  seven: {label: '7-11 賣家出貨系統', url: 'https://myship.7-11.com.tw/MyShip/Index'},
+  family: {label: '全家賣家出貨系統', url: 'https://fmec.famiport.com.tw/FP_Entrance'},
+  sf: {label: '順豐速運線上出貨', url: 'https://htm.sf-express.com/we/ow/#/tw/tc/ship/home'}
+};
+
+function renderResendQuickLinks(){
+  const box = document.getElementById('resendQuickLinks');
+  if(!box) return;
+  const cat = document.getElementById('rf-category').value;
+  const portal = SHIP_PORTAL_LINKS[cat];
+  if(!portal){
+    box.innerHTML = '';
+    return;
+  }
+  box.innerHTML = '<div class="resend-quick-links">' +
+    '<div class="rql-title">📮 快捷連結</div>' +
+    '<a href="' + portal.url + '" target="_blank" rel="noopener">前往' + portal.label + '</a>' +
+    '<div class="rql-sender">寄件人資訊(填單時參考):' + RESEND_SENDER_INFO.name + '・' + RESEND_SENDER_INFO.phone + '・' + RESEND_SENDER_INFO.email + '</div>' +
+    '</div>';
 }
 
 async function submitResendForm(){
@@ -3910,7 +3956,25 @@ function renderPickList(){
   document.getElementById('pickConfirmNote').textContent = '依排序往下滑檢查,或直接列印成紙本。每個品項前面都有獨立勾選框,方便部分缺貨時只勾有貨的部分;勾選卡片上方「已檢貨」等於整張全選。品名已對照 SKU 表顯示簡單品名,配件會列在該項目下方。揀貨完成後按上方「確認完成揀貨」,進度會記錄到「出貨核對」頁面。';
   const searchInput = document.getElementById('pickSearchInput');
   if(searchInput) searchInput.value = '';
+  updateSfQuickLinkBanner();
   updatePickProgress();
+}
+
+// 這批訂單裡如果有順豐的,在檢貨單上方顯示快捷連結,不用自己去找順豐的出貨網址
+function updateSfQuickLinkBanner(){
+  const banner = document.getElementById('sfQuickLinkBanner');
+  if(!banner) return;
+  const hasSF = pickOrderGroups.some(its => its && its.some(it => it.shippingCategory === 'sf'));
+  if(!hasSF){
+    banner.innerHTML = '';
+    return;
+  }
+  const portal = SHIP_PORTAL_LINKS.sf;
+  banner.innerHTML = '<div class="resend-quick-links">' +
+    '<div class="rql-title">📮 這批有順豐的訂單</div>' +
+    '<a href="' + portal.url + '" target="_blank" rel="noopener">前往' + portal.label + '</a>' +
+    '<div class="rql-sender">寄件人資訊(填單時參考):' + RESEND_SENDER_INFO.name + '・' + RESEND_SENDER_INFO.phone + '・' + RESEND_SENDER_INFO.email + '</div>' +
+    '</div>';
 }
 
 // 整張訂單的主開關:勾選=全部品項一起勾,取消=全部一起取消
