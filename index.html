@@ -484,6 +484,10 @@
   .pick-card-done .pc-item-name, .pick-card-done .pc-name{text-decoration:line-through;}
   .pick-card-alert{border:2px solid var(--warn);}
   .pick-card-highqty{background:#FBEAEA;}
+  .pc-qty-note{
+    padding:8px 18px;font-size:13px;font-weight:700;color:#9A3B41;
+    border-top:1px dashed #E0AEAE;
+  }
   .pick-card .pc-alert{
     background:var(--warn-soft);padding:8px 18px;
     font-size:13.5px;font-weight:700;color:var(--warn);line-height:1.6;
@@ -647,6 +651,7 @@
     <div class="guide-section">
       <div class="guide-section-title">📌 最近更新</div>
       <ul class="guide-steps guide-changelog">
+        <li>數量2件以上的檢貨卡片,下方會加註文字「此單有數量2件以上的商品」,不只靠底色提醒</li>
         <li>補寄表單改成緊湊的兩欄排版(標籤+欄位同一行),不再又長又佔畫面</li>
         <li>「補寄清單」待處理項目,現在也會依各自的物流方式顯示快捷連結(之前只有新增表單那時候才有)</li>
         <li>補寄表單加上欄位標籤,不再只顯示選到的值搞不清楚是哪一欄;選好物流方式會顯示對應的出貨網站快捷連結+寄件人資訊</li>
@@ -1186,7 +1191,7 @@
 </div>
 
 <script>
-const APP_VERSION = '20260926-1'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20260926-2'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -3966,6 +3971,7 @@ function renderPickList(){
       '</div>' +
       '<div class="pc-divider"></div>' +
       '<div class="pc-body">' + itemsHtml + custBlock + '</div>' +
+      (hasOverQty ? '<div class="pc-qty-note">⚠ 此單有數量2件以上的商品</div>' : '') +
       '</div>';
   }).join('');
 
