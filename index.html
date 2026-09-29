@@ -278,7 +278,7 @@
     padding:5px 12px;border-radius:6px;font-size:12.5px;font-weight:600;margin-right:8px;margin-bottom:6px;
   }
   .resend-quick-links a:hover{opacity:0.88;}
-  .resend-quick-links .rql-sender{color:var(--ink-soft);font-size:12.5px;line-height:1.7;margin-top:4px;}
+  .rql-sender{color:var(--ink-soft);font-size:12.5px;line-height:1.7;margin-top:4px;}
   .form-msg{grid-column:1 / -1;font-size:12.5px;color:var(--sage-dark);}
   #resendQuickLinks{grid-column:1 / -1;}
   .resend-item-link{
@@ -651,6 +651,7 @@
     <div class="guide-section">
       <div class="guide-section-title">📌 最近更新</div>
       <ul class="guide-steps guide-changelog">
+        <li>修正補寄的寄件人資訊沒顯示的問題,現在不管選哪種物流方式都會顯示</li>
         <li>數量2件以上的檢貨卡片,下方會加註文字「此單有數量2件以上的商品」,不只靠底色提醒</li>
         <li>補寄表單改成緊湊的兩欄排版(標籤+欄位同一行),不再又長又佔畫面</li>
         <li>「補寄清單」待處理項目,現在也會依各自的物流方式顯示快捷連結(之前只有新增表單那時候才有)</li>
@@ -1191,7 +1192,7 @@
 </div>
 
 <script>
-const APP_VERSION = '20260926-2'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20260929-1'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -1879,6 +1880,7 @@ function renderResendListInto(box, records){
       <div class="resend-line">${escapeHtml(SHIP_CATEGORY_LABEL[r.category]||r.category||'')}${r.address ? '｜' : ''}${escapeHtml(r.address||'')}</div>
       <div class="resend-line">內容:${escapeHtml(r.contents||'')}</div>
       ${linkHtml}
+      <div class="rql-sender">寄件人資訊(填單時參考):${RESEND_SENDER_INFO.name}・${RESEND_SENDER_INFO.phone}・${RESEND_SENDER_INFO.email}</div>
       <input type="text" class="resend-tracking-input" placeholder="補寄單號(寄出後填這裡)">
       <button class="ghost" onclick="confirmResendDone(this, '${r.id}', '${r.category||''}')">確認完成</button>
     </div>
@@ -1981,13 +1983,12 @@ function renderResendQuickLinks(){
   if(!box) return;
   const cat = document.getElementById('rf-category').value;
   const portal = SHIP_PORTAL_LINKS[cat];
-  if(!portal){
-    box.innerHTML = '';
-    return;
-  }
+  const linkHtml = portal
+    ? '<a href="' + portal.url + '" target="_blank" rel="noopener">前往' + portal.label + '</a>'
+    : '';
   box.innerHTML = '<div class="resend-quick-links">' +
-    '<div class="rql-title">📮 快捷連結</div>' +
-    '<a href="' + portal.url + '" target="_blank" rel="noopener">前往' + portal.label + '</a>' +
+    '<div class="rql-title">📮 寄件資訊</div>' +
+    linkHtml +
     '<div class="rql-sender">寄件人資訊(填單時參考):' + RESEND_SENDER_INFO.name + '・' + RESEND_SENDER_INFO.phone + '・' + RESEND_SENDER_INFO.email + '</div>' +
     '</div>';
 }
