@@ -230,9 +230,15 @@
   .resend-order{color:var(--ink-soft);font-size:12px;}
   .resend-line{color:var(--ink);margin-bottom:2px;}
   .resend-item button{margin-top:6px;font-size:12px;padding:5px 12px;}
+  .resend-tracking-row{display:flex;gap:6px;margin-top:8px;align-items:center;}
   .resend-tracking-input{
-    width:100%;box-sizing:border-box;margin-top:8px;font-family:inherit;font-size:12.5px;
+    flex:1;box-sizing:border-box;font-family:inherit;font-size:12.5px;
     padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--paper);color:var(--ink);
+  }
+  .resend-tracking-row button{margin-top:0;flex-shrink:0;}
+  .resend-tracking-saved{
+    font-size:12px;color:var(--sage-dark);font-weight:600;margin-top:6px;
+    background:var(--ok-soft);padding:6px 10px;border-radius:6px;
   }
 
   #resendSearchInput{
@@ -651,6 +657,7 @@
     <div class="guide-section">
       <div class="guide-section-title">📌 最近更新</div>
       <ul class="guide-steps guide-changelog">
+        <li>補寄清單拆成「儲存單號」跟「確認完成」兩個獨立按鈕,可以一個人先存單號、另一個人之後再按完成結案</li>
         <li>修正補寄的寄件人資訊沒顯示的問題,現在不管選哪種物流方式都會顯示</li>
         <li>數量2件以上的檢貨卡片,下方會加註文字「此單有數量2件以上的商品」,不只靠底色提醒</li>
         <li>補寄表單改成緊湊的兩欄排版(標籤+欄位同一行),不再又長又佔畫面</li>
@@ -1192,7 +1199,7 @@
 </div>
 
 <script>
-const APP_VERSION = '20260929-1'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20260929-2'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -1881,8 +1888,12 @@ function renderResendListInto(box, records){
       <div class="resend-line">內容:${escapeHtml(r.contents||'')}</div>
       ${linkHtml}
       <div class="rql-sender">寄件人資訊(填單時參考):${RESEND_SENDER_INFO.name}・${RESEND_SENDER_INFO.phone}・${RESEND_SENDER_INFO.email}</div>
-      <input type="text" class="resend-tracking-input" placeholder="補寄單號(寄出後填這裡)">
-      <button class="ghost" onclick="confirmResendDone(this, '${r.id}', '${r.category||''}')">確認完成</button>
+      <div class="resend-tracking-row">
+        <input type="text" class="resend-tracking-input" placeholder="補寄單號(寄出後填這裡)" value="${escapeHtml(r.trackingNumber||'')}">
+        <button class="ghost" onclick="saveResendTracking(this, '${r.id}')">儲存單號</button>
+      </div>
+      ${r.trackingNumber ? '<div class="resend-tracking-saved">✓ 單號已存:' + escapeHtml(r.trackingNumber) + '(樓下可以看到,按下方確認完成即可結案)</div>' : ''}
+      <button class="primary" onclick="confirmResendDone(this, '${r.id}', '${r.category||''}')">確認完成</button>
     </div>
   `;
   }).join('');
@@ -1892,6 +1903,25 @@ function renderResendListInto(box, records){
 function renderResendRecords(records){
   renderResendListInto(document.getElementById('resendListBox'), records);
   renderResendListInto(document.getElementById('resendListBoxPage4'), records);
+}
+
+// 只存單號,不算完成——方便一個人先輸入單號,另一個人之後再按確認完成,兩個步驟可以分開兩個人做
+async function saveResendTracking(btnEl, id){
+  const item = btnEl.closest('.resend-item');
+  const trackingInput = item ? item.querySelector('.resend-tracking-input') : null;
+  const trackingNumber = trackingInput ? trackingInput.value.trim() : '';
+  if(!trackingNumber){
+    alert('請先輸入單號再儲存。');
+    return;
+  }
+  await waitForFirebase();
+  const {db, doc, updateDoc} = window.__fb;
+  try{
+    await updateDoc(doc(db, RESEND_COLLECTION, id), {trackingNumber});
+    loadResendRecords();
+  }catch(err){
+    alert('儲存失敗: ' + err.message);
+  }
 }
 
 async function confirmResendDone(btnEl, id, category){
