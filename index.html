@@ -657,6 +657,9 @@
     <div class="guide-section">
       <div class="guide-section-title">📌 最近更新</div>
       <ul class="guide-steps guide-changelog">
+        <li>檢貨單勾選完成的訂單會自動移到清單最下面,還沒檢完的一直留在上面,不用一直往下滑找</li>
+        <li>出貨回報(LINE):沒配對到黑貓單號的訂單,自動排除在回報檔案外,不會因為缺單號整份檔案沒辦法回報;同一張訂單編號重複出現時會先詢問要不要繼續</li>
+        <li>PINKOI 改用實際訂單檔案的欄位名稱重新對照(之前是用猜的),品名會合併規格顯示,並新增「跨境/國際配送」物流分類</li>
         <li>補寄清單拆成「儲存單號」跟「確認完成」兩個獨立按鈕,可以一個人先存單號、另一個人之後再按完成結案</li>
         <li>修正補寄的寄件人資訊沒顯示的問題,現在不管選哪種物流方式都會顯示</li>
         <li>數量2件以上的檢貨卡片,下方會加註文字「此單有數量2件以上的商品」,不只靠底色提醒</li>
@@ -794,6 +797,7 @@
             <option value="next">蝦皮隔日到貨</option>
             <option value="home">蝦皮店到家宅配</option>
             <option value="shop2shop">蝦皮店到店</option>
+            <option value="intl">跨境/國際配送</option>
           </select>
           <label class="rf-label">地址/超商店名</label>
           <input id="rf-address" placeholder="地址/超商店名">
@@ -1199,7 +1203,7 @@
 </div>
 
 <script>
-const APP_VERSION = '20260929-2'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20260930-1'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -2833,22 +2837,43 @@ async function processReconcile(){
     if(oid && !oid.includes('E+')) trackMap[oid] = track;
   });
 
-  // 直接在原本範本的欄位裡填入貨運業者代碼跟物流單編號,其餘欄位維持原樣
+  // 檢查這批訂單編號裡有沒有重複的(同一份檔案裡同一張訂單出現兩次以上)
+  const orderIdCounts = {};
+  dataRows.forEach(r=>{
+    const oid = cleanId(r[oI]);
+    orderIdCounts[oid] = (orderIdCounts[oid] || 0) + 1;
+  });
+  const dupIds = Object.keys(orderIdCounts).filter(k => k && orderIdCounts[k] > 1);
+  if(dupIds.length > 0){
+    const proceed = confirm(
+      '這份檔案裡有 ' + dupIds.length + ' 張訂單編號重複出現(例如:' + dupIds.slice(0,5).join('、') + (dupIds.length > 5 ? '...' : '') + ')。\n\n' +
+      '要繼續處理嗎?(重複的只會保留第一筆,後面重複的會被忽略)\n' +
+      '按「取消」可以先去確認檔案內容,重新匯入正確的檔案。'
+    );
+    if(!proceed) return;
+  }
+  const seenIds = new Set();
+
+  // 直接在原本範本的欄位裡填入貨運業者代碼跟物流單編號;沒配對到的訂單不放進回報檔案裡,
+  // 不然整份檔案會因為有訂單缺單號而沒辦法上傳回報
   let matchedCount = 0;
   unmatchedOrders = [];
   reportHeaders = headers;
-  reportRows = dataRows.map(r=>{
-    const row = [...r];
+  reportRows = [];
+  dataRows.forEach(r=>{
     const oid = cleanId(r[oI]);
+    if(seenIds.has(oid)) return; // 重複訂單只處理第一筆
+    seenIds.add(oid);
     const tracking = matchTracking(oid, trackMap);
     if(tracking){
+      const row = [...r];
       row[carrierI] = 'T_CAT';
       row[trackI] = tracking;
+      reportRows.push(row);
       matchedCount++;
     }else{
       unmatchedOrders.push({orderId: oid, name: ''});
     }
-    return row;
   });
 
   const total = dataRows.length;
@@ -2936,7 +2961,7 @@ function updateCarrierCategoryCount(cat, value){
 
 function renderP2Result(total, matched, unmatched){
   document.getElementById('p2-resultDesc').textContent =
-    '今天共 ' + total + ' 張訂單,黑貓確認收走 ' + matched + ' 張,' + (unmatched>0 ? unmatched + ' 張留到明天處理。' : '全部都出貨了。');
+    '今天共 ' + total + ' 張訂單,黑貓確認收走 ' + matched + ' 張,' + (unmatched>0 ? unmatched + ' 張還沒被黑貓收走,已經自動排除在回報檔案外(留到明天處理)。' : '全部都出貨了。');
 
   document.getElementById('p2-statRow').innerHTML = `
     <div class="stat"><div class="num">${total}</div><div class="lbl">今天總訂單數</div></div>
@@ -3266,12 +3291,13 @@ function categorizeShipping(method){
   const m = String(method||'');
   if(m.includes('全家') || /familymart/i.test(m)) return 'family';
   if(m.includes('7-11') || m.includes('7-ELEVEN') || /7-eleven/i.test(m)) return 'seven';
+  if(m.includes('跨境') || m.includes('國際') || /international/i.test(m)) return 'intl';
   if(m.includes('順豐') || m.includes('港澳') || /\bSF\b/i.test(m)) return 'sf';
   if(m.includes('超商')) return 'store'; // 無法判斷確切超商品牌時的備援分類
   return 'kerry';
 }
-const SHIP_CATEGORY_LABEL = {kerry:'黑貓', store:'超商(未分類)', sf:'順豐', next:'蝦皮隔日到貨', home:'蝦皮店到家宅配', shop2shop:'蝦皮店到店', family:'全家', seven:'7-11', hct:'新竹物流'};
-const CATEGORY_TOTAL_KEYS = ['kerry','seven','family','next','home','shop2shop','hct','sf'];
+const SHIP_CATEGORY_LABEL = {kerry:'黑貓', store:'超商(未分類)', sf:'順豐', next:'蝦皮隔日到貨', home:'蝦皮店到家宅配', shop2shop:'蝦皮店到店', family:'全家', seven:'7-11', hct:'新竹物流', intl:'跨境/國際配送'};
+const CATEGORY_TOTAL_KEYS = ['kerry','seven','family','next','home','shop2shop','hct','sf','intl'];
 
 // 官網(Shopify)匯出檔:同一張訂單會拆成好幾列,只有第一列有 Name/收件人等欄位,
 // 後面幾列是空的要沿用上面那列的值(表格合併儲存格匯出成CSV常見的樣子)
@@ -3645,16 +3671,19 @@ async function readPinkoiItems(){
 
   const oI = idxOf(headers, ['訂單編號','訂單流水號','交易序號','訂單號碼']);
   const nI = idxOf(headers, ['收件人姓名','收件人','買家姓名','姓名']);
+  const nTransI = idxOf(headers, ['收件人姓名（翻譯）']);
   const pI = idxOf(headers, ['收件人電話','聯絡電話','電話']);
-  const aI = idxOf(headers, ['收件地址','寄送地址','地址']);
-  const iI = idxOf(headers, ['商品名稱','品名','商品']);
+  const aI = idxOf(headers, ['收件人地址','收件地址','寄送地址','地址']);
+  const aTransI = idxOf(headers, ['收件人地址（翻譯）']);
+  const iI = idxOf(headers, ['購買品項','商品名稱','品名','商品']);
+  const specI = idxOf(headers, ['商品規格','規格']);
   const qI = idxOf(headers, ['數量']);
-  const prI = idxOf(headers, ['售價','單價','價格']);
-  const skuI = idxOf(headers, ['商品編號','貨號','SKU','商品貨號']);
-  const custI = idxOf(headers, ['備註','買家留言','訂製內容','客製']);
-  const smI = idxOf(headers, ['物流方式','配送方式','運送方式','出貨方式','貨運方式','寄送方式']);
+  const prI = idxOf(headers, ['商品單價','售價','單價','價格']);
+  const skuI = idxOf(headers, ['SKU','商品編號','貨號','商品貨號']);
+  const custI = idxOf(headers, ['購買人備註','備註','買家留言','訂製內容','客製']);
+  const smI = idxOf(headers, ['運送方式','物流方式','配送方式','出貨方式','貨運方式','寄送方式']);
 
-  const required = {'訂單編號':oI, '商品名稱':iI, '數量':qI};
+  const required = {'訂單編號':oI, '購買品項':iI, '數量':qI};
   const missing = Object.keys(required).filter(k => required[k] === -1);
   if(missing.length){
     showError([
@@ -3673,14 +3702,23 @@ async function readPinkoiItems(){
     const qty = qI !== -1 ? toNum(r[qI], 1) : 1;
     // 檔案裡如果有物流方式欄位就用那個判斷,沒有才用上面手動選的當備援
     const shipCat = smI !== -1 ? categorizeShipping(r[smI]) : pinkoiShipType;
+    // 品名+規格合併顯示(例如「擴香瓶 附十入擴香棒」+「G6 帶來正向力量/花梨木木質調-黑色擴香棒」)
+    const baseName = iI !== -1 ? String(r[iI]||'') : '';
+    const specName = specI !== -1 ? String(r[specI]||'').trim() : '';
+    const fullItemName = specName && specName !== baseName ? baseName + ' - ' + specName : baseName;
+    // 國際訂單常常收件人姓名/地址是英文,如果有中文翻譯欄位且有值,優先用翻譯過的
+    const transName = nTransI !== -1 ? String(r[nTransI]||'').trim() : '';
+    const rawName = nI !== -1 ? String(r[nI]||'').trim() : '';
+    const transAddr = aTransI !== -1 ? String(r[aTransI]||'').trim() : '';
+    const rawAddr = aI !== -1 ? String(r[aI]||'').trim() : '';
     return {
       orderId: cleanId(r[oI]),
-      name: nI !== -1 ? String(r[nI]||'') : cleanId(r[oI]),
+      name: transName || rawName || cleanId(r[oI]),
       phone: pI !== -1 ? cleanId(r[pI]) : '',
-      address: aI !== -1 ? String(r[aI]||'') : '',
+      address: transAddr || rawAddr,
       custText: custRaw,
       hasCust: hasCust,
-      itemName: iI !== -1 ? String(r[iI]||'') : '',
+      itemName: fullItemName,
       price: price,
       qty: qty,
       subtotal: price * qty,
@@ -4032,6 +4070,13 @@ function updateSfQuickLinkBanner(){
 }
 
 // 整張訂單的主開關:勾選=全部品項一起勾,取消=全部一起取消
+// 已檢完的卡片移到清單最下面,讓還沒檢完的一直留在上面,不用一直往下滑找
+function sinkCardIfDone(card, isDone){
+  if(!card || !isDone) return;
+  const container = card.parentElement;
+  if(container) container.appendChild(card); // 對已經存在的元素呼叫appendChild是「搬移」,不是複製,勾選框等狀態都會保留
+}
+
 function togglePickDone(idx, done){
   const card = document.getElementById('pick-card-' + idx);
   if(card){
@@ -4043,6 +4088,7 @@ function togglePickDone(idx, done){
       if(cb) cb.checked = done;
     });
   }
+  sinkCardIfDone(card, done);
   // 確認完成之後如果又有新的勾選動作,代表狀態已經跟剛剛確認的不一樣了,重新標記為「進行中」
   currentBatchConfirmed = false;
   updatePickProgress();
@@ -4065,6 +4111,7 @@ function toggleItemPicked(cardIdx, itemIdx, checked){
   if(masterCheckbox) masterCheckbox.checked = allDone;
   card.classList.toggle('pick-card-done', allDone);
   card.classList.toggle('pick-card-partial', !allDone && !noneDone);
+  sinkCardIfDone(card, allDone);
 
   // 同上,勾選動作發生後代表狀態異動了,重新標記為「進行中」,要再按一次確認完成才會變回已確認
   currentBatchConfirmed = false;
