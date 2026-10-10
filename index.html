@@ -121,6 +121,55 @@
   .guide-changelog li{position:relative;padding-left:14px;}
   .guide-changelog li:before{content:'•';position:absolute;left:0;color:var(--sage-dark);}
 
+  /* ===== 留言板 / 叫貨註記 ===== */
+  .board-marquee{
+    position:sticky;top:0;z-index:400;display:flex;align-items:center;gap:10px;
+    background:#FFF6DC;border:1px solid #EBD79B;border-radius:8px;
+    padding:8px 12px;margin-bottom:14px;cursor:pointer;overflow:hidden;
+  }
+  .bm-icon{flex-shrink:0;}
+  .bm-viewport{flex:1;overflow:hidden;white-space:nowrap;}
+  .bm-track{display:inline-block;padding-left:100%;animation:bm-scroll var(--bm-dur,30s) linear infinite;}
+  .board-marquee:hover .bm-track{animation-play-state:paused;}
+  @keyframes bm-scroll{from{transform:translateX(0);}to{transform:translateX(-100%);}}
+  .bm-item{display:inline-block;margin-right:70px;font-size:13.5px;color:#5A4A1A;}
+  .bm-item small{color:#9A8A5A;font-size:11.5px;}
+  .bm-reorder{color:#9A3B41;font-weight:700;}
+  .bm-reorder small{color:#B07A7E;}
+  .board-fab{
+    position:fixed;right:56px;bottom:24px;z-index:480;background:var(--sage);color:#fff;border:none;
+    border-radius:24px;padding:10px 16px;font-size:13.5px;font-weight:700;cursor:pointer;
+    box-shadow:0 2px 10px rgba(0,0,0,0.22);font-family:inherit;
+  }
+  .board-fab:hover{opacity:0.92;}
+  .global-live-sidebar:not(.collapsed) ~ .board-fab{right:276px;}
+  .board-badge{
+    display:inline-block;margin-left:8px;min-width:18px;padding:1px 6px;border-radius:10px;
+    background:#E0524F;color:#fff;font-size:11.5px;text-align:center;
+  }
+  .board-toast{
+    position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:1200;
+    background:#9A3B41;color:#fff;padding:12px 20px;border-radius:10px;font-size:14px;font-weight:600;
+    cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,0.25);max-width:80vw;
+  }
+  .board-form{display:flex;flex-direction:column;gap:10px;margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--line);}
+  .board-type-row{display:flex;gap:18px;font-size:13.5px;flex-wrap:wrap;}
+  .board-form textarea{
+    font-family:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--line);
+    border-radius:8px;resize:vertical;background:var(--paper);color:var(--ink);
+  }
+  .board-form-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+  .bd-item{padding:10px 12px;border:1px solid var(--line);border-radius:8px;margin-bottom:8px;background:var(--paper);}
+  .bd-item-reorder{border-left:4px solid #E0524F;background:#FFF8F7;}
+  .bd-head{font-size:12.5px;font-weight:700;display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .bd-meta{font-weight:400;color:var(--ink-soft);margin-left:auto;}
+  .bd-text{font-size:14px;margin:6px 0;white-space:pre-wrap;word-break:break-word;}
+  .bd-actions{display:flex;gap:8px;}
+  .bd-actions button{font-size:12px;padding:4px 10px;}
+  .bd-tag{font-size:11.5px;padding:1px 8px;border-radius:10px;font-weight:600;}
+  .bd-pending{background:#FDE3E1;color:#9A3B41;}
+  .bd-done{background:var(--ok-soft);color:var(--sage-dark);}
+
   .update-banner{
     background:var(--warn);color:#fff;text-align:center;font-size:13.5px;font-weight:600;
     padding:10px 16px;border-radius:8px;margin-bottom:20px;cursor:pointer;
@@ -540,6 +589,19 @@
   .pick-card .pc-item.pc-item-done{opacity:0.45;}
   .pick-card .pc-item.pc-item-done .pc-item-name{text-decoration:line-through;}
   .pick-card.pick-card-partial{border:2px solid var(--amber, #C08A3E);}
+  .pick-card.pick-card-later{border-left:6px solid #8E7CC3;}
+  .pc-top-actions{display:flex;gap:6px;}
+  .pc-later-btn{
+    background:none;border:1px solid var(--line);border-radius:6px;color:#6B5B9A;
+    font-size:11px;font-weight:600;padding:3px 9px;cursor:pointer;
+  }
+  .pc-later-btn:hover{background:#F1EDF9;border-color:#8E7CC3;}
+  .pc-later-tag{
+    display:none;margin:0 auto 0 10px;font-size:11.5px;font-weight:700;color:#6B5B9A;
+    background:#EFEAF8;padding:2px 8px;border-radius:10px;
+  }
+  .pick-card-later .pc-later-tag{display:inline-block;}
+  .pick-card-done .pc-later-btn{display:none;}
   .pick-card .pc-scent-tag{
     display:inline-block;font-size:18px;font-weight:600;background:var(--amber-soft);color:var(--ink);
     padding:4px 14px;border-radius:0;margin-right:5px;vertical-align:1px;
@@ -643,6 +705,11 @@
 
 <div class="shell" id="mainShell" style="display:none;">
 
+<div class="board-marquee no-print" id="boardMarquee" style="display:none;" onclick="openBoard()" title="點一下開啟留言板">
+  <span class="bm-icon">📢</span>
+  <div class="bm-viewport"><div class="bm-track" id="boardMarqueeTrack"></div></div>
+</div>
+
 <div class="update-banner no-print" id="updateBanner" style="display:none;" onclick="location.reload(true)">
   🔄 有新版本可以用,點這裡重新整理(建議先確認手上的檢貨進度不會弄丟再點)
 </div>
@@ -657,6 +724,9 @@
     <div class="guide-section">
       <div class="guide-section-title">📌 最近更新</div>
       <ul class="guide-steps guide-changelog">
+        <li>新增右下角「💬 留言板」:可以留言,也可以寫「叫貨註記」提醒 Fitz;留言和待處理的叫貨會在頁面最上方跑馬燈顯示</li>
+        <li>檢貨單每張卡片多了「⏳ 稍後檢貨」:先放到下面晚點再檢,但不算已檢貨</li>
+        <li>刪除訂單、確認完成之後,其他訂單已經勾好的品項不會再被清掉</li>
         <li>檢貨單勾選完成的訂單會自動移到清單最下面,還沒檢完的一直留在上面,不用一直往下滑找</li>
         <li>出貨回報(LINE):沒配對到黑貓單號的訂單,自動排除在回報檔案外,不會因為缺單號整份檔案沒辦法回報;同一張訂單編號重複出現時會先詢問要不要繼續</li>
         <li>PINKOI 改用實際訂單檔案的欄位名稱重新對照(之前是用猜的),品名會合併規格顯示,並新增「跨境/國際配送」物流分類</li>
@@ -734,6 +804,34 @@
   </div>
   <div class="gls-body" id="glsBody">
     <div id="glsRow"></div>
+  </div>
+</div>
+
+<button class="board-fab no-print" id="boardFab" onclick="openBoard()" title="留言板 / 叫貨註記">💬 留言板<span class="board-badge" id="boardBadge" style="display:none;">0</span></button>
+
+<div class="board-toast no-print" id="boardToast" style="display:none;" onclick="openBoard(); this.style.display='none';"></div>
+
+<div class="modal-overlay no-print" id="boardModal" style="display:none;" onclick="if(event.target===this) closeBoard()">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>💬 留言板 / 📦 叫貨註記</h3>
+      <button class="modal-close-btn" onclick="closeBoard()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="board-form">
+        <div class="board-type-row">
+          <label><input type="radio" name="boardType" value="note" checked> 💬 一般留言</label>
+          <label><input type="radio" name="boardType" value="reorder"> 📦 叫貨註記(提醒 Fitz)</label>
+        </div>
+        <textarea id="boardText" rows="2" maxlength="500" placeholder="寫下要告訴大家的事。叫貨註記請寫品項+數量,例如:G6 小蠟燭庫存剩 3 個,需要叫貨"></textarea>
+        <div class="board-form-actions">
+          <button class="primary" onclick="submitBoardMessage()">送出</button>
+          <button class="ghost" id="boardNotifyBtn" style="display:none;" onclick="enableBoardNotifications()">🔔 開啟桌面通知</button>
+          <span class="form-msg" id="boardFormMsg"></span>
+        </div>
+      </div>
+      <div id="boardList"></div>
+    </div>
   </div>
 </div>
 
@@ -1203,7 +1301,7 @@
 </div>
 
 <script>
-const APP_VERSION = '20260930-1'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20261008-1'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -1301,6 +1399,7 @@ async function handleAuthStateChange(user){
       loadResendRecords();
       loadDailyNotes();
       startLiveSessionListener();
+      startBoardListener();
     }else{
       desc.textContent = '這個帳號還沒被登記,沒有使用權限';
       msgEl.textContent = user.email + ' 尚未獲得授權,請聯絡管理者新增這個帳號。';
@@ -2281,9 +2380,11 @@ function saveChannelBatch(ch){
     });
     if(doneIdxList.length > 0) doneItems[idx] = doneIdxList;
   });
+  const laterCards = Array.from(document.querySelectorAll('#pickList .pick-card-later')).map(c => c.id.replace('pick-card-',''));
   channelBatches[ch] = {
     parsedItems: parsedItems,
     doneItems: doneItems,
+    laterCards: laterCards,
     currentBatchConfirmed: currentBatchConfirmed
   };
 }
@@ -2340,6 +2441,11 @@ function loadChannelBatch(ch){
     const masterCb = card.querySelector('.pc-check input');
     if(masterCb) masterCb.checked = allDone;
   });
+  (batch.laterCards || []).forEach(idx=>{
+    const card = document.getElementById('pick-card-' + idx);
+    if(card && !card.classList.contains('pick-card-done')) applyLaterState(card, true);
+  });
+  resortPickCards();
   updatePickProgress();
   filterPickList();
   document.getElementById('resetBtn').style.display = 'inline-block';
@@ -2638,6 +2744,200 @@ function toggleGlobalSidebar(){
   const icon = document.getElementById('glsToggleIcon');
   const collapsed = document.getElementById('globalLiveSidebar').classList.contains('collapsed');
   icon.textContent = collapsed ? '◂' : '▸';
+}
+
+// ===== 留言板 / 叫貨註記 =====
+const BOARD_COLLECTION = 'board_messages';
+const REORDER_NOTIFY_EMAILS = ['fitz@jeidi.com.tw']; // 有新的叫貨註記時,這些帳號會收到提醒
+const BOARD_NOTE_HOURS = 24; // 一般留言在跑馬燈上顯示多久(叫貨註記要「標記已處理」才會消失)
+let boardMessages = [];
+let boardUnsub = null;
+let boardFirstSnapshot = true;
+let boardToastTimer = null;
+
+function isReorderNotifyUser(){
+  return !!currentUserEmail && REORDER_NOTIFY_EMAILS.includes(String(currentUserEmail).toLowerCase());
+}
+function boardShortName(email){ return String(email || '').split('@')[0]; }
+function boardMsgTime(m){
+  return (m.createdAt && m.createdAt.seconds) ? m.createdAt.seconds * 1000 : Date.now();
+}
+function fmtBoardTime(m){
+  const d = new Date(boardMsgTime(m));
+  return (d.getMonth()+1) + '/' + d.getDate() + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+}
+
+async function startBoardListener(){
+  await waitForFirebase();
+  if(boardUnsub) return;
+  const {db, collection, query, orderBy, limit, onSnapshot} = window.__fb;
+  const q = query(collection(db, BOARD_COLLECTION), orderBy('createdAt', 'desc'), limit(100));
+  boardUnsub = onSnapshot(q, (snap)=>{
+    boardMessages = snap.docs.map(d => ({id: d.id, ...d.data({serverTimestamps: 'estimate'})}));
+
+    if(boardFirstSnapshot){
+      // 剛打開工具:如果有人還沒處理的叫貨註記,Fitz 會先看到提醒(就算叫貨註記是他不在的時候寫的)
+      const pending = boardMessages.filter(m => m.type === 'reorder' && m.status === 'active').length;
+      if(pending > 0 && isReorderNotifyUser()){
+        showBoardToast('📦 有 ' + pending + ' 則叫貨註記還沒處理,點這裡查看');
+      }
+    }else{
+      snap.docChanges().forEach(ch=>{
+        if(ch.type !== 'added') return;
+        const m = ch.doc.data({serverTimestamps: 'estimate'});
+        if(m.type === 'reorder' && m.status === 'active' && m.author !== currentUserEmail) notifyNewReorder(m);
+      });
+    }
+    boardFirstSnapshot = false;
+
+    renderBoardMarquee();
+    renderBoardBadge();
+    const modal = document.getElementById('boardModal');
+    if(modal && modal.style.display !== 'none') renderBoardList();
+  }, ()=>{
+    // 讀取失敗(例如登出、權限問題):重置,下次登入再重新監聽
+    boardUnsub = null;
+    boardFirstSnapshot = true;
+  });
+}
+
+// 跑馬燈要顯示的:還沒處理的叫貨註記 + 最近一段時間內的一般留言
+function boardActiveItems(){
+  const now = Date.now();
+  return boardMessages.filter(m=>{
+    if(m.status === 'removed') return false;
+    if(m.type === 'reorder') return m.status === 'active';
+    return (now - boardMsgTime(m)) <= BOARD_NOTE_HOURS * 3600 * 1000;
+  });
+}
+
+function renderBoardMarquee(){
+  const bar = document.getElementById('boardMarquee');
+  const track = document.getElementById('boardMarqueeTrack');
+  if(!bar || !track) return;
+  const items = boardActiveItems();
+  if(items.length === 0){
+    bar.style.display = 'none';
+    return;
+  }
+  track.innerHTML = items.map(m=>{
+    const who = escapeHtml(boardShortName(m.author));
+    const text = escapeHtml(m.text || '');
+    return m.type === 'reorder'
+      ? '<span class="bm-item bm-reorder">📦 叫貨:' + text + ' <small>(' + who + ' ' + fmtBoardTime(m) + ')</small></span>'
+      : '<span class="bm-item">💬 ' + who + ':' + text + ' <small>(' + fmtBoardTime(m) + ')</small></span>';
+  }).join('');
+  const chars = track.textContent.length;
+  bar.style.setProperty('--bm-dur', Math.max(20, Math.round(chars * 0.45)) + 's');
+  bar.style.display = 'flex';
+}
+
+function renderBoardBadge(){
+  const badge = document.getElementById('boardBadge');
+  if(!badge) return;
+  const n = boardMessages.filter(m => m.type === 'reorder' && m.status === 'active').length;
+  badge.textContent = n;
+  badge.style.display = n > 0 ? 'inline-block' : 'none';
+}
+
+function renderBoardList(){
+  const box = document.getElementById('boardList');
+  if(!box) return;
+  const visible = boardMessages.filter(m => m.status !== 'removed');
+  if(visible.length === 0){
+    box.innerHTML = '<div class="resend-empty">目前沒有留言</div>';
+    return;
+  }
+  box.innerHTML = visible.map(m=>{
+    const isReorder = m.type === 'reorder';
+    const statusTag = isReorder
+      ? (m.status === 'handled'
+          ? '<span class="bd-tag bd-done">✓ 已處理' + (m.handledBy ? '(' + escapeHtml(boardShortName(m.handledBy)) + ')' : '') + '</span>'
+          : '<span class="bd-tag bd-pending">待處理</span>')
+      : '';
+    const handleBtn = (isReorder && m.status === 'active')
+      ? '<button class="ghost" onclick="updateBoardMessage(\'' + m.id + '\', \'handled\')">標記已處理</button>'
+      : '';
+    return '<div class="bd-item' + (isReorder ? ' bd-item-reorder' : '') + '">' +
+      '<div class="bd-head">' + (isReorder ? '📦 叫貨註記' : '💬 留言') + statusTag +
+        '<span class="bd-meta">' + escapeHtml(boardShortName(m.author)) + '・' + fmtBoardTime(m) + '</span></div>' +
+      '<div class="bd-text">' + escapeHtml(m.text || '') + '</div>' +
+      '<div class="bd-actions">' + handleBtn +
+        '<button class="ghost" onclick="updateBoardMessage(\'' + m.id + '\', \'removed\')">刪除</button></div>' +
+      '</div>';
+  }).join('');
+}
+
+function openBoard(){
+  document.getElementById('boardModal').style.display = 'flex';
+  renderBoardList();
+  updateBoardNotifyBtn();
+}
+function closeBoard(){
+  document.getElementById('boardModal').style.display = 'none';
+}
+
+async function submitBoardMessage(){
+  const msgEl = document.getElementById('boardFormMsg');
+  const text = document.getElementById('boardText').value.trim();
+  const type = document.querySelector('input[name="boardType"]:checked').value;
+  if(!text){ msgEl.textContent = '請先輸入內容'; return; }
+  await waitForFirebase();
+  const {db, collection, addDoc, serverTimestamp} = window.__fb;
+  try{
+    await addDoc(collection(db, BOARD_COLLECTION), {
+      type: type, text: text, author: currentUserEmail || '', status: 'active', createdAt: serverTimestamp()
+    });
+    document.getElementById('boardText').value = '';
+    msgEl.textContent = type === 'reorder' ? '✓ 已送出,Fitz 打開工具就會看到提醒' : '✓ 已送出';
+    setTimeout(()=>{ msgEl.textContent = ''; }, 4000);
+  }catch(err){
+    msgEl.textContent = '送出失敗:' + err.message;
+  }
+}
+
+// status: 'handled'(叫貨註記已處理)或 'removed'(刪除,不會真的從資料庫消失,只是不再顯示)
+async function updateBoardMessage(id, status){
+  if(status === 'removed' && !confirm('確定要刪除這則嗎?')) return;
+  await waitForFirebase();
+  const {db, doc, updateDoc, serverTimestamp} = window.__fb;
+  try{
+    await updateDoc(doc(db, BOARD_COLLECTION, id), {status: status, handledBy: currentUserEmail || '', handledAt: serverTimestamp()});
+  }catch(err){
+    alert('更新失敗:' + err.message);
+  }
+}
+
+function showBoardToast(text){
+  const t = document.getElementById('boardToast');
+  if(!t) return;
+  t.textContent = text;
+  t.style.display = 'block';
+  clearTimeout(boardToastTimer);
+  boardToastTimer = setTimeout(()=>{ t.style.display = 'none'; }, 12000);
+}
+
+// 有人新增叫貨註記時,只提醒 Fitz(畫面上方提醒條+桌面通知);其他人還是看得到跑馬燈跟按鈕上的紅色數字
+function notifyNewReorder(m){
+  if(!isReorderNotifyUser()) return;
+  showBoardToast('📦 新的叫貨註記:' + m.text + '(' + boardShortName(m.author) + ')');
+  if('Notification' in window && Notification.permission === 'granted'){
+    try{ new Notification('JEIDI 叫貨註記', {body: boardShortName(m.author) + ':' + m.text}); }catch(e){}
+  }
+}
+
+function updateBoardNotifyBtn(){
+  const btn = document.getElementById('boardNotifyBtn');
+  if(!btn) return;
+  btn.style.display = (isReorderNotifyUser() && 'Notification' in window && Notification.permission === 'default') ? 'inline-block' : 'none';
+}
+async function enableBoardNotifications(){
+  if(!('Notification' in window)){ alert('這個瀏覽器不支援桌面通知'); return; }
+  const p = await Notification.requestPermission();
+  updateBoardNotifyBtn();
+  if(p === 'granted'){
+    try{ new Notification('JEIDI', {body: '桌面通知已開啟:有新的叫貨註記時會跳出提醒(工具的網頁要保持開著)'}); }catch(e){}
+  }
 }
 
 function toggleGuideSidebar(){
@@ -4034,7 +4334,11 @@ function renderPickList(){
       '<div class="pc-top">' +
         '<div class="pc-top-row no-print">' +
           '<label class="pc-check"><input type="checkbox" onchange="togglePickDone(' + idx + ', this.checked)"> 已檢貨</label>' +
-          '<button class="pc-delete-btn" onclick="deleteOrder(' + idx + ')" title="刪除這張訂單(例如離島無法出貨的訂單)">✕ 刪除</button>' +
+          '<span class="pc-later-tag">⏳ 稍後檢貨</span>' +
+          '<span class="pc-top-actions">' +
+            '<button class="pc-later-btn" onclick="toggleLater(' + idx + ')" title="先放到下面晚點再檢,不算已檢貨">⏳ 稍後檢貨</button>' +
+            '<button class="pc-delete-btn" onclick="deleteOrder(' + idx + ')" title="刪除這張訂單(例如離島無法出貨的訂單)">✕ 刪除</button>' +
+          '</span>' +
         '</div>' +
         '<div class="pc-headrow"><span class="pc-name">' + escapeHtml(name) + shipTag + '</span>' + orderBadge + '</div>' +
       '</div>' +
@@ -4070,11 +4374,99 @@ function updateSfQuickLinkBanner(){
 }
 
 // 整張訂單的主開關:勾選=全部品項一起勾,取消=全部一起取消
-// 已檢完的卡片移到清單最下面,讓還沒檢完的一直留在上面,不用一直往下滑找
-function sinkCardIfDone(card, isDone){
-  if(!card || !isDone) return;
+// ===== 卡片排序:還沒檢的(最上面)→ 稍後檢貨 → 已檢完(最下面),讓還沒處理的一直留在上面 =====
+function cardRank(card){
+  if(card.classList.contains('pick-card-done')) return 2;
+  if(card.classList.contains('pick-card-later')) return 1;
+  return 0;
+}
+function cardIdxNum(card){ return parseInt(card.id.replace('pick-card-',''), 10) || 0; }
+function cardSortKey(card){ return cardRank(card) * 1000000 + cardIdxNum(card); }
+
+// 只搬動這一張卡片到正確的位置(其他卡片不動,畫面才不會跳來跳去)
+function placeCardInOrder(card){
+  if(!card) return;
   const container = card.parentElement;
-  if(container) container.appendChild(card); // 對已經存在的元素呼叫appendChild是「搬移」,不是複製,勾選框等狀態都會保留
+  if(!container) return;
+  const k = cardSortKey(card);
+  const next = Array.from(container.children).find(c => c !== card && c.classList.contains('pick-card') && cardSortKey(c) > k);
+  if(next){
+    if(card.nextElementSibling === next) return; // 已經在正確位置
+    container.insertBefore(card, next);
+  }else{
+    if(!card.nextElementSibling) return;
+    container.appendChild(card);
+  }
+}
+
+// 整份清單一次排好(載入、還原狀態時用)
+function resortPickCards(){
+  const container = document.getElementById('pickList');
+  if(!container) return;
+  const cards = Array.from(container.children).filter(c => c.classList.contains('pick-card'));
+  cards.sort((a,b) => cardSortKey(a) - cardSortKey(b));
+  cards.forEach(c => container.appendChild(c));
+}
+
+function applyLaterState(card, isLater){
+  if(!card) return;
+  card.classList.toggle('pick-card-later', !!isLater);
+  const btn = card.querySelector('.pc-later-btn');
+  if(btn) btn.textContent = isLater ? '↩ 取消稍後' : '⏳ 稍後檢貨';
+}
+
+// 稍後檢貨:先把這張放到下面,但不算已檢貨(進度、還缺清單都照樣算它還沒檢)
+function toggleLater(idx){
+  const card = document.getElementById('pick-card-' + idx);
+  if(!card || card.classList.contains('pick-card-done')) return;
+  applyLaterState(card, !card.classList.contains('pick-card-later'));
+  placeCardInOrder(card);
+  saveState();
+}
+
+// 把某張卡片裡已勾選的品項(依品項順序號)套回去,並更新整張卡片的狀態
+function applyItemDoneState(card, doneIdxList){
+  const itemEls = card.querySelectorAll('.pc-item');
+  let doneCount = 0;
+  (doneIdxList || []).forEach(i=>{
+    const el = itemEls[i];
+    if(!el) return;
+    el.classList.add('pc-item-done');
+    const cb = el.querySelector('.pc-item-check input');
+    if(cb) cb.checked = true;
+    doneCount++;
+  });
+  const allDone = itemEls.length > 0 && doneCount === itemEls.length;
+  card.classList.toggle('pick-card-done', allDone);
+  card.classList.toggle('pick-card-partial', doneCount > 0 && !allDone);
+  const masterCb = card.querySelector('.pc-check input');
+  if(masterCb) masterCb.checked = allDone;
+}
+
+// 重新畫檢貨單之前,先依「訂單編號」記住每張卡片的勾選/稍後狀態,畫完再還原——
+// 不然刪除訂單、確認完成之後,其他訂單已經勾好的品項會被整個清掉
+function captureCardStates(){
+  const states = {};
+  document.querySelectorAll('#pickList .pick-card').forEach(card=>{
+    const its = pickOrderGroups[cardIdxNum(card)];
+    if(!its || !its.length) return;
+    const doneItemIdx = [];
+    card.querySelectorAll('.pc-item').forEach((el, i)=>{ if(el.classList.contains('pc-item-done')) doneItemIdx.push(i); });
+    states[its[0].orderId] = {later: card.classList.contains('pick-card-later'), doneItemIdx: doneItemIdx};
+  });
+  return states;
+}
+function restoreCardStates(states){
+  document.querySelectorAll('#pickList .pick-card').forEach(card=>{
+    const its = pickOrderGroups[cardIdxNum(card)];
+    const st = (its && its.length) ? states[its[0].orderId] : null;
+    if(!st) return;
+    applyItemDoneState(card, st.doneItemIdx);
+    applyLaterState(card, st.later && !card.classList.contains('pick-card-done'));
+  });
+  resortPickCards();
+  updatePickProgress();
+  filterPickList();
 }
 
 function togglePickDone(idx, done){
@@ -4087,8 +4479,9 @@ function togglePickDone(idx, done){
       const cb = itemEl.querySelector('.pc-item-check input');
       if(cb) cb.checked = done;
     });
+    if(done) applyLaterState(card, false); // 已經檢完了,就不用再標「稍後」
   }
-  sinkCardIfDone(card, done);
+  placeCardInOrder(card);
   // 確認完成之後如果又有新的勾選動作,代表狀態已經跟剛剛確認的不一樣了,重新標記為「進行中」
   currentBatchConfirmed = false;
   updatePickProgress();
@@ -4111,7 +4504,8 @@ function toggleItemPicked(cardIdx, itemIdx, checked){
   if(masterCheckbox) masterCheckbox.checked = allDone;
   card.classList.toggle('pick-card-done', allDone);
   card.classList.toggle('pick-card-partial', !allDone && !noneDone);
-  sinkCardIfDone(card, allDone);
+  if(allDone) applyLaterState(card, false); // 已經檢完了,就不用再標「稍後」
+  placeCardInOrder(card);
 
   // 同上,勾選動作發生後代表狀態異動了,重新標記為「進行中」,要再按一次確認完成才會變回已確認
   currentBatchConfirmed = false;
@@ -4130,12 +4524,14 @@ function deleteOrder(idx){
   const proceed = confirm('確定要刪除這張訂單嗎?\n\n' + escapeHtml(name) + '(' + escapeHtml(oid) + ')\n\n刪除後這張訂單會從目前這批的檢貨單、匯出檔案裡完全移除,適合用在離島地址等無法出貨的情況。這個動作沒辦法復原,如果只是還沒有貨,不用刪除,留著繼續等貨就好。');
   if(!proceed) return;
 
+  const states = captureCardStates(); // 先記住其他卡片的勾選狀態,重畫後還原
   parsedItems = parsedItems.filter(it => it.orderId !== oid);
   custItems = parsedItems.filter(it => it.hasCust);
   // 這張訂單不會出貨了,不算「忘記揀貨」,把它從跨天追蹤名單裡移除
   resolvePendingPick(currentChannel, oid);
 
   renderPickList();
+  restoreCardStates(states);
   saveState();
 }
 
@@ -4337,10 +4733,12 @@ function confirmPickProgress(){
   });
 
   // 已確認完成的訂單,從畫面上移除,只留下還沒檢完的——這樣下次再按確認,回報的才會是「新完成的量」,不會把同一批的總數重複算好幾次
+  const keptStates = captureCardStates(); // 留下來的訂單(部分勾選/稍後檢貨)要保留原本的狀態
   parsedItems = parsedItems.filter(it => !doneOrderIds.has(it.orderId));
   custItems = parsedItems.filter(it => it.hasCust);
   currentBatchConfirmed = parsedItems.length === 0; // 全部都確認完了才算真的完成,還有剩就還是「進行中」
   renderPickList();
+  restoreCardStates(keptStates);
   if(parsedItems.length === 0){
     note.textContent = '✓ ' + label + ' 這批全部確認完成(共 ' + total + ' 張),已記錄到出貨核對頁面。';
   }else{
@@ -4564,6 +4962,7 @@ async function checkForNewVersion(){
 }
 setTimeout(checkForNewVersion, 15000); // 頁面載入15秒後先檢查一次
 setInterval(checkForNewVersion, 5 * 60 * 1000); // 之後每5分鐘檢查一次
+setInterval(()=>{ if(boardMessages.length) renderBoardMarquee(); }, 5 * 60 * 1000); // 一般留言過了時效,跑馬燈上自動消失
 </script>
 </body>
 </html>
