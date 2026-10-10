@@ -122,6 +122,7 @@
   .guide-changelog li:before{content:'•';position:absolute;left:0;color:var(--sage-dark);}
 
   /* ===== 留言板 / 叫貨註記 ===== */
+  .bd-planner{color:#2F5C93;font-weight:600;}
   .board-marquee{
     position:sticky;top:0;z-index:400;display:flex;align-items:center;gap:10px;
     background:#FFF6DC;border:1px solid #EBD79B;border-radius:8px;
@@ -724,6 +725,7 @@
     <div class="guide-section">
       <div class="guide-section-title">📌 最近更新</div>
       <ul class="guide-steps guide-changelog">
+        <li>叫貨註記多了「📝 加到工作規劃」按鈕(只有 Fitz 看得到):按一下會打開工作規劃,自動帶入叫貨內容,確認後就變成待辦</li>
         <li>新增右下角「💬 留言板」:可以留言,也可以寫「叫貨註記」提醒 Fitz;留言和待處理的叫貨會在頁面最上方跑馬燈顯示</li>
         <li>檢貨單每張卡片多了「⏳ 稍後檢貨」:先放到下面晚點再檢,但不算已檢貨</li>
         <li>刪除訂單、確認完成之後,其他訂單已經勾好的品項不會再被清掉</li>
@@ -2858,14 +2860,35 @@ function renderBoardList(){
     const handleBtn = (isReorder && m.status === 'active')
       ? '<button class="ghost" onclick="updateBoardMessage(\'' + m.id + '\', \'handled\')">標記已處理</button>'
       : '';
+    // 叫貨註記:Fitz 可以一鍵加到「工作規劃」變成自己的待辦
+    let plannerAdded = false; try{ plannerAdded = !!localStorage.getItem('planner-added-' + m.id); }catch(e){}
+    const plannerBtn = (isReorder && m.status === 'active' && isReorderNotifyUser())
+      ? '<button class="ghost bd-planner" onclick="addReorderToPlanner(\'' + m.id + '\')">' + (plannerAdded ? '✓ 已加到工作規劃(再加一次)' : '📝 加到工作規劃') + '</button>'
+      : '';
     return '<div class="bd-item' + (isReorder ? ' bd-item-reorder' : '') + '">' +
       '<div class="bd-head">' + (isReorder ? '📦 叫貨註記' : '💬 留言') + statusTag +
         '<span class="bd-meta">' + escapeHtml(boardShortName(m.author)) + '・' + fmtBoardTime(m) + '</span></div>' +
       '<div class="bd-text">' + escapeHtml(m.text || '') + '</div>' +
-      '<div class="bd-actions">' + handleBtn +
+      '<div class="bd-actions">' + plannerBtn + handleBtn +
         '<button class="ghost" onclick="updateBoardMessage(\'' + m.id + '\', \'removed\')">刪除</button></div>' +
       '</div>';
   }).join('');
+}
+
+// ===== 叫貨註記 → 工作規劃 =====
+const WORK_PLANNER_URL = 'https://claude.ai/artifact/X1fZ7rvB4KCDb9r3aSvK23';
+function addReorderToPlanner(id){
+  const m = boardMessages.find(x => x.id === id); if(!m) return;
+  const d = new Date(); const ds = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  const p = new URLSearchParams({
+    todo: '叫貨:' + (m.text || ''),
+    date: ds,
+    from: '出貨助手',
+    note: boardShortName(m.author) + ' 於 ' + fmtBoardTime(m) + ' 寫的叫貨註記'
+  });
+  window.open(WORK_PLANNER_URL + '?' + p.toString(), '_blank', 'noopener');
+  try{ localStorage.setItem('planner-added-' + id, '1'); }catch(e){}
+  renderBoardList();
 }
 
 function openBoard(){
