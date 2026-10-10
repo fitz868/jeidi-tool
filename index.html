@@ -645,10 +645,19 @@
     .pl-table{width:100%;border-collapse:collapse;}
     .pl-table td{padding:1px 0;border-bottom:1px dotted #888;vertical-align:top;overflow-wrap:anywhere;}
     .pl-table tr{page-break-inside:avoid;}
-    .pl-qty{text-align:right;font-weight:700;white-space:nowrap;padding-left:6px !important;}
-    .pl-t1 .pl-table{font-size:12px;}
-    .pl-t2 .pl-table{font-size:10.5px;}
-    .pl-t3 .pl-table{font-size:9px;}
+    .pl-qty{text-align:right;font-weight:700;white-space:nowrap;padding-left:5px !important;}
+    /* 左右兩欄:每欄一半寬,中間一條細線分開 */
+    .pl-cols{width:100%;table-layout:fixed;border-collapse:collapse;}
+    .pl-col{width:50%;vertical-align:top;padding:0 2mm 0 0;}
+    .pl-col-r{padding:0 0 0 2mm;border-left:1px solid #888;}
+    /* 紙太窄(約 62mm 以下)兩欄會擠成一團,自動變回單欄 */
+    @media print and (max-width:62mm){
+      .pl-cols, .pl-cols tbody, .pl-cols tr, .pl-col{display:block;width:auto;}
+      .pl-col, .pl-col-r{padding:0;border-left:0;}
+    }
+    .pl-t1 .pl-table{font-size:13px;}
+    .pl-t2 .pl-table{font-size:11px;}
+    .pl-t3 .pl-table{font-size:9.5px;}
   }
 
   footer.note{color:var(--ink-soft);font-size:12px;margin-top:30px;text-align:center;}
@@ -1208,7 +1217,7 @@
 </div>
 
 <script>
-const APP_VERSION = '20261010-4'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20261010-6'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -1307,6 +1316,7 @@ async function handleAuthStateChange(user){
       loadDailyNotes();
       startLiveSessionListener();
       startBoardListener();
+      refreshPendingMapsAndRepaint();
     }else{
       desc.textContent = '這個帳號還沒被登記,沒有使用權限';
       msgEl.textContent = user.email + ' 尚未獲得授權,請聯絡管理者新增這個帳號。';
@@ -2188,7 +2198,13 @@ async function loadOrderNotes(){
 // ===== SKU 對照表(即時從 Google 試算表讀取)=====
 // ===== 香味代號顏色對照(即時從 Google 試算表讀取)=====
 const SCENT_COLOR_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1fEcE-SewRhi-iU5vyEM_D99MMLJEP8jhx6YjzmCg4UE/export?format=csv&gid=0';
-let scentColorMap = {};
+// 香味色票的備用色:Google 試算表讀不到(網路慢、斷線、表格被改壞)時用這組,色塊才不會整個消失。
+// 試算表讀得到的時候,一律以試算表為準。
+const DEFAULT_SCENT_COLORS = {
+  G1:'#E8D23A', G2:'#E896B3', G3:'#EDD98F', G4:'#7FB055', G5:'#D687A0', G6:'#C08040', G7:'#E67A2E',
+  G8:'#F0C33A', G9:'#BC9256', S1:'#C99BC4', S2:'#DBC48A', S3:'#B8A695', S4:'#96A66B', R1:'#7DBEE0'
+};
+let scentColorMap = Object.assign({}, DEFAULT_SCENT_COLORS);
 
 async function loadScentColors(){
   try{
@@ -2196,20 +2212,30 @@ async function loadScentColors(){
     if(!res.ok) throw new Error('HTTP ' + res.status);
     const text = await res.text();
     const rows = parseCSV(text);
-    if(rows.length < 2) return;
+    if(rows.length < 1) return;
+    const isHex = v => /^#[0-9A-Fa-f]{6}$/.test(v);
+    const map = {};
     const headers = rows[0];
     const codeI = idxOf(headers, ['代號']);
     const colorI = idxOf(headers, ['顏色']);
-    if(codeI === -1 || colorI === -1) return;
-    const map = {};
-    rows.slice(1).forEach(r=>{
-      const code = String(r[codeI]||'').trim();
-      const color = String(r[colorI]||'').trim();
-      if(code && /^#[0-9A-Fa-f]{6}$/.test(color)) map[code] = color;
-    });
-    scentColorMap = map;
+    if(codeI !== -1 && colorI !== -1){
+      rows.slice(1).forEach(r=>{
+        const code = String(r[codeI]||'').trim();
+        const color = String(r[colorI]||'').trim();
+        if(code && isHex(color)) map[code] = color;
+      });
+    }else{
+      // 找不到「代號/顏色」表頭(例如貼上資料時把表頭蓋掉了):每一列找第一個色碼,它前面第一個有字的格子當代號
+      rows.forEach(r=>{
+        const ci = r.findIndex(c => isHex(String(c).trim()));
+        if(ci <= 0) return;
+        const code = r.slice(0, ci).map(c => String(c).trim()).filter(Boolean).pop();
+        if(code) map[code] = String(r[ci]).trim();
+      });
+    }
+    if(Object.keys(map).length > 0) scentColorMap = map; // 讀到東西才換掉,讀不到就繼續用備用色
   }catch(err){
-    // 讀取失敗時安靜跳過,色籤會用預設顏色
+    // 讀取失敗時安靜跳過,色籤會繼續用備用色
   }
 }
 
@@ -2321,6 +2347,7 @@ function loadChannelBatch(ch){
   }
 
   parsedItems = batch.parsedItems;
+  applySkuInfoToItems(parsedItems);
   custItems = parsedItems.filter(it => it.hasCust);
   currentBatchConfirmed = batch.currentBatchConfirmed;
 
@@ -2356,6 +2383,7 @@ function loadChannelBatch(ch){
   updatePickProgress();
   filterPickList();
   document.getElementById('resetBtn').style.display = 'inline-block';
+  refreshPendingMapsAndRepaint(); // 補回「延遲未出貨」提醒(登入前讀不到,會安靜略過,登入後會再補一次)
 }
 
 function selectChannel(ch){
@@ -2556,22 +2584,34 @@ function renderLiveSessions(sessions, cumulative){
   }).join('');
 }
 
+// 字體分級的門檻:項目數 ≤ 第1個數字用大字,≤ 第2個數字用中字,更多用小字。
+// 這兩個數字是用實際排版量出來的(分左右兩欄、80×148mm 的紙,三級字體一頁最多分別放 65 / 80 / 85 項),
+// 再各留約一成的餘裕,因為長品名換行或不同印表機的字型可能會多佔一點空間。
+const PRINT_TIER_LIMITS = [56, 70];
+
 // ===== 列印「清單」專用版面(還剩要出貨、缺貨清單共用):窄版、字小、行距緊,盡量擠在一頁裡 =====
 // sections: [{title:'小標題(可空)', rows:[{name, qty}]}]
 function buildCompactPrintHtml(headLine, subLine, sections){
   const totalRows = sections.reduce((n, sec) => n + sec.rows.length, 0);
-  // 項目多的時候字再縮小一級,盡量還是印在同一頁。門檻是用實際排版量出來的(80×148mm 的紙,
-  // 三級字體一頁最多分別放 36 / 42 / 46 列),再各留幾列的餘裕,因為長品名可能會換行
-  const tier = totalRows <= 32 ? 'pl-t1' : (totalRows <= 38 ? 'pl-t2' : 'pl-t3');
+  // 字體分級:項目多的時候字再縮小一級,盡量還是印在同一頁(門檻是用實際排版量出來的,見 PRINT_TIER_LIMITS)
+  const tier = totalRows <= PRINT_TIER_LIMITS[0] ? 'pl-t1' : (totalRows <= PRINT_TIER_LIMITS[1] ? 'pl-t2' : 'pl-t3');
+  const rowHtml = r => '<tr><td class="pl-name">' + escapeHtml(spaceComboX(r.name)) + '</td><td class="pl-qty">x' + r.qty + '</td></tr>';
+  const tableHtml = rows => '<table class="pl-table">' + rows.map(rowHtml).join('') + '</table>';
+  const sectionHtml = sec => {
+    // 清單分成左右兩欄(先排完左欄、再排右欄):每一欄比較窄,數量就貼在品名旁邊,不容易看錯列。
+    // 項目太少(不到 4 項)就不分欄。紙太窄時(約 62mm 以下)會自動變回單欄,見列印 CSS。
+    if(sec.rows.length < 4) return tableHtml(sec.rows);
+    const half = Math.ceil(sec.rows.length / 2);
+    return '<table class="pl-cols"><tr>' +
+      '<td class="pl-col">' + tableHtml(sec.rows.slice(0, half)) + '</td>' +
+      '<td class="pl-col pl-col-r">' + tableHtml(sec.rows.slice(half)) + '</td>' +
+      '</tr></table>';
+  };
   return '<div class="pl ' + tier + '">' +
     '<div class="pl-head">' + escapeHtml(headLine) + '</div>' +
     (subLine ? '<div class="pl-sub">' + escapeHtml(subLine) + '</div>' : '') +
-    sections.map(sec =>
-      (sec.title ? '<div class="pl-sec">' + escapeHtml(sec.title) + '</div>' : '') +
-      '<table class="pl-table">' +
-      sec.rows.map(r => '<tr><td class="pl-name">' + escapeHtml(spaceComboX(r.name)) + '</td><td class="pl-qty">x' + r.qty + '</td></tr>').join('') +
-      '</table>'
-    ).join('') + '</div>';
+    sections.map(sec => (sec.title ? '<div class="pl-sec">' + escapeHtml(sec.title) + '</div>' : '') + sectionHtml(sec)).join('') +
+    '</div>';
 }
 
 // 開始列印:拿掉瀏覽器預設的頁邊距(順便讓頁首頁尾的日期、網址消失),省空間,也不會多印出空白頁
@@ -4158,6 +4198,46 @@ function restoreState(){
   }
 }
 
+// ===== 還原上次進度之後,把「匯入當下才會載入」的資料補回來,再重畫檢貨單 =====
+// 重新整理(或系統自動換新版)時,程式會先把上次存的進度畫出來,這時 SKU 表、香味色票、訂單備註
+// 這些 Google 試算表通常還沒載入完成,畫出來的檢貨單就會:沒有色塊、附件顯示成英文代號、少了備註提醒。
+function applySkuInfoToItems(items){
+  if(Object.keys(skuMap).length === 0) return;
+  items.forEach(it=>{
+    const info = skuMap[it.sku];
+    if(info){ it.displayName = info.name || it.itemName; it.combo = info.combo || ''; }
+  });
+}
+function repaintPickListWithMaps(){
+  if(!parsedItems || parsedItems.length === 0) return;
+  applySkuInfoToItems(parsedItems);
+  const states = captureCardStates(); // 已勾選、稍後檢貨的狀態先記起來,重畫完還原
+  renderPickList();
+  restoreCardStates(states);
+}
+async function refreshMapsThenRepaint(){
+  await Promise.all([loadSkuMap(), loadScentColors(), loadOrderNotes()]);
+  repaintPickListWithMaps();
+  // SKU 表讀不到時,附件只能顯示英文代號:明確告訴使用者原因,不然會以為是程式壞掉
+  const box = document.getElementById('skuStatusBox');
+  if(box && skuLoadError && parsedItems && parsedItems.length > 0){
+    box.className = 'sku-status no-print err';
+    box.textContent = '⚠ SKU 對照表讀取失敗(' + skuLoadError + '),組合商品的附件暫時顯示英文代號。請確認網路連線後重新整理一次。';
+  }
+}
+// 「已延遲 N 天未出貨」這類提醒存在資料庫裡,要登入之後才讀得到
+async function refreshPendingMapsAndRepaint(){
+  const ch = currentChannel;
+  let ship, pick;
+  try{
+    [ship, pick] = await Promise.all([loadPendingShipmentsMap(ch), loadPendingPicksMap(ch)]);
+  }catch(err){ return; }
+  if(currentChannel !== ch) return; // 讀取的時候使用者已經切到別的通路了
+  pendingShipmentMap = ship || {};
+  pendingPickMap = pick || {};
+  repaintPickListWithMaps();
+}
+
 // 全形字母數字轉半形,讓「Ｇ６」也能對照到顏色表裡的「G6」
 function normalizeCode(s){
   return String(s).replace(/[\uFF10-\uFF19\uFF21-\uFF3A\uFF41-\uFF5A]/g, c =>
@@ -4277,7 +4357,8 @@ function renderPickList(){
       const accHtml = accessories.map(a=>{
         const info = skuMap[a.sku];
         const label = info ? info.name : a.sku;
-        if(label === it.displayName) return ''; // 跟主品項同名,不重複列出
+        const normName = x => normalizeCode(x).replace(/[\s_]/g, '');
+        if(normName(label) === normName(it.displayName)) return ''; // 跟主品項同名,不重複列出
         return '<div class="pc-accessory">+ 附:' + escapeHtml(label) + ' x' + a.qty + '</div>';
       }).join('');
       const qtyClass = it.qty > 1 ? 'pc-item-qty qty-high' : 'pc-item-qty';
@@ -4937,6 +5018,8 @@ document.getElementById('headerDateLabel').textContent = today.getFullYear() + '
 
 // 頁面載入時,嘗試還原上次的處理進度(重新整理不會遺失)
 restoreState();
+// 還原出來的檢貨單,等 SKU 表/色票/訂單備註載入完成後再重畫一次,才會有色塊、附件名稱、備註提醒
+refreshMapsThenRepaint();
 
 // 註冊 service worker,讓瀏覽器認定這個網站可以「加入主畫面」
 if('serviceWorker' in navigator){
