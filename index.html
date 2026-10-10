@@ -725,7 +725,8 @@
     <div class="guide-section">
       <div class="guide-section-title">📌 最近更新</div>
       <ul class="guide-steps guide-changelog">
-        <li>叫貨註記多了「📝 加到工作規劃」按鈕(只有 Fitz 看得到):按一下會打開工作規劃,自動帶入叫貨內容,確認後就變成待辦</li>
+        <li>叫貨註記多了「📝 加到工作規劃」按鈕(只有 Fitz 看得到):按一下就會直接加進工作規劃的待辦</li>
+        <li>叫貨註記的「標記已處理」改成只有 Fitz 看得到,其他帳號只會看到「刪除」</li>
         <li>新增右下角「💬 留言板」:可以留言,也可以寫「叫貨註記」提醒 Fitz;留言和待處理的叫貨會在頁面最上方跑馬燈顯示</li>
         <li>檢貨單每張卡片多了「⏳ 稍後檢貨」:先放到下面晚點再檢,但不算已檢貨</li>
         <li>刪除訂單、確認完成之後,其他訂單已經勾好的品項不會再被清掉</li>
@@ -2857,7 +2858,8 @@ function renderBoardList(){
           ? '<span class="bd-tag bd-done">✓ 已處理' + (m.handledBy ? '(' + escapeHtml(boardShortName(m.handledBy)) + ')' : '') + '</span>'
           : '<span class="bd-tag bd-pending">待處理</span>')
       : '';
-    const handleBtn = (isReorder && m.status === 'active')
+    // 「標記已處理」只有負責叫貨的人(Fitz)看得到;其他帳號(例如 order)只能刪除
+    const handleBtn = (isReorder && m.status === 'active' && isReorderNotifyUser())
       ? '<button class="ghost" onclick="updateBoardMessage(\'' + m.id + '\', \'handled\')">標記已處理</button>'
       : '';
     // 叫貨註記:Fitz 可以一鍵加到「工作規劃」變成自己的待辦
