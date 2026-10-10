@@ -725,7 +725,7 @@
     <div class="guide-section">
       <div class="guide-section-title">📌 最近更新</div>
       <ul class="guide-steps guide-changelog">
-        <li>叫貨註記多了「📝 加到工作規劃」按鈕(只有 Fitz 看得到):按一下就會直接加進工作規劃的待辦</li>
+        <li>叫貨註記多了「📝 加到工作規劃」按鈕(只有 Fitz 看得到):按一下會複製叫貨內容並打開工作規劃,在工作規劃按 Ctrl+V 就加進待辦</li>
         <li>叫貨註記的「標記已處理」改成只有 Fitz 看得到,其他帳號只會看到「刪除」</li>
         <li>新增右下角「💬 留言板」:可以留言,也可以寫「叫貨註記」提醒 Fitz;留言和待處理的叫貨會在頁面最上方跑馬燈顯示</li>
         <li>檢貨單每張卡片多了「⏳ 稍後檢貨」:先放到下面晚點再檢,但不算已檢貨</li>
@@ -2881,16 +2881,21 @@ function renderBoardList(){
 const WORK_PLANNER_URL = 'https://claude.ai/artifact/X1fZ7rvB4KCDb9r3aSvK23';
 function addReorderToPlanner(id){
   const m = boardMessages.find(x => x.id === id); if(!m) return;
-  const d = new Date(); const ds = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-  const p = new URLSearchParams({
-    todo: '叫貨:' + (m.text || ''),
-    date: ds,
-    from: '出貨助手',
-    note: boardShortName(m.author) + ' 於 ' + fmtBoardTime(m) + ' 寫的叫貨註記'
-  });
-  window.open(WORK_PLANNER_URL + '?' + p.toString(), '_blank', 'noopener');
-  try{ localStorage.setItem('planner-added-' + id, '1'); }catch(e){}
-  renderBoardList();
+  // 先把叫貨內容複製起來,再打開工作規劃;在工作規劃按 Ctrl+V 就會直接加進待辦
+  const clip = '【叫貨】' + (m.text || '') + '\n— ' + boardShortName(m.author) + ' 於 ' + fmtBoardTime(m) + ' 寫的叫貨註記';
+  const done = () => {
+    window.open(WORK_PLANNER_URL, '_blank', 'noopener');
+    try{ localStorage.setItem('planner-added-' + id, '1'); }catch(e){}
+    renderBoardList();
+    showBoardToast('📋 已複製叫貨內容!到工作規劃按 Ctrl+V(Mac:⌘+V)就會加進待辦');
+  };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(clip).then(done, () => { fallbackCopy(clip); done(); });
+  }else{ fallbackCopy(clip); done(); }
+}
+function fallbackCopy(text){
+  const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); }catch(e){} ta.remove();
 }
 
 function openBoard(){
