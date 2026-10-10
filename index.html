@@ -74,34 +74,15 @@
   }
   .shell{max-width:1200px;margin:0 auto;padding:40px 24px 100px;}
 
-  .side-panel{
-    position:fixed;top:0;height:100vh;z-index:500;
-    background:var(--paper);
-    display:flex;flex-direction:column;width:260px;
-    box-shadow:0 0 8px rgba(0,0,0,0.06);
-  }
-  .guide-sidebar{left:0;border-right:1px solid var(--line);}
-  .global-live-sidebar{right:0;border-left:1px solid var(--line);}
-  .side-panel.collapsed{width:40px;}
-  .side-panel.collapsed .gls-body{display:none;}
-  .side-panel.collapsed .gls-header{
-    writing-mode:vertical-rl;padding:14px 8px;justify-content:flex-start;gap:8px;height:100%;
-  }
-  .side-panel.collapsed .gls-refresh-btn{display:none;}
-  .gls-header{
-    padding:12px 14px;font-size:12.5px;font-weight:700;color:var(--sage-dark);
-    display:flex;justify-content:space-between;align-items:center;gap:8px;
-    border-bottom:1px solid var(--line);background:var(--ok-soft);white-space:nowrap;
-  }
-  .gls-header-label{flex:1;}
   .gls-refresh-btn{
-    background:none;border:none;cursor:pointer;font-size:14px;color:var(--sage-dark);
-    padding:2px 4px;line-height:1;border-radius:4px;
+    background:var(--paper);border:1px solid var(--line);cursor:pointer;font-size:12.5px;color:var(--sage-dark);
+    font-weight:600;padding:5px 10px;border-radius:6px;font-family:inherit;
   }
-  .gls-refresh-btn:hover{background:rgba(0,0,0,0.06);}
-  .gls-refresh-btn.spinning{animation:gls-spin 0.6s linear;}
+  .gls-refresh-btn:hover{background:var(--ok-soft);}
+  .modal-head-actions{display:flex;align-items:center;gap:8px;}
+  .live-spin{display:inline-block;}
+  .live-spin.spinning{animation:gls-spin 0.6s linear;}
   @keyframes gls-spin{ from{transform:rotate(0deg);} to{transform:rotate(360deg);} }
-  .gls-body{flex:1;overflow-y:auto;padding:12px 14px;}
   .gls-cell{margin-bottom:16px;}
   .gls-cell:last-child{margin-bottom:0;}
   .gls-cell .gls-name{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:2px;}
@@ -114,15 +95,8 @@
   .gls-missing-row span:last-child{color:var(--warn);font-weight:600;flex-shrink:0;}
   .gls-empty{font-size:12.5px;color:var(--ink-soft);}
 
-  .guide-section{margin-bottom:20px;}
-  .guide-section:last-child{margin-bottom:0;}
-  .guide-section-title{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:6px;}
-  .guide-changelog{list-style:none;padding-left:0;background:var(--ok-soft);border-radius:8px;padding:10px 12px;}
-  .guide-changelog li{position:relative;padding-left:14px;}
-  .guide-changelog li:before{content:'•';position:absolute;left:0;color:var(--sage-dark);}
 
   /* ===== 留言板 / 叫貨註記 ===== */
-  .bd-planner{color:#2F5C93;font-weight:600;}
   .board-marquee{
     position:sticky;top:0;z-index:400;display:flex;align-items:center;gap:10px;
     background:#FFF6DC;border:1px solid #EBD79B;border-radius:8px;
@@ -137,13 +111,13 @@
   .bm-item small{color:#9A8A5A;font-size:11.5px;}
   .bm-reorder{color:#9A3B41;font-weight:700;}
   .bm-reorder small{color:#B07A7E;}
-  .board-fab{
-    position:fixed;right:56px;bottom:24px;z-index:480;background:var(--sage);color:#fff;border:none;
-    border-radius:24px;padding:10px 16px;font-size:13.5px;font-weight:700;cursor:pointer;
-    box-shadow:0 2px 10px rgba(0,0,0,0.22);font-family:inherit;
+  .fab-bar{position:fixed;right:24px;bottom:24px;z-index:480;display:flex;gap:10px;}
+  .fab-btn{
+    background:var(--sage);color:#fff;border:none;border-radius:24px;padding:10px 16px;
+    font-size:13.5px;font-weight:700;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,0.22);font-family:inherit;
   }
-  .board-fab:hover{opacity:0.92;}
-  .global-live-sidebar:not(.collapsed) ~ .board-fab{right:276px;}
+  .fab-btn:hover{opacity:0.92;}
+  .live-badge{background:var(--sage-dark);}
   .board-badge{
     display:inline-block;margin-left:8px;min-width:18px;padding:1px 6px;border-radius:10px;
     background:#E0524F;color:#fff;font-size:11.5px;text-align:center;
@@ -176,15 +150,7 @@
     padding:10px 16px;border-radius:8px;margin-bottom:20px;cursor:pointer;
   }
   .update-banner:hover{opacity:0.9;}
-  .guide-steps{margin:0;padding-left:18px;font-size:12.5px;color:var(--ink-soft);line-height:1.7;}
-  .guide-steps li{margin-bottom:6px;}
-  .guide-steps ul{margin:4px 0 4px 4px;padding-left:16px;list-style:circle;}
-  .guide-steps ul li{margin-bottom:2px;}
 
-  @media (max-width:900px){
-    .side-panel{width:auto;max-width:80vw;}
-    .side-panel:not(.collapsed) .gls-body{width:230px;}
-  }
   header.top{margin-bottom:36px;}
   header.top .eyebrow{
     font-size:13px;color:var(--sage-dark);font-weight:600;letter-spacing:0.02em;margin-bottom:6px;
@@ -603,6 +569,7 @@
   }
   .pick-card-later .pc-later-tag{display:inline-block;}
   .pick-card-done .pc-later-btn{display:none;}
+  .pc-combo-sep{display:inline-block;margin:0 8px;font-weight:700;font-size:16px;color:var(--ink-soft);vertical-align:1px;}
   .pick-card .pc-scent-tag{
     display:inline-block;font-size:18px;font-weight:600;background:var(--amber-soft);color:var(--ink);
     padding:4px 14px;border-radius:0;margin-right:5px;vertical-align:1px;
@@ -642,6 +609,12 @@
   .pick-grid-wrap{flex:1;min-width:0;}
   .sidebar-summary{background:var(--bg);border-radius:10px;padding:14px 16px;}
   .sidebar-summary-title{font-size:13px;font-weight:700;color:var(--ink-soft);letter-spacing:0.02em;margin-bottom:6px;}
+  .sidebar-summary-head{display:flex;justify-content:space-between;align-items:center;gap:8px;}
+  .ts-print-btn{
+    background:var(--paper);border:1px solid var(--line);border-radius:6px;color:var(--sage-dark);
+    font-size:12px;font-weight:600;padding:3px 9px;cursor:pointer;font-family:inherit;letter-spacing:0;
+  }
+  .ts-print-btn:hover{background:var(--ok-soft);}
   @media (max-width:900px){
     .pick-layout{flex-direction:column;}
     .pick-sidebar{position:static;width:100%;max-height:none;}
@@ -715,102 +688,24 @@
   🔄 有新版本可以用,點這裡重新整理(建議先確認手上的檢貨進度不會弄丟再點)
 </div>
 
-<div class="side-panel guide-sidebar no-print collapsed" id="guideSidebar">
-  <div class="gls-header">
-    <span onclick="toggleGuideSidebar()" class="gls-header-label" style="cursor:pointer;">操作指南</span>
-    <span onclick="toggleGuideSidebar()" id="guideToggleIcon" style="cursor:pointer;">▸</span>
-  </div>
-  <div class="gls-body" id="guideBody">
-
-    <div class="guide-section">
-      <div class="guide-section-title">📌 最近更新</div>
-      <ul class="guide-steps guide-changelog">
-        <li>叫貨註記多了「📝 加到工作規劃」按鈕(只有 Fitz 看得到):按一下會複製叫貨內容並打開工作規劃,在工作規劃按 Ctrl+V 就加進待辦</li>
-        <li>叫貨註記的「標記已處理」改成只有 Fitz 看得到,其他帳號只會看到「刪除」</li>
-        <li>新增右下角「💬 留言板」:可以留言,也可以寫「叫貨註記」提醒 Fitz;留言和待處理的叫貨會在頁面最上方跑馬燈顯示</li>
-        <li>檢貨單每張卡片多了「⏳ 稍後檢貨」:先放到下面晚點再檢,但不算已檢貨</li>
-        <li>刪除訂單、確認完成之後,其他訂單已經勾好的品項不會再被清掉</li>
-        <li>檢貨單勾選完成的訂單會自動移到清單最下面,還沒檢完的一直留在上面,不用一直往下滑找</li>
-        <li>出貨回報(LINE):沒配對到黑貓單號的訂單,自動排除在回報檔案外,不會因為缺單號整份檔案沒辦法回報;同一張訂單編號重複出現時會先詢問要不要繼續</li>
-        <li>PINKOI 改用實際訂單檔案的欄位名稱重新對照(之前是用猜的),品名會合併規格顯示,並新增「跨境/國際配送」物流分類</li>
-        <li>補寄清單拆成「儲存單號」跟「確認完成」兩個獨立按鈕,可以一個人先存單號、另一個人之後再按完成結案</li>
-        <li>修正補寄的寄件人資訊沒顯示的問題,現在不管選哪種物流方式都會顯示</li>
-        <li>數量2件以上的檢貨卡片,下方會加註文字「此單有數量2件以上的商品」,不只靠底色提醒</li>
-        <li>補寄表單改成緊湊的兩欄排版(標籤+欄位同一行),不再又長又佔畫面</li>
-        <li>「補寄清單」待處理項目,現在也會依各自的物流方式顯示快捷連結(之前只有新增表單那時候才有)</li>
-        <li>補寄表單加上欄位標籤,不再只顯示選到的值搞不清楚是哪一欄;選好物流方式會顯示對應的出貨網站快捷連結+寄件人資訊</li>
-        <li>檢貨單這批如果有順豐訂單,上方會顯示順豐出貨網站的快捷連結</li>
-        <li>蝦皮教學截圖加上紅框標示,直接指出要點的按鈕位置</li>
-        <li>上傳訂單檔案區塊旁邊多了「?」按鈕,點開有該通路的詳細圖文教學(蝦皮已完整,含3張實際截圖)</li>
-        <li>修正「數量大於2」的判斷門檻,改成「2件以上」就會標紅提醒</li>
-        <li>蝦皮可以一次選多個檔案上傳,不用一種物流方式分開匯入</li>
-      </ul>
-    </div>
-
-    <div class="guide-section">
-      <div class="guide-section-title">① 出貨準備</div>
-      <ol class="guide-steps">
-        <li>上方選通路(LINE禮物/官網/PINKOI/蝦皮)</li>
-        <li>到該平台後台下載今天的訂單檔案:
-          <ul>
-            <li>LINE禮物:賣家後台下載訂單 Excel</li>
-            <li>官網:Shopify 後台匯出訂單 CSV</li>
-            <li>蝦皮:賣家中心下載裝箱單</li>
-            <li>PINKOI:賣家後台下載訂單檔</li>
-          </ul>
-        </li>
-        <li>把檔案拖曳到框框裡,或點擊選擇檔案</li>
-        <li>按「開始處理」,系統會自動整理成檢貨單</li>
-        <li>依檢貨單核對商品,勾選「已檢貨」(整張)或個別品項打勾(部分缺貨時用)</li>
-        <li>檢完按「確認完成揀貨」——已完成的訂單會從畫面移除,還沒完成的留著繼續處理</li>
-      </ol>
-    </div>
-
-    <div class="guide-section">
-      <div class="guide-section-title">② 出貨回報(黑貓配送才需要)</div>
-      <ol class="guide-steps">
-        <li>黑貓收件後,到黑貓網站下載追蹤單號 CSV</li>
-        <li>回到這裡「出貨回報」頁面,上傳 LINE/官網的訂單檔 + 黑貓追蹤 CSV</li>
-        <li>系統自動比對,把黑貓單號填進對應訂單</li>
-        <li>7-11/全家/順豐不用這步驟,因為出貨當下就有單號了</li>
-      </ol>
-    </div>
-
-    <div class="guide-section">
-      <div class="guide-section-title">③ 出貨核對</div>
-      <ol class="guide-steps">
-        <li>填寫「今日出貨檢核」(填寫人+檢查項目)</li>
-        <li>看「即時進行中」(右側欄)了解各通路現在進度</li>
-        <li>看「揀貨進度」確認今天各通路總共完成幾張</li>
-        <li>核對「今日物流件數」是否跟物流商告知的件數一致</li>
-      </ol>
-    </div>
-
-    <div class="guide-section">
-      <div class="guide-section-title">需要補寄的時候</div>
-      <ol class="guide-steps">
-        <li>「出貨準備」頁面下方填補寄表單</li>
-        <li>實際寄出後,回來填補寄單號、按「確認完成」</li>
-        <li>「訂單查詢」頁面可以搜歷史訂單或補寄記錄</li>
-      </ol>
-    </div>
-
-  </div>
+<div class="fab-bar no-print">
+  <button class="fab-btn" id="liveFab" onclick="openLive()" title="各通路的即時進度、還缺的商品">📡 即時進行中<span class="board-badge live-badge" id="liveBadge" style="display:none;">0</span></button>
+  <button class="fab-btn" id="boardFab" onclick="openBoard()" title="留言板 / 叫貨註記">💬 留言板<span class="board-badge" id="boardBadge" style="display:none;">0</span></button>
 </div>
 
-<div class="side-panel global-live-sidebar no-print collapsed" id="globalLiveSidebar">
-  <div class="gls-header">
-    <span onclick="toggleGlobalSidebar()" class="gls-header-label" style="cursor:pointer;">即時進行中</span>
-    <button class="gls-refresh-btn" onclick="event.stopPropagation(); printMissingList();" title="列印缺貨清單">🖨</button>
-    <button class="gls-refresh-btn" onclick="event.stopPropagation(); refreshLiveSessions();" title="手動重新整理">⟳</button>
-    <span onclick="toggleGlobalSidebar()" id="glsToggleIcon" style="cursor:pointer;">◂</span>
-  </div>
-  <div class="gls-body" id="glsBody">
-    <div id="glsRow"></div>
+<div class="modal-overlay no-print" id="liveModal" style="display:none;" onclick="if(event.target===this) closeLive()">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>📡 即時進行中</h3>
+      <div class="modal-head-actions">
+        <button class="gls-refresh-btn" onclick="printMissingList()" title="列印缺貨清單(熱感應機也可以)">🖨 列印缺貨</button>
+        <button class="gls-refresh-btn" id="liveRefreshBtn" onclick="refreshLiveSessions()" title="手動重新整理"><span class="live-spin">⟳</span> 重新整理</button>
+        <button class="modal-close-btn" onclick="closeLive()">✕</button>
+      </div>
+    </div>
+    <div class="modal-body"><div id="glsRow"></div></div>
   </div>
 </div>
-
-<button class="board-fab no-print" id="boardFab" onclick="openBoard()" title="留言板 / 叫貨註記">💬 留言板<span class="board-badge" id="boardBadge" style="display:none;">0</span></button>
 
 <div class="board-toast no-print" id="boardToast" style="display:none;" onclick="openBoard(); this.style.display='none';"></div>
 
@@ -1052,7 +947,7 @@
           <input type="checkbox" id="hideDoneCheckbox" onchange="toggleHideDone(this.checked)"> 只顯示未檢貨
         </label>
         <div class="sidebar-summary" id="todaySummaryPanel" style="display:none;">
-          <div class="sidebar-summary-title">這批還剩要出貨</div>
+          <div class="sidebar-summary-title sidebar-summary-head"><span>這批還剩要出貨</span><button class="ts-print-btn" onclick="printRemainingList()" title="列印這份清單(熱感應機也可以)">🖨 列印</button></div>
           <div id="todaySummaryList"></div>
         </div>
       </aside>
@@ -1304,7 +1199,7 @@
 </div>
 
 <script>
-const APP_VERSION = '20261008-1'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20261010-1'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -2579,7 +2474,7 @@ async function startLiveSessionListener(){
 
 // 手動強制重新抓一次資料(不透過即時監聽的快取,直接問資料庫要最新的)
 async function refreshLiveSessions(){
-  const btn = document.querySelector('.gls-refresh-btn');
+  const btn = document.querySelector('#liveRefreshBtn .live-spin');
   if(btn) btn.classList.add('spinning');
   await waitForFirebase();
   const {db, collection, getDocs} = window.__fb;
@@ -2607,6 +2502,15 @@ function renderLiveSessions(sessions, cumulative){
   const row = document.getElementById('glsRow');
   if(!row) return;
   const todayStr = ymd(new Date());
+  // 右下角「即時進行中」按鈕上的數字:今天正在進行(還沒確認完成)的通路有幾個
+  const inProgressCount = Object.keys(labels).filter(ch =>
+    sessions[ch] && sessions[ch].total && sessions[ch].date === todayStr && !sessions[ch].confirmed
+  ).length;
+  const liveBadge = document.getElementById('liveBadge');
+  if(liveBadge){
+    liveBadge.textContent = inProgressCount;
+    liveBadge.style.display = inProgressCount > 0 ? 'inline-block' : 'none';
+  }
   // 有即時進行中的資料,或今天已經有累加紀錄,都算要顯示的通路
   const activeChannels = Object.keys(labels).filter(ch =>
     (sessions[ch] && sessions[ch].total && sessions[ch].date === todayStr) ||
@@ -2632,7 +2536,7 @@ function renderLiveSessions(sessions, cumulative){
     if(isToday && !s.confirmed && s.pendingSkus && s.pendingSkus.length > 0){
       missingHtml = '<div class="gls-missing-title">還缺(共' + s.pendingSkus.length + '項):</div>' +
         '<div class="gls-missing-list">' +
-        s.pendingSkus.map(p => '<div class="gls-missing-row"><span>' + escapeHtml(p.name || p.sku) + '</span><span>x' + p.qty + '</span></div>').join('') +
+        s.pendingSkus.map(p => '<div class="gls-missing-row"><span>' + escapeHtml(spaceComboX(p.name || p.sku)) + '</span><span>x' + p.qty + '</span></div>').join('') +
         '</div>';
     }
     return '<div class="gls-cell"><div class="gls-name">' + labels[ch] + '</div>' +
@@ -2665,7 +2569,7 @@ function printMissingList(){
     return '<div class="print-missing-channel">' +
       '<h3>' + labels[ch] + '(共' + s.pendingSkus.length + '項)</h3>' +
       '<table class="print-missing-table">' +
-      s.pendingSkus.map(p => '<tr><td>' + escapeHtml(p.name || p.sku) + '</td><td>x' + p.qty + '</td></tr>').join('') +
+      s.pendingSkus.map(p => '<tr><td>' + escapeHtml(spaceComboX(p.name || p.sku)) + '</td><td>x' + p.qty + '</td></tr>').join('') +
       '</table>' +
       '</div>';
   }).join('');
@@ -2740,13 +2644,6 @@ function openChannelGuide(){
 
 function closeChannelGuide(){
   document.getElementById('channelGuideModal').style.display = 'none';
-}
-
-function toggleGlobalSidebar(){
-  document.getElementById('globalLiveSidebar').classList.toggle('collapsed');
-  const icon = document.getElementById('glsToggleIcon');
-  const collapsed = document.getElementById('globalLiveSidebar').classList.contains('collapsed');
-  icon.textContent = collapsed ? '◂' : '▸';
 }
 
 // ===== 留言板 / 叫貨註記 =====
@@ -2858,53 +2755,37 @@ function renderBoardList(){
           ? '<span class="bd-tag bd-done">✓ 已處理' + (m.handledBy ? '(' + escapeHtml(boardShortName(m.handledBy)) + ')' : '') + '</span>'
           : '<span class="bd-tag bd-pending">待處理</span>')
       : '';
-    // 「標記已處理」只有負責叫貨的人(Fitz)看得到;其他帳號(例如 order)只能刪除
-    const handleBtn = (isReorder && m.status === 'active' && isReorderNotifyUser())
+    const handleBtn = (isReorder && m.status === 'active')
       ? '<button class="ghost" onclick="updateBoardMessage(\'' + m.id + '\', \'handled\')">標記已處理</button>'
-      : '';
-    // 叫貨註記:Fitz 可以一鍵加到「工作規劃」變成自己的待辦
-    let plannerAdded = false; try{ plannerAdded = !!localStorage.getItem('planner-added-' + m.id); }catch(e){}
-    const plannerBtn = (isReorder && m.status === 'active' && isReorderNotifyUser())
-      ? '<button class="ghost bd-planner" onclick="addReorderToPlanner(\'' + m.id + '\')">' + (plannerAdded ? '✓ 已加到工作規劃(再加一次)' : '📝 加到工作規劃') + '</button>'
       : '';
     return '<div class="bd-item' + (isReorder ? ' bd-item-reorder' : '') + '">' +
       '<div class="bd-head">' + (isReorder ? '📦 叫貨註記' : '💬 留言') + statusTag +
         '<span class="bd-meta">' + escapeHtml(boardShortName(m.author)) + '・' + fmtBoardTime(m) + '</span></div>' +
       '<div class="bd-text">' + escapeHtml(m.text || '') + '</div>' +
-      '<div class="bd-actions">' + plannerBtn + handleBtn +
+      '<div class="bd-actions">' + handleBtn +
         '<button class="ghost" onclick="updateBoardMessage(\'' + m.id + '\', \'removed\')">刪除</button></div>' +
       '</div>';
   }).join('');
 }
 
-// ===== 叫貨註記 → 工作規劃 =====
-const WORK_PLANNER_URL = 'https://claude.ai/artifact/X1fZ7rvB4KCDb9r3aSvK23';
-function addReorderToPlanner(id){
-  const m = boardMessages.find(x => x.id === id); if(!m) return;
-  // 先把叫貨內容複製起來,再打開工作規劃;在工作規劃按 Ctrl+V 就會直接加進待辦
-  const clip = '【叫貨】' + (m.text || '') + '\n— ' + boardShortName(m.author) + ' 於 ' + fmtBoardTime(m) + ' 寫的叫貨註記';
-  const done = () => {
-    window.open(WORK_PLANNER_URL, '_blank', 'noopener');
-    try{ localStorage.setItem('planner-added-' + id, '1'); }catch(e){}
-    renderBoardList();
-    showBoardToast('📋 已複製叫貨內容!到工作規劃按 Ctrl+V(Mac:⌘+V)就會加進待辦');
-  };
-  if(navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(clip).then(done, () => { fallbackCopy(clip); done(); });
-  }else{ fallbackCopy(clip); done(); }
-}
-function fallbackCopy(text){
-  const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
-  document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); }catch(e){} ta.remove();
-}
-
 function openBoard(){
+  closeLive();
   document.getElementById('boardModal').style.display = 'flex';
   renderBoardList();
   updateBoardNotifyBtn();
 }
 function closeBoard(){
   document.getElementById('boardModal').style.display = 'none';
+}
+
+// 即時進行中:跟留言板一樣,點右下角按鈕才開;資料還是一直在背景即時更新,打開就是最新的
+function openLive(){
+  closeBoard();
+  document.getElementById('liveModal').style.display = 'flex';
+}
+function closeLive(){
+  const m = document.getElementById('liveModal');
+  if(m) m.style.display = 'none';
 }
 
 async function submitBoardMessage(){
@@ -2968,13 +2849,6 @@ async function enableBoardNotifications(){
   if(p === 'granted'){
     try{ new Notification('JEIDI', {body: '桌面通知已開啟:有新的叫貨註記時會跳出提醒(工具的網頁要保持開著)'}); }catch(e){}
   }
-}
-
-function toggleGuideSidebar(){
-  document.getElementById('guideSidebar').classList.toggle('collapsed');
-  const icon = document.getElementById('guideToggleIcon');
-  const collapsed = document.getElementById('guideSidebar').classList.contains('collapsed');
-  icon.textContent = collapsed ? '◂' : '▸';
 }
 
 function switchReportChannel(ch){
@@ -4264,17 +4138,35 @@ function tagScentCodes(name){
     let restText = raw.slice(match.start + codeLen, segEnd);
     // 代號後面緊接的一個分隔符號(底線/間隔號/空白)拿掉,色籤裡看起來更乾淨
     if(/^[_・\s]/.test(restText)) restText = restText.slice(1);
+    // 組合品名的「X」是「和」的意思(例如 G6擴香XG6噴霧):後面緊接著下一個代號時,
+    // 把 X 從這個色籤拿出來,獨立顯示在兩個色籤中間,不要黏在前一個品名後面
+    let comboSep = '';
+    if(i + 1 < matches.length && segEnd === matches[i+1].start){
+      const mm = restText.match(/(?<![A-Za-z])\s*[Xx×]\s*$/);
+      if(mm){ restText = restText.slice(0, mm.index); comboSep = 'X'; }
+    }
     // 代號固定用半形顯示(match.code 已經是正規化過的半形),避免全形寫法讓色籤忽大忽小
     const segText = match.code + restText;
 
     const bg = scentColorMap[match.code];
     const tagStyle = bg ? ' style="background:' + lightenColor(bg, 0.15) + ';border:1.5px solid ' + bg + ';"' : '';
     result += '<span class="pc-scent-tag"' + tagStyle + '>' + escapeHtml(segText) + '</span>';
+    if(comboSep) result += '<span class="pc-combo-sep">' + comboSep + '</span>';
 
     cursor = segEnd;
   });
   result += escapeHtml(raw.slice(cursor));
   return result;
+}
+
+// 一般文字(還剩清單、列印)裡的組合品名:把「G6擴香XG6噴霧」整理成「G6擴香 X G6噴霧」
+// 只有 X 後面緊接著香味代號、而且 X 前面不是英文字母(避免誤改 Box 之類的字)才會調整
+function spaceComboX(name){
+  const s = String(name || '');
+  const codes = Object.keys(scentColorMap);
+  if(codes.length === 0) return s;
+  const alt = codes.map(c => c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  return s.replace(new RegExp('(?<![A-Za-z])\\s*[Xx×]\\s*(?=(?:' + alt + '))', 'g'), ' X ');
 }
 
 function parseCombo(comboStr, ownSku){
@@ -4687,9 +4579,30 @@ function renderTodaySummary(){
   }
   document.getElementById('todaySummaryList').innerHTML =
     '<div class="today-summary-grid">' +
-    rows.map(r => '<div class="ts-item"><div class="ts-name">' + escapeHtml(r.name) + '</div><div class="ts-qty">' + r.qty + '</div></div>').join('') +
+    rows.map(r => '<div class="ts-item"><div class="ts-name">' + escapeHtml(spaceComboX(r.name)) + '</div><div class="ts-qty">' + r.qty + '</div></div>').join('') +
     '</div>';
   panel.style.display = 'block';
+}
+
+// 列印檢貨單左邊「這批還剩要出貨」的清單:只有品名跟數量,窄版表格,熱感應機也印得出來
+// (熱感應機在系統裡就是一台一般印表機,列印視窗選它就好)
+function printRemainingList(){
+  const rows = getPendingSkuBreakdown();
+  if(rows.length === 0){
+    alert('這批目前沒有還剩要出貨的商品。');
+    return;
+  }
+  const label = {line:'LINE', shop:'官網', shopee:'蝦皮', pinkoi:'PINKOI'}[currentChannel] || currentChannel;
+  const totalQty = rows.reduce((sum, r) => sum + r.qty, 0);
+  const area = document.getElementById('printMissingArea');
+  area.innerHTML = '<h2>還剩要出貨・' + escapeHtml(label) + '・' + ymd(new Date()) + '</h2>' +
+    '<div class="print-missing-channel">' +
+    '<h3>共 ' + rows.length + ' 項、' + totalQty + ' 件</h3>' +
+    '<table class="print-missing-table">' +
+    rows.map(r => '<tr><td>' + escapeHtml(spaceComboX(r.name)) + '</td><td>x' + r.qty + '</td></tr>').join('') +
+    '</table></div>';
+  document.body.classList.add('print-missing-mode');
+  window.print();
 }
 
 // 各通路的揀貨進度(按下「確認完成揀貨」才會記錄,不是勾選當下就即時送出)
