@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Safe to be here｜Jeidi 接地門市音樂</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#DCE4DA; --surface:#E8EDE5; --ink:#1F2B24; --soft:#4F5F55;
+  --fir:#2F4A3C; --lichen:#8FA383; --bark:#6B5844; --ring:rgba(47,74,60,.28);
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#16211B; --surface:#1D2A23; --ink:#DCE5D8; --soft:#9DAE9F;
+    --fir:#A9C29A; --lichen:#6E8565; --bark:#B79B7C; --ring:rgba(169,194,154,.26);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#16211B; --surface:#1D2A23; --ink:#DCE5D8; --soft:#9DAE9F;
+  --fir:#A9C29A; --lichen:#6E8565; --bark:#B79B7C; --ring:rgba(169,194,154,.26);
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px);height:100%}
+body{
+  margin:0;min-height:100%;background:var(--bg);color:var(--ink);
+  font-family:"Noto Serif TC","Songti TC","PMingLiU",serif;
+  display:flex;flex-direction:column;align-items:center;
+  padding:2.5rem 1.25rem 3rem;
+}
+main{width:100%;max-width:34rem;display:flex;flex-direction:column;align-items:center}
+
+/* 年輪 */
+.rings{
+  position:relative;width:min(72vw,320px);aspect-ratio:1;margin-bottom:2rem;
+  border:none;background:none;padding:0;cursor:pointer;color:var(--fir);
+  border-radius:50%;
+}
+.rings:focus-visible{outline:2px solid var(--fir);outline-offset:8px}
+.core{
+  position:absolute;inset:38%;border-radius:50%;
+  background:var(--fir);opacity:.88;
+  display:flex;align-items:center;justify-content:center;
+  transition:transform 1.2s ease;
+}
+.playing .core{animation:breathe 8s ease-in-out infinite}
+@keyframes breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+.core svg{width:34%;height:34%;fill:var(--bg)}
+.static-ring{position:absolute;border-radius:50%;border:1px solid var(--ring)}
+.ripple{
+  position:absolute;left:50%;top:50%;width:24%;height:24%;
+  border-radius:50%;border:1.5px solid var(--fir);
+  transform:translate(-50%,-50%) scale(1);opacity:.55;pointer-events:none;
+  animation:grow 6s ease-out forwards;
+}
+.ripple.wood{border-color:var(--bark);border-style:dotted}
+.ripple.cello{border-width:3px;opacity:.3;animation-duration:10s}
+@keyframes grow{to{transform:translate(-50%,-50%) scale(4.1);opacity:0}}
+
+h1{font-weight:300;font-size:clamp(2rem,7vw,2.75rem);letter-spacing:.01em;margin:0;text-align:center;line-height:1.2}
+.question{margin:.6rem 0 0;color:var(--soft);font-size:1.05rem;font-style:italic;text-align:center;min-height:1.6em;transition:opacity 2s}
+.status{margin:1.25rem 0 0;font-size:.9rem;color:var(--soft);text-align:center}
+
+.styles,.moods{display:flex;flex-wrap:wrap;justify-content:center;gap:.25rem;margin-top:2.25rem;padding:.3rem;border-radius:999px;background:var(--surface)}
+.styles button,.moods button{
+  font:inherit;font-size:.95rem;border:none;background:none;color:var(--soft);
+  padding:.55rem 1.05rem;border-radius:999px;cursor:pointer;
+}
+.styles button[aria-pressed="true"],.moods button[aria-pressed="true"]{background:var(--fir);color:var(--bg)}
+.styles button:focus-visible,.moods button:focus-visible{outline:2px solid var(--fir);outline-offset:2px}
+
+.desc+.styles{margin-top:1.25rem}
+.moods{margin-top:.75rem;background:transparent;border:1px solid var(--ring)}
+.desc{margin:.9rem 0 0;font-size:.92rem;color:var(--soft);text-align:center;min-height:1.6em;line-height:1.7}
+.panel{width:100%;margin-top:2rem;display:grid;gap:1.25rem}
+.row{display:flex;align-items:center;gap:1rem}
+.row label{flex:0 0 4.5rem;font-size:.95rem;color:var(--soft)}
+input[type=range]{flex:1;accent-color:var(--fir)}
+.layers{display:flex;flex-wrap:wrap;gap:.5rem}
+.layers button{
+  font:inherit;font-size:.9rem;padding:.45rem .9rem;border-radius:.5rem;cursor:pointer;
+  border:1px solid var(--ring);background:transparent;color:var(--soft);
+}
+.layers button[aria-pressed="true"]{border-color:var(--fir);color:var(--ink);background:var(--surface)}
+.layers button:focus-visible{outline:2px solid var(--fir);outline-offset:2px}
+.note{margin-top:2.5rem;font-size:.82rem;line-height:1.8;color:var(--soft);text-align:center;max-width:28rem}
+
+@media (prefers-reduced-motion:reduce){
+  .playing .core{animation:none}
+  .ripple{animation-duration:.01s}
+}
+</style>
+</head>
+<body>
+<main>
+  <button class="rings" id="play" aria-label="開始播放">
+    <span class="static-ring" style="inset:30%"></span>
+    <span class="static-ring" style="inset:18%"></span>
+    <span class="static-ring" style="inset:6%"></span>
+    <span class="core"><svg id="icon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></span>
+  </button>
+
+  <h1>Safe to be here</h1>
+  <p class="question" id="question">Have I done enough yet?</p>
+  <p class="status" id="status">點一下年輪開始播放</p>
+
+  <div class="styles" role="group" aria-label="整體調性">
+    <button data-edition="forest" aria-pressed="true">森林</button>
+    <button data-edition="dusk" aria-pressed="false">暮色</button>
+    <button data-edition="glow" aria-pressed="false">微光</button>
+  </div>
+  <p class="desc" id="edesc"></p>
+
+  <div class="styles" role="group" aria-label="版本">
+    <button data-style="rings" aria-pressed="true">年輪</button>
+    <button data-style="mist" aria-pressed="false">霧</button>
+    <button data-style="water" aria-pressed="false">水面</button>
+    <button data-style="strings" aria-pressed="false">弦</button>
+  </div>
+  <p class="desc" id="desc"></p>
+
+  <div class="moods" role="group" aria-label="時段">
+    <button data-mood="auto" aria-pressed="true">依時段</button>
+    <button data-mood="morning" aria-pressed="false">早晨</button>
+    <button data-mood="afternoon" aria-pressed="false">午後</button>
+    <button data-mood="evening" aria-pressed="false">打烊前</button>
+  </div>
+
+  <div class="panel">
+    <div class="row">
+      <label for="vol">音量</label>
+      <input type="range" id="vol" min="0" max="100" value="60">
+    </div>
+    <div class="row">
+      <label>聲部</label>
+      <div class="layers" role="group" aria-label="聲部">
+        <button data-layer="piano" aria-pressed="true">旋律</button>
+        <button data-layer="cello" aria-pressed="true">弦樂</button>
+        <button data-layer="air" aria-pressed="true">森林空氣</button>
+        <button data-layer="wood" aria-pressed="true">木質聲</button>
+      </div>
+    </div>
+  </div>
+
+  <p class="note">音樂由程式即時生成，不會重複，可長時間循環播放。播放期間請讓螢幕保持開啟。「依時段」會在中午 12 點切到午後、傍晚 6 點切到打烊前。</p>
+</main>
+
+<script>
+(function(){
+"use strict";
+
+/* ---------- 情緒設定 ---------- */
+const EDITIONS = {
+  forest:{label:"森林", toneCut:5200, wet:.65, padWave:"sawtooth", desc:"明亮溫暖的大調，像早晨的森林，最貼近「Safe to be here」。", moods:{
+  morning:{
+    label:"早晨", tempo:66, padCut:1150, melRoot:62, scale:[0,2,4,6,7,9,11],
+    chords:[[38,45,54,57,61],[40,47,56,59,62],[35,42,50,54,57],[38,45,54,57,61],[40,47,56,59,62],[42,49,57,61,64]],
+    chordBeats:16, noteProb:.72, restMin:4, restMax:10, woodProb:.045, celloProb:.4, air:1, bright:1
+  },
+  afternoon:{
+    label:"午後", tempo:60, padCut:900, melRoot:55, scale:[0,2,4,7,9],
+    chords:[[43,50,57,59,62],[40,47,55,59,62],[36,43,52,55,62],[43,50,57,59,62],[38,45,55,57,62],[36,43,52,55,62]],
+    chordBeats:16, noteProb:.62, restMin:6, restMax:12, woodProb:.05, celloProb:.6, air:.8, bright:.85
+  },
+  evening:{
+    label:"打烊前", tempo:54, padCut:680, melRoot:58, scale:[0,2,4,6,7,9,11],
+    chords:[[34,41,50,53,57],[34,43,52,55,60],[38,45,53,57,64],[34,41,50,53,57],[43,50,58,62,65],[34,43,52,55,60]],
+    chordBeats:20, noteProb:.55, restMin:8, restMax:16, woodProb:.02, celloProb:.7, air:.6, bright:.7
+  }
+}},
+  dusk:{label:"暮色", toneCut:2300, wet:.9, padWave:"sawtooth", desc:"小調的色彩，低沉、內省但不悲傷，像傍晚的木屋。", moods:{
+    morning:{label:"早晨", tempo:60, padCut:820, melRoot:62, scale:[0,2,3,5,7,9,10],
+      chords:[[38,45,53,57,64],[43,50,59,62,64],[34,41,50,53,57],[41,48,57,60,64],[38,45,53,57,64],[33,45,52,55,60]],
+      chordBeats:16, noteProb:.62, restMin:6, restMax:12, woodProb:.03, celloProb:.6, air:.8, bright:.75},
+    afternoon:{label:"午後", tempo:56, padCut:720, melRoot:57, scale:[0,2,3,5,7,9,10],
+      chords:[[33,40,48,52,59],[41,48,57,60,64],[38,45,53,57,64],[33,40,48,52,59],[40,47,55,59,62],[43,50,59,62,64]],
+      chordBeats:16, noteProb:.58, restMin:7, restMax:14, woodProb:.03, celloProb:.7, air:.7, bright:.7},
+    evening:{label:"打烊前", tempo:50, padCut:580, melRoot:60, scale:[0,2,3,5,7,9,10],
+      chords:[[36,43,51,55,62],[32,39,48,51,55],[39,46,55,58,62],[36,43,51,55,62],[41,48,57,60,65],[43,50,58,62,65]],
+      chordBeats:20, noteProb:.5, restMin:9, restMax:18, woodProb:.015, celloProb:.8, air:.55, bright:.6}
+  }},
+  glow:{label:"微光", toneCut:9500, wet:.75, padWave:"triangle", desc:"高音域、清澈透明的五聲音階，靈感來自日本八〇年代的環境音樂。", moods:{
+    morning:{label:"早晨", tempo:72, padCut:1400, melRoot:72, scale:[0,2,4,7,9],
+      chords:[[36,43,52,55,62],[41,48,55,57,64],[33,45,52,55,62],[36,43,52,55,62],[43,50,57,59,62],[41,48,55,57,64]],
+      chordBeats:16, noteProb:.6, restMin:4, restMax:9, woodProb:.05, celloProb:.2, air:.9, bright:1.2},
+    afternoon:{label:"午後", tempo:66, padCut:1250, melRoot:65, scale:[0,2,4,7,9],
+      chords:[[41,48,55,57,64],[34,41,50,57,60],[38,45,53,57,64],[41,48,55,57,64],[36,43,50,52,55],[34,41,50,57,60]],
+      chordBeats:16, noteProb:.58, restMin:5, restMax:11, woodProb:.05, celloProb:.3, air:.8, bright:1.1},
+    evening:{label:"打烊前", tempo:58, padCut:1000, melRoot:74, scale:[0,2,4,7,9],
+      chords:[[38,45,52,54,57],[43,50,57,59,66],[35,47,52,54,57],[38,45,52,54,57],[40,47,54,55,59],[43,50,57,59,66]],
+      chordBeats:20, noteProb:.5, restMin:7, restMax:14, woodProb:.03, celloProb:.35, air:.7, bright:.95}
+  }}
+};
+const STYLES = {
+  rings:{label:"年輪", desc:"鋼琴短句加上留白，大提琴和木質聲偶爾出現。"},
+  mist:{label:"霧", desc:"幾個音各自用不同週期循環、慢慢交錯，幾乎沒有旋律，最適合長時間播放。"},
+  water:{label:"水面", desc:"像拇指琴的輕柔分解和弦，有一點流動感，適合白天客人多的時候。"},
+  strings:{label:"弦", desc:"弦樂慢慢起伏的長和弦，最溫暖，也最安靜。"}
+};
+const QUESTIONS = ["Have I done enough yet?", "Safe to be here.", "慢一點也沒關係。", "Have I done enough yet?", "這裡可以待著。"];
+
+/* ---------- 偏好 ---------- */
+const store = {
+  get(k,d){try{const v=localStorage.getItem("jeidi-music:"+k);return v===null?d:JSON.parse(v)}catch(e){return d}},
+  set(k,v){try{localStorage.setItem("jeidi-music:"+k,JSON.stringify(v))}catch(e){}}
+};
+let editionKey = store.get("edition","forest"); if(!EDITIONS[editionKey]) editionKey="forest";
+let MOODS = EDITIONS[editionKey].moods;
+let moodMode = store.get("mood","auto");
+let styleKey = store.get("style","rings"); if(!STYLES[styleKey]) styleKey="rings";
+let volume = store.get("vol",60);
+let layerOn = store.get("layers",{piano:true,cello:true,air:true,wood:true});
+const LAYER_LEVEL = {pad:.9, piano:.8, cello:.55, air:.5, wood:.5};
+const LAYER_SEND = {pad:.6, piano:.55, cello:.6, air:.2, wood:.7};
+
+/* ---------- 音訊 ---------- */
+let ctx=null, master, tone, reverb, layers={}, airNodes=null;
+let playing=false, timer=null, nextTime=0, beat=0, chordIdx=0;
+let phraseLeft=0, restLeft=3, melIdx=4, mood=null, loops=[], curChord=null, wetGain=null, quickNext=false;
+const mtof = m => 440*Math.pow(2,(m-69)/12);
+const rand = (a,b) => a+Math.random()*(b-a);
+const pick = arr => arr[Math.floor(Math.random()*arr.length)];
+
+function makeIR(sec, decay){
+  const len=Math.floor(ctx.sampleRate*sec), buf=ctx.createBuffer(2,len,ctx.sampleRate);
+  for(let c=0;c<2;c++){
+    const d=buf.getChannelData(c); let last=0;
+    for(let i=0;i<len;i++){
+      const n=(Math.random()*2-1)*Math.pow(1-i/len,decay);
+      last = last*.6 + n*.4; d[i]=last;
+    }
+  }
+  return buf;
+}
+
+function initAudio(){
+  ctx = new (window.AudioContext||window.webkitAudioContext)();
+  const comp=ctx.createDynamicsCompressor();
+  comp.threshold.value=-20; comp.ratio.value=3; comp.attack.value=.05; comp.release.value=.6;
+  master=ctx.createGain(); master.gain.value=0;
+  tone=ctx.createBiquadFilter(); tone.type="lowpass"; tone.frequency.value=5200; tone.Q.value=.3;
+  tone.connect(master); master.connect(comp); comp.connect(ctx.destination);
+  reverb=ctx.createConvolver(); reverb.buffer=makeIR(6.5,2.6);
+  wetGain=ctx.createGain(); wetGain.gain.value=.65; reverb.connect(wetGain); wetGain.connect(tone);
+  const ag=ctx.createGain(), as=ctx.createGain();
+  ag.gain.value = layerOn.air ? LAYER_LEVEL.air : 0; as.gain.value=LAYER_SEND.air;
+  ag.connect(tone); ag.connect(as); as.connect(reverb);
+  layers={air:ag};
+  layers=makeLayers();
+  applyEditionColor(true);
+  startAir();
+}
+
+/* 每次切換調性或版本時，用新的一組聲部，舊的在 1.5 秒內淡出 */
+function makeLayers(){
+  const L={air:layers.air};
+  for(const name of ["pad","piano","cello","wood"]){
+    const g=ctx.createGain(), s=ctx.createGain();
+    g.gain.value = (name==="pad"||layerOn[name]) ? LAYER_LEVEL[name] : 0;
+    s.gain.value=LAYER_SEND[name];
+    g.connect(tone); g.connect(s); s.connect(reverb);
+    L[name]=g; L["_s"+name]=s;
+  }
+  return L;
+}
+function crossfade(){
+  if(!ctx) return;
+  const old=layers, t=ctx.currentTime, names=["pad","piano","cello","wood"];
+  layers=makeLayers(); quickNext=true;
+  names.forEach(n=>{
+    old[n].gain.cancelScheduledValues(t);
+    old[n].gain.setValueAtTime(old[n].gain.value,t);
+    old[n].gain.linearRampToValueAtTime(0,t+1.5);
+  });
+  setTimeout(()=>names.forEach(n=>{try{old[n].disconnect();old["_s"+n].disconnect()}catch(e){}}),6000);
+}
+function applyEditionColor(now){
+  if(!ctx) return;
+  const e=EDITIONS[editionKey], t=ctx.currentTime;
+  if(now){ tone.frequency.value=e.toneCut; wetGain.gain.value=e.wet; return; }
+  tone.frequency.setTargetAtTime(e.toneCut,t,.4);
+  wetGain.gain.setTargetAtTime(e.wet,t,.4);
+}
+
+function cleanup(nodes, at){
+  const src=nodes[0];
+  src.onended=()=>nodes.forEach(n=>{try{n.disconnect()}catch(e){}});
+}
+
+/* 長音鋪底 */
+function pad(notes,t,dur,amp){
+  amp = amp||.05;
+  const f=ctx.createBiquadFilter(); f.type="lowpass"; f.Q.value=.4;
+  f.frequency.setValueAtTime(mood.padCut*.6,t);
+  f.frequency.linearRampToValueAtTime(mood.padCut,t+dur*.5);
+  f.frequency.linearRampToValueAtTime(mood.padCut*.7,t+dur+5);
+  const g=ctx.createGain(); g.gain.setValueAtTime(0,t);
+  const att = quickNext ? 1.2 : 4.5; quickNext=false;
+  g.gain.linearRampToValueAtTime(amp,t+att);
+  g.gain.setValueAtTime(amp,t+dur);
+  g.gain.linearRampToValueAtTime(0,t+dur+5.5);
+  f.connect(g); g.connect(layers.pad);
+  const oscs=[];
+  notes.forEach((n,i)=>{
+    [-7,7].forEach(cents=>{
+      const o=ctx.createOscillator(); o.type= i===0?"triangle":EDITIONS[editionKey].padWave;
+      o.frequency.value=mtof(n); o.detune.value=cents+rand(-2,2);
+      const og=ctx.createGain(); og.gain.value= i===0 ? .9 : .32;
+      o.connect(og); og.connect(f); o.start(t); o.stop(t+dur+6);
+      oscs.push(o,og);
+    });
+  });
+  oscs[0].onended=()=>{oscs.forEach(n=>{try{n.disconnect()}catch(e){}});f.disconnect();g.disconnect()};
+}
+
+/* 柔和鋼琴 */
+function piano(m,t,vel){
+  const f0=mtof(m), out=ctx.createGain(), pan=ctx.createStereoPanner?ctx.createStereoPanner():ctx.createGain();
+  if(pan.pan) pan.pan.value=rand(-.35,.35);
+  const lp=ctx.createBiquadFilter(); lp.type="lowpass";
+  lp.frequency.setValueAtTime(2600*mood.bright,t); lp.frequency.exponentialRampToValueAtTime(700,t+3);
+  const dec=rand(3.2,4.8);
+  out.gain.setValueAtTime(0,t); out.gain.linearRampToValueAtTime(.16*vel,t+.012);
+  out.gain.exponentialRampToValueAtTime(.0008,t+dec);
+  const parts=[[1,"sine",1],[2,"triangle",.22],[3,"sine",.06]], nodes=[];
+  parts.forEach(([mul,type,amp])=>{
+    const o=ctx.createOscillator(); o.type=type; o.frequency.value=f0*mul; o.detune.value=rand(-3,3);
+    const g=ctx.createGain(); g.gain.value=amp; o.connect(g); g.connect(lp);
+    o.start(t); o.stop(t+dec+.1); nodes.push(o,g);
+  });
+  lp.connect(out); out.connect(pan); pan.connect(layers.piano);
+  nodes[0].onended=()=>{nodes.forEach(n=>{try{n.disconnect()}catch(e){}});lp.disconnect();out.disconnect();pan.disconnect()};
+  visual("",t);
+}
+
+/* 大提琴長音 */
+function cello(m,t,dur,amp,cut,vis){
+  amp=amp||.075; cut=cut||850;
+  const o=ctx.createOscillator(); o.type="sawtooth"; o.frequency.value=mtof(m);
+  const vib=ctx.createOscillator(); vib.frequency.value=4.8; const vg=ctx.createGain();
+  vg.gain.setValueAtTime(0,t); vg.gain.linearRampToValueAtTime(6,t+2.5);
+  vib.connect(vg); vg.connect(o.detune);
+  const lp=ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=cut*mood.bright; lp.Q.value=1.2;
+  const g=ctx.createGain(); g.gain.setValueAtTime(0,t);
+  g.gain.linearRampToValueAtTime(amp,t+Math.min(4,dur/3)); g.gain.setValueAtTime(amp,t+dur-Math.min(4,dur/3));
+  g.gain.linearRampToValueAtTime(0,t+dur);
+  o.connect(lp); lp.connect(g); g.connect(layers.cello);
+  o.start(t); vib.start(t); o.stop(t+dur+.1); vib.stop(t+dur+.1);
+  o.onended=()=>[o,vib,vg,lp,g].forEach(n=>{try{n.disconnect()}catch(e){}});
+  if(vis!==false) visual("cello",t);
+}
+
+/* 鐘聲般的電鋼琴（霧） */
+function bell(m,t,vel){
+  const f0=mtof(m), out=ctx.createGain(), dec=rand(6,8.5), nodes=[];
+  const pan=ctx.createStereoPanner?ctx.createStereoPanner():ctx.createGain();
+  if(pan.pan) pan.pan.value=rand(-.5,.5);
+  out.gain.setValueAtTime(0,t); out.gain.linearRampToValueAtTime(.13*vel,t+.03);
+  out.gain.exponentialRampToValueAtTime(.0006,t+dec);
+  [[1,"sine",1],[2,"sine",.28],[3.01,"sine",.07]].forEach(([mul,type,amp])=>{
+    const o=ctx.createOscillator(); o.type=type; o.frequency.value=f0*mul; o.detune.value=rand(-4,4);
+    const g=ctx.createGain(); g.gain.value=amp; o.connect(g); g.connect(out);
+    o.start(t); o.stop(t+dec+.1); nodes.push(o,g);
+  });
+  out.connect(pan); pan.connect(layers.piano);
+  nodes[0].onended=()=>{nodes.forEach(n=>{try{n.disconnect()}catch(e){}});out.disconnect();pan.disconnect()};
+  visual("",t);
+}
+
+/* 拇指琴（水面） */
+function kalimba(m,t,vel){
+  const f0=mtof(m), out=ctx.createGain(), dec=rand(1.4,2.2), nodes=[];
+  const pan=ctx.createStereoPanner?ctx.createStereoPanner():ctx.createGain();
+  if(pan.pan) pan.pan.value=rand(-.4,.4);
+  out.gain.setValueAtTime(0,t); out.gain.linearRampToValueAtTime(.12*vel,t+.004);
+  out.gain.exponentialRampToValueAtTime(.0005,t+dec);
+  [[1,1,dec],[4.2,.12,.25],[2,.06,.6]].forEach(([mul,amp,d])=>{
+    const o=ctx.createOscillator(); o.type="sine"; o.frequency.value=f0*mul;
+    const g=ctx.createGain(); g.gain.setValueAtTime(amp,t); g.gain.exponentialRampToValueAtTime(.0005*amp+.00001,t+d);
+    o.connect(g); g.connect(out); o.start(t); o.stop(t+dec+.1); nodes.push(o,g);
+  });
+  out.connect(pan); pan.connect(layers.piano);
+  nodes[0].onended=()=>{nodes.forEach(n=>{try{n.disconnect()}catch(e){}});out.disconnect();pan.disconnect()};
+  if(Math.random()<.35) visual("",t);
+}
+
+/* 木質聲 */
+function wood(m,t){
+  const f0=mtof(m), nodes=[];
+  [[1,.12,.9],[3.98,.04,.25],[9.2,.015,.08]].forEach(([mul,amp,d])=>{
+    const o=ctx.createOscillator(); o.type="sine"; o.frequency.value=f0*mul;
+    const g=ctx.createGain(); g.gain.setValueAtTime(0,t);
+    g.gain.linearRampToValueAtTime(amp,t+.004); g.gain.exponentialRampToValueAtTime(.0005,t+d);
+    o.connect(g); g.connect(layers.wood); o.start(t); o.stop(t+d+.05); nodes.push(o,g);
+  });
+  nodes[0].onended=()=>nodes.forEach(n=>{try{n.disconnect()}catch(e){}});
+  visual("wood",t);
+}
+
+/* 森林空氣：持續的濾波噪音，緩慢起伏 */
+function startAir(){
+  const len=ctx.sampleRate*8, buf=ctx.createBuffer(2,len,ctx.sampleRate);
+  for(let c=0;c<2;c++){const d=buf.getChannelData(c);let b=0;
+    for(let i=0;i<len;i++){b=(b+.02*(Math.random()*2-1))/1.02;d[i]=b*3.2}}
+  const src=ctx.createBufferSource(); src.buffer=buf; src.loop=true;
+  const bp=ctx.createBiquadFilter(); bp.type="bandpass"; bp.frequency.value=520; bp.Q.value=.5;
+  const g=ctx.createGain(); g.gain.value=.16;
+  const lfo=ctx.createOscillator(); lfo.frequency.value=.045; const lg=ctx.createGain(); lg.gain.value=.09;
+  lfo.connect(lg); lg.connect(g.gain);
+  const lfo2=ctx.createOscillator(); lfo2.frequency.value=.023; const lg2=ctx.createGain(); lg2.gain.value=260;
+  lfo2.connect(lg2); lg2.connect(bp.frequency);
+  src.connect(bp); bp.connect(g); g.connect(layers.air);
+  src.start(); lfo.start(); lfo2.start();
+  airNodes={g};
+}
+
+/* ---------- 排程 ---------- */
+function melodyNotes(){
+  const n=[]; for(let o=0;o<2;o++) mood.scale.forEach(s=>n.push(mood.melRoot+12*o+s));
+  n.push(mood.melRoot+24); return n;
+}
+
+function nextChord(){
+  const ch = mood.chords[chordIdx % mood.chords.length];
+  chordIdx = Math.random()<.15 ? Math.floor(Math.random()*mood.chords.length) : chordIdx+1;
+  curChord=ch; return ch;
+}
+
+function stepRings(t,spb){
+  if(beat % mood.chordBeats === 0){
+    const ch=nextChord();
+    pad(ch,t,mood.chordBeats*spb);
+    if(Math.random()<mood.celloProb){
+      const root=ch[0]+12, choice=pick([root,root,root+7,ch[2]]);
+      cello(choice, t+rand(1,3)*spb, mood.chordBeats*spb*rand(.6,.9));
+    }
+  }
+  const notes=melodyNotes();
+  if(phraseLeft>0){
+    if(Math.random()<mood.noteProb){
+      melIdx = Math.max(0,Math.min(notes.length-1, melIdx+pick([-2,-1,-1,1,1,2,0])));
+      let m=notes[melIdx];
+      if(phraseLeft===1 && Math.random()<.6){
+        const tail=[2,4,5].map(i=>mood.scale[i%mood.scale.length]+mood.melRoot);
+        m=pick(tail); melIdx=notes.indexOf(m)>=0?notes.indexOf(m):melIdx;
+      }
+      piano(m, t+rand(0,.06), rand(.55,1));
+      if(Math.random()<.18) piano(m+pick([-5,-8,-12]), t+spb*.5+rand(0,.05), rand(.35,.55));
+      phraseLeft--;
+      if(phraseLeft===0) restLeft=Math.round(rand(mood.restMin,mood.restMax));
+    }
+  } else if(--restLeft<=0){
+    phraseLeft=Math.round(rand(3,6));
+  }
+  if(Math.random()<mood.woodProb) wood(pick(notes)+12, t+rand(0,spb*.5));
+}
+
+function stepMist(t,spb){
+  if(beat % (mood.chordBeats*2) === 0){
+    const ch=nextChord();
+    pad(ch,t,mood.chordBeats*2*spb,.03);
+    if(Math.random()<.25) cello(ch[0]+12, t+rand(2,6)*spb, mood.chordBeats*spb*1.2, .05, 700);
+  }
+}
+
+function stepWater(t,spb){
+  if(beat % mood.chordBeats === 0){
+    const ch=nextChord();
+    pad(ch,t,mood.chordBeats*spb,.035);
+  }
+  const pos = beat % 32;
+  if(pos>=28) return;              // 每段留四拍空白
+  const ch=curChord||mood.chords[0];
+  const tones=[];
+  ch.forEach(n=>{ let m=n; while(m<mood.melRoot-5) m+=12; tones.push(m); });
+  tones.sort((a,b)=>a-b);
+  const arp=[...new Set(tones)].concat([tones[0]+12, tones[1]+12]);
+  for(let k=0;k<2;k++){
+    if(Math.random()<.28) continue;
+    const idx = ((beat*2+k) % (arp.length*2-2));
+    const i2 = idx<arp.length ? idx : arp.length*2-2-idx;
+    kalimba(arp[i2], t+k*spb/2+rand(0,.03), rand(.5,.95));
+  }
+  if(Math.random()<mood.woodProb*.6) wood(pick(melodyNotes())+12, t+rand(0,spb*.5));
+}
+
+function stepStrings(t,spb){
+  if(beat % mood.chordBeats === 0){
+    const ch=nextChord(), dur=mood.chordBeats*spb+4;
+    cello(ch[0], t, dur+2, .06, 500);
+    ch.slice(1).forEach((n,i)=>{
+      cello(n + (i>=2?0:12), t+rand(0,1.5), dur, .028, 1100, false);
+    });
+    pad(ch,t,mood.chordBeats*spb,.02);
+  }
+  if(beat % mood.chordBeats === Math.round(mood.chordBeats/2) && Math.random()<.35){
+    const m=pick(melodyNotes().slice(3))+12;
+    cello(m, t, mood.chordBeats*spb*.45, .022, 1600, false);
+  }
+}
+
+function step(t){
+  const spb=60/mood.tempo;
+  if(styleKey==="mist") stepMist(t,spb);
+  else if(styleKey==="water") stepWater(t,spb);
+  else if(styleKey==="strings") stepStrings(t,spb);
+  else stepRings(t,spb);
+  beat++;
+}
+
+function initLoops(){
+  const notes=melodyNotes(), periods=[17.3,20.9,23.7,27.1,31.3,19.1];
+  const picks=[0,2,4,5,7,9].map(i=>notes[Math.min(i,notes.length-1)]);
+  const scaleF=66/mood.tempo, now=ctx?ctx.currentTime:0;
+  loops=picks.map((n,i)=>({note:n, period:periods[i]*scaleF, next:now+.5+rand(0,periods[i]*scaleF*.8)}));
+}
+function loopTick(){
+  if(styleKey!=="mist") return;
+  const horizon=ctx.currentTime+1.6;
+  loops.forEach(v=>{
+    if(v.next < ctx.currentTime-.5) v.next=ctx.currentTime+rand(0,v.period);
+    while(v.next < horizon){ bell(v.note, v.next, rand(.6,1)); v.next+=v.period; }
+  });
+}
+
+function scheduler(){
+  if(nextTime < ctx.currentTime-.5) nextTime=ctx.currentTime+.2;
+  while(nextTime < ctx.currentTime+1.6){
+    step(nextTime);
+    nextTime += 60/mood.tempo;
+  }
+  loopTick();
+}
+
+/* ---------- 情緒切換 ---------- */
+function currentMoodKey(){
+  if(moodMode!=="auto") return moodMode;
+  const h=new Date().getHours();
+  return h<12 ? "morning" : h<18 ? "afternoon" : "evening";
+}
+function resetPattern(){
+  chordIdx=0; beat=0; phraseLeft=0; restLeft=2; melIdx=4; curChord=null;
+  if(ctx){ nextTime=Math.max(nextTime, ctx.currentTime+.2); initLoops(); }
+}
+function applyMood(){
+  const key=currentMoodKey();
+  if(mood!==MOODS[key]){
+    mood=MOODS[key]; resetPattern();
+    if(ctx && airNodes) airNodes.g.gain.setTargetAtTime(.16*mood.air, ctx.currentTime, 4);
+  }
+  updateStatus();
+}
+
+/* ---------- 視覺 ---------- */
+const ringsEl=document.getElementById("play");
+const reduce=window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+function visual(kind,t){
+  if(reduce || document.hidden) return;
+  const delay=Math.max(0,(t-ctx.currentTime)*1000);
+  setTimeout(()=>{
+    const r=document.createElement("span"); r.className="ripple "+kind;
+    ringsEl.appendChild(r); setTimeout(()=>r.remove(),10500);
+  },delay);
+}
+
+/* ---------- 控制 ---------- */
+const statusEl=document.getElementById("status"), qEl=document.getElementById("question"), icon=document.getElementById("icon");
+let wakeLock=null, qTimer=null, moodTimer=null, guard=null;
+
+function updateStatus(){
+  if(!playing){statusEl.textContent="點一下年輪開始播放";return}
+  statusEl.textContent = "播放中：" + EDITIONS[editionKey].label + "，" + STYLES[styleKey].label + "，" + MOODS[currentMoodKey()].label + (moodMode==="auto"?"（依時段）":"");
+}
+async function keepAwake(){
+  try{ if("wakeLock" in navigator) wakeLock=await navigator.wakeLock.request("screen"); }catch(e){}
+}
+document.addEventListener("visibilitychange",()=>{ if(playing && document.visibilityState==="visible"){ keepAwake(); if(ctx) ctx.resume().catch(()=>{}); } });
+document.addEventListener("pointerdown",e=>{
+  if(e.target.closest(".rings")) return;
+  if(playing && ctx && ctx.state!=="running") ctx.resume().catch(()=>{});
+});
+
+async function start(){
+  if(!ctx){
+    initAudio();
+    ctx.onstatechange=()=>{
+      if(!playing) return;
+      if(ctx.state==="running") updateStatus();
+      else statusEl.textContent="播放被中斷，點一下畫面繼續";
+    };
+  }
+  await ctx.resume();
+  applyMood();
+  playing=true;
+  master.gain.cancelScheduledValues(ctx.currentTime);
+  master.gain.setValueAtTime(master.gain.value,ctx.currentTime);
+  master.gain.linearRampToValueAtTime(volume/100*.9,ctx.currentTime+4);
+  nextTime=ctx.currentTime+.2; initLoops();
+  timer=setInterval(scheduler,250); scheduler();
+  moodTimer=setInterval(applyMood,60000);
+  guard=setInterval(()=>{ if(playing && ctx.state!=="running") ctx.resume().catch(()=>{}); },3000);
+  let qi=0;
+  qTimer=setInterval(()=>{
+    qEl.style.opacity=0;
+    setTimeout(()=>{qi=(qi+1)%QUESTIONS.length;qEl.textContent=QUESTIONS[qi];qEl.style.opacity=1},2000);
+  },45000);
+  document.body.classList.add("playing");
+  icon.innerHTML='<path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/>';
+  ringsEl.setAttribute("aria-label","暫停");
+  keepAwake(); updateStatus();
+}
+function stop(){
+  playing=false; clearInterval(timer); clearInterval(moodTimer); clearInterval(qTimer); clearInterval(guard);
+  master.gain.cancelScheduledValues(ctx.currentTime);
+  master.gain.setValueAtTime(master.gain.value,ctx.currentTime);
+  master.gain.linearRampToValueAtTime(0,ctx.currentTime+2.5);
+  setTimeout(()=>{ if(!playing) ctx.suspend(); },2800);
+  document.body.classList.remove("playing");
+  icon.innerHTML='<path d="M8 5v14l11-7z"/>';
+  ringsEl.setAttribute("aria-label","開始播放");
+  qEl.style.opacity=1;
+  try{ wakeLock && wakeLock.release(); }catch(e){} wakeLock=null;
+  updateStatus();
+}
+ringsEl.addEventListener("click",()=>{
+  if(playing && ctx.state!=="running"){ ctx.resume().catch(()=>{}); return; }
+  playing ? stop() : start();
+});
+
+document.querySelectorAll(".moods button").forEach(b=>{
+  b.setAttribute("aria-pressed", b.dataset.mood===moodMode);
+  b.addEventListener("click",()=>{
+    moodMode=b.dataset.mood; store.set("mood",moodMode);
+    document.querySelectorAll(".moods button").forEach(x=>x.setAttribute("aria-pressed",x===b));
+    applyMood();
+  });
+});
+
+const descEl=document.getElementById("desc");
+const edescEl=document.getElementById("edesc");
+function showEdition(){
+  document.querySelectorAll("[data-edition]").forEach(x=>x.setAttribute("aria-pressed",x.dataset.edition===editionKey));
+  edescEl.textContent=EDITIONS[editionKey].desc;
+}
+document.querySelectorAll("[data-edition]").forEach(b=>{
+  b.addEventListener("click",()=>{
+    if(b.dataset.edition===editionKey) return;
+    editionKey=b.dataset.edition; store.set("edition",editionKey);
+    MOODS=EDITIONS[editionKey].moods; mood=null;
+    crossfade(); applyEditionColor();
+    showEdition(); applyMood();
+  });
+});
+showEdition();
+
+function showStyle(){
+  document.querySelectorAll("[data-style]").forEach(x=>x.setAttribute("aria-pressed",x.dataset.style===styleKey));
+  descEl.textContent=STYLES[styleKey].desc;
+}
+document.querySelectorAll("[data-style]").forEach(b=>{
+  b.addEventListener("click",()=>{
+    if(b.dataset.style===styleKey) return;
+    styleKey=b.dataset.style; store.set("style",styleKey);
+    crossfade(); showStyle(); resetPattern(); updateStatus();
+  });
+});
+showStyle();
+
+const volEl=document.getElementById("vol"); volEl.value=volume;
+volEl.addEventListener("input",()=>{
+  volume=+volEl.value; store.set("vol",volume);
+  if(ctx && playing) master.gain.setTargetAtTime(volume/100*.9,ctx.currentTime,.3);
+});
+
+document.querySelectorAll(".layers button").forEach(b=>{
+  const k=b.dataset.layer; b.setAttribute("aria-pressed",!!layerOn[k]);
+  b.addEventListener("click",()=>{
+    layerOn[k]=!layerOn[k]; store.set("layers",layerOn);
+    b.setAttribute("aria-pressed",layerOn[k]);
+    if(ctx) layers[k].gain.setTargetAtTime(layerOn[k]?LAYER_LEVEL[k]:0,ctx.currentTime,.8);
+  });
+});
+
+mood=MOODS[currentMoodKey()];
+})();
+</script>
+</body>
+</html>
