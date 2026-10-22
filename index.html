@@ -493,6 +493,9 @@
 
   .sku-status{font-size:12px;color:var(--ink-soft);margin-bottom:14px;}
   .sku-status.err{color:var(--warn);}
+  .gift-note{background:#FFF6DC;border:1px solid #EBD79B;border-radius:8px;padding:10px 14px;margin:0 0 14px;font-size:13px;line-height:1.7;color:#5A4A1A;}
+  .gift-note b{color:#8A5A00;}
+  .pc-autogift{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:10px;background:#FFE9A8;border:1px solid #E0B84A;color:#7A5200;font-size:11.5px;font-weight:700;vertical-align:middle;white-space:nowrap;}
 
   .pick-grid{
     display:grid;grid-template-columns:1fr 1fr;gap:12px;
@@ -940,6 +943,7 @@
     <div class="stat-row" id="statRow"></div>
 
     <div class="sku-status no-print" id="skuStatusBox"></div>
+    <div class="gift-note no-print" id="shopGiftNote" style="display:none;"></div>
 
     <div class="download-list" id="kerryDownloadItem">
       <div class="dl-item">
@@ -1240,7 +1244,7 @@
 </div>
 
 <script>
-const APP_VERSION = '20261010-10'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20261010-11'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -2188,6 +2192,7 @@ let pendingShipmentMap = {};
 let pendingPickMap = {};
 let pickOrderGroups = [];
 let currentBatchConfirmed = true;
+let shopGiftReport = null;   // 官網「滿千送小蠟燭」這次匯入的檢查結果
 
 async function loadOrderNotes(){
   if(!ORDER_NOTES_SHEET_URL) return;
@@ -2454,6 +2459,7 @@ function loadChannelBatch(ch){
 }
 
 function selectChannel(ch){
+  setTimeout(renderShopGiftNote, 0);   // 通路切換完成後,更新「滿千送小蠟燭」的檢查結果顯示
   if(ch === currentChannel) return;
   saveChannelBatch(currentChannel);
   currentChannel = ch;
@@ -3710,6 +3716,53 @@ const CATEGORY_TOTAL_KEYS = ['kerry','seven','family','next','home','shop2shop',
 
 // 官網(Shopify)匯出檔:同一張訂單會拆成好幾列,只有第一列有 Name/收件人等欄位,
 // 後面幾列是空的要沿用上面那列的值(表格合併儲存格匯出成CSV常見的樣子)
+// ===== 官網活動:滿千送小蠟燭 =====
+// 官網後台的設定要客人「自己把小蠟燭加進購物車」才會送,有些客人沒加,訂單裡就沒有贈品。
+// 匯入官網訂單時自動檢查:活動期間內、商品金額(折扣後、不含運費)滿門檻、但訂單裡沒有免費的小蠟燭,
+// 就幫忙補一行「贈禮任選小蠟燭 ×1」。不累加:不管滿多少,每張訂單最多補 1 個。
+// 活動日期、金額、贈品名稱改這裡就好。
+const GIFT_PROMO = {
+  start: '2026-10-21T00:00:00+08:00',   // 活動開始(台灣時間)
+  end:   '2026-11-02T00:00:00+08:00',   // 活動結束:這個時間「之前」下的訂單才算
+  threshold: 1000,                      // 商品金額滿多少
+  itemName: '贈禮任選小蠟燭',
+  qty: 1
+};
+
+// 官網匯出的下單時間像「2026-10-21 18:57:46 +0800」;沒寫時區就當台灣時間
+function parseShopDate(str){
+  const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})\s*(?:([+-])(\d{2}):?(\d{2}))?$/.exec(String(str || '').trim());
+  if(!m) return null;
+  const sign = m[7] === '-' ? -1 : 1;
+  const offsetMin = m[7] ? sign * (parseInt(m[8], 10) * 60 + parseInt(m[9], 10)) : 480;
+  return Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]) - offsetMin * 60000;
+}
+
+// 這一行是不是「免費的小蠟燭」:客人有把贈品加進購物車(折扣 = 原價,或價格是 0)。
+// 客人自己花錢買的小蠟燭不算贈品。
+function isFreeSmallCandleLine(l){
+  const isSmallCandle = /^Cndl.*_S$/i.test(l.sku || '') || /蠟燭\s*55\s*g|小蠟燭/i.test(l.name || '');
+  const free = l.qty > 0 && (l.price === 0 || l.discount >= l.price * l.qty - 0.5);
+  return isSmallCandle && free;
+}
+
+// order: {createdAt, total, shipping, discount, cancelled, lines:[{name, sku, price, qty, discount}]}
+// 回傳 status:add(要補)/has(已經有贈品)/below(沒滿千)/borderline(折扣前滿千、折扣後沒滿)/outside(活動期間外)/cancelled/nodate
+function evaluateGiftPromo(order){
+  const lineSum = order.lines.reduce((sum, l) => sum + l.price * l.qty, 0);
+  const merchPre = order.lines.reduce((sum, l) => sum + (isFreeSmallCandleLine(l) ? 0 : l.price * l.qty), 0);   // 折扣前(免費贈品不算)
+  const merchPost = order.total !== null ? order.total - (order.shipping || 0) : lineSum - (order.discount || 0);   // 折扣後、不含運費
+  const out = status => ({status: status, merchPre: merchPre, merchPost: merchPost});
+  if(order.cancelled) return out('cancelled');
+  const t = parseShopDate(order.createdAt);
+  if(t === null) return out('nodate');
+  if(t < Date.parse(GIFT_PROMO.start) || t >= Date.parse(GIFT_PROMO.end)) return out('outside');
+  if(order.lines.some(isFreeSmallCandleLine)) return out('has');
+  if(merchPost >= GIFT_PROMO.threshold) return out('add');
+  if(merchPre >= GIFT_PROMO.threshold) return out('borderline');
+  return out('below');
+}
+
 function parseShopRows(dataRows, headers){
   const nameI = idxOf(headers, ['Name']);
   const smI = idxOf(headers, ['Shipping Method']);
@@ -3722,6 +3775,10 @@ function parseShopRows(dataRows, headers){
   const saI = idxOf(headers, ['Shipping Address1']);
   const scI = idxOf(headers, ['Shipping City']);
   const noteI = idxOf(headers, ['Notes']);
+  // 活動檢查要用的欄位(欄位名稱要完全相同,避免「Shipping」誤抓到「Shipping Method」)
+  const ex = n => headers.findIndex(h => normHeader(h) === n);
+  const createdI = ex('Created at'), totalI = ex('Total'), shipI = ex('Shipping'), discI = ex('Discount Amount');
+  const cancelI = ex('Cancelled at'), ldI = ex('Lineitem discount');
 
   if(nameI===-1 || iI===-1 || qI===-1){
     return {error: ['在這個檔案裡找不到必要欄位(Name / Lineitem name / Lineitem quantity)', '請確認上傳的是官網後台匯出的訂單原始檔,欄位名稱沒有被更動過。']};
@@ -3730,6 +3787,7 @@ function parseShopRows(dataRows, headers){
   let ctx = null;
   let lastOrderId = null;
   const items = [];
+  const promoOrders = [];   // 每張訂單的活動檢查資料(依出現順序)
   dataRows.forEach(r=>{
     const rawName = String(r[nameI]||'').trim();
     // Name 欄位每一列其實都會重複填寫,真正只出現在「第一列」的是 Shipping Method/Shipping Name 這些
@@ -3743,8 +3801,17 @@ function parseShopRows(dataRows, headers){
         phone: spI!==-1 ? cleanId(r[spI]) : '',
         address: (scI!==-1 ? String(r[scI]||'') : '') + (saI!==-1 ? String(r[saI]||'') : ''),
         shippingCategory: categorizeShipping(method),
-        custRaw: custRaw
+        custRaw: custRaw,
+        promo: {
+          createdAt: createdI!==-1 ? String(r[createdI]||'').trim() : '',
+          total: (totalI!==-1 && String(r[totalI]||'').trim() !== '') ? toNum(r[totalI], 0) : null,
+          shipping: shipI!==-1 ? toNum(r[shipI], 0) : 0,
+          discount: discI!==-1 ? toNum(r[discI], 0) : 0,
+          cancelled: cancelI!==-1 && String(r[cancelI]||'').trim() !== '',
+          lines: []
+        }
       };
+      promoOrders.push(ctx);
       lastOrderId = rawName;
     }
     if(!ctx) return; // 沒有訂單資訊可依附的異常列,跳過
@@ -3754,7 +3821,10 @@ function parseShopRows(dataRows, headers){
     const hasCust = !emptyTokens.includes(custNormalized.toLowerCase());
     const price = prI!==-1 ? toNum(r[prI], 0) : 0;
     const qty = qI!==-1 ? toNum(r[qI], 1) : 1;
+    const itemName = iI!==-1 ? String(r[iI]||'') : '';
+    const sku = skuI!==-1 ? String(r[skuI]||'').trim() : '';
 
+    ctx.promo.lines.push({name: itemName, sku: sku, price: price, qty: qty, discount: ldI!==-1 ? toNum(r[ldI], 0) : 0});
     items.push({
       orderId: ctx.orderId,
       name: ctx.name,
@@ -3762,16 +3832,43 @@ function parseShopRows(dataRows, headers){
       address: ctx.address,
       custText: custNormalized,
       hasCust: hasCust,
-      itemName: iI!==-1 ? String(r[iI]||'') : '',
+      itemName: itemName,
       price: price,
       qty: qty,
       subtotal: price * qty,
-      sku: skuI!==-1 ? String(r[skuI]||'').trim() : '',
+      sku: sku,
       rawRow: r,
       shippingCategory: ctx.shippingCategory
     });
   });
-  return {items};
+
+  // ===== 活動檢查:滿千送小蠟燭 =====
+  const giftReport = {added: [], borderline: [], hasGift: [], nodate: [], inWindow: 0};
+  const giftByOrder = {};
+  promoOrders.forEach(c=>{
+    const ev = evaluateGiftPromo(c.promo);
+    if(ev.status === 'outside' || ev.status === 'cancelled') return;
+    if(ev.status === 'nodate'){ giftReport.nodate.push(c.orderId); return; }
+    giftReport.inWindow++;
+    if(ev.status === 'has') giftReport.hasGift.push(c.orderId);
+    else if(ev.status === 'add'){ giftReport.added.push({orderId: c.orderId, merchPost: ev.merchPost}); giftByOrder[c.orderId] = c; }
+    else if(ev.status === 'borderline') giftReport.borderline.push({orderId: c.orderId, merchPre: ev.merchPre, merchPost: ev.merchPost});
+  });
+  // 贈品插在該張訂單「最後一個品項」後面,這樣會跟同一張訂單放在同一張檢貨卡
+  const finalItems = [];
+  items.forEach((it, i)=>{
+    finalItems.push(it);
+    const next = items[i + 1];
+    const c = giftByOrder[it.orderId];
+    if(c && (!next || next.orderId !== it.orderId)){
+      finalItems.push({
+        orderId: c.orderId, name: c.name, phone: c.phone, address: c.address, custText: '', hasCust: false,
+        itemName: GIFT_PROMO.itemName, price: 0, qty: GIFT_PROMO.qty, subtotal: 0, sku: '', rawRow: [],
+        shippingCategory: c.shippingCategory, autoGift: true
+      });
+    }
+  });
+  return {items: finalItems, giftReport: giftReport};
 }
 
 async function processFile(){
@@ -3790,6 +3887,7 @@ async function processFile(){
   document.getElementById('errorPanel').style.display = 'none';
 
   let items = null;
+  shopGiftReport = null;
 
   if(isShopeeMulti){
     // 蝦皮多檔案:逐一讀取每個檔案(用各自指定的物流方式),讀完合併成一批
@@ -3925,6 +4023,7 @@ async function readShopItems(){
     rawHeaders = headers;
     const result = parseShopRows(dataRows, headers);
     if(result.error){ showError(result.error); return null; }
+    shopGiftReport = result.giftReport || null;
     return result.items;
   }catch(err){
     showError(['整理資料時發生問題: ' + err.message]);
@@ -4204,8 +4303,10 @@ async function finishProcessing(rawItems){
     skuBox.textContent = 'SKU 對照表讀取失敗(' + skuLoadError + '),檢貨單暫時顯示平台原始品名。';
   }else{
     skuBox.className = 'sku-status no-print';
-    skuBox.textContent = 'SKU 對照:' + matchedSkuCount + ' / ' + items.length + ' 筆項目已對到品名' + (matchedSkuCount < items.length ? '(其餘顯示平台原始品名)' : '');
+    const countable = items.filter(it => !it.autoGift).length;   // 系統補上的贈品沒有 SKU,不算在對照統計裡
+    skuBox.textContent = 'SKU 對照:' + matchedSkuCount + ' / ' + countable + ' 筆項目已對到品名' + (matchedSkuCount < countable ? '(其餘顯示平台原始品名)' : '');
   }
+  renderShopGiftNote();
 
   parsedItems = items;
   custItems = items.filter(it => it.hasCust);
@@ -4346,6 +4447,32 @@ async function refreshPendingMapsAndRepaint(){
   repaintPickListWithMaps();
 }
 
+// 官網匯入後,在上方顯示「滿千送小蠟燭」的檢查結果(補了哪幾張、哪幾張要自己判斷)
+function renderShopGiftNote(){
+  const box = document.getElementById('shopGiftNote');
+  if(!box) return;
+  const r = currentChannel === 'shop' ? shopGiftReport : null;
+  if(!r || (r.inWindow === 0 && r.nodate.length === 0)){ box.style.display = 'none'; box.innerHTML = ''; return; }
+  const fmt = n => Math.round(n).toLocaleString('en-US');
+  const ids = list => list.map(escapeHtml).join('、');
+  const parts = [];
+  if(r.added.length){
+    parts.push('<b>🎁 滿千送小蠟燭:有 ' + r.added.length + ' 張訂單商品金額滿 ' + fmt(GIFT_PROMO.threshold) + ' 但沒有贈品,已自動補上「' + GIFT_PROMO.itemName + ' ×' + GIFT_PROMO.qty + '」</b>(括號是折扣後、不含運費的商品金額):' +
+      r.added.map(a => escapeHtml(a.orderId) + '(' + fmt(a.merchPost) + ')').join('、'));
+  }else{
+    parts.push('<b>🎁 滿千送小蠟燭:這批沒有漏送的訂單</b>(活動期間內 ' + r.inWindow + ' 張,其中 ' + r.hasGift.length + ' 張客人自己加了贈品)');
+  }
+  if(r.borderline.length){
+    parts.push('另外有 ' + r.borderline.length + ' 張訂單<b>折扣前滿千、折扣後沒滿</b>,沒有自動補,請您自己判斷:' +
+      r.borderline.map(b => escapeHtml(b.orderId) + '(折扣前 ' + fmt(b.merchPre) + '、折扣後 ' + fmt(b.merchPost) + ')').join('、'));
+  }
+  if(r.nodate.length){
+    parts.push('有 ' + r.nodate.length + ' 張訂單看不到下單時間,沒辦法檢查活動:' + ids(r.nodate));
+  }
+  box.innerHTML = parts.map(p => '<div>' + p + '</div>').join('');
+  box.style.display = 'block';
+}
+
 // 全形字母數字轉半形,讓「Ｇ６」也能對照到顏色表裡的「G6」
 function normalizeCode(s){
   return String(s).replace(/[\uFF10-\uFF19\uFF21-\uFF3A\uFF41-\uFF5A]/g, c =>
@@ -4483,7 +4610,7 @@ function renderPickList(){
       const nameHtml = tagScentCodes(it.displayName);
       return '<div class="pc-item">' +
         '<label class="pc-item-check no-print"><input type="checkbox" onchange="toggleItemPicked(' + idx + ', ' + itemIdx + ', this.checked)"></label>' +
-        '<span class="pc-item-name">' + nameHtml + '</span><span class="' + qtyClass + '">x' + it.qty + '</span></div>' + accHtml;
+        '<span class="pc-item-name">' + nameHtml + (it.autoGift ? '<span class="pc-autogift" title="滿千送小蠟燭:這張訂單金額已滿 1,000 但客人沒加贈品,系統自動補上,請另外幫客人任選一個小蠟燭">系統補上</span>' : '') + '</span><span class="' + qtyClass + '">x' + it.qty + '</span></div>' + accHtml;
     }).join('');
     const custBlock = its.some(it=>it.hasCust)
       ? '<div class="pc-cust">刻印:' + escapeHtml(its.find(it=>it.hasCust).custText) + '</div>'
