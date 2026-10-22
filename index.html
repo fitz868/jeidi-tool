@@ -576,18 +576,6 @@
   }
   .pick-card-later .pc-later-tag{display:inline-block;}
   .pick-card-done .pc-later-btn{display:none;}
-  /* 品項類型記號:圓圈裡一個小字(隨/居/空/擴/香/木/小蠟/大蠟),放在每個香味色塊前面 */
-  .pc-type-badge{
-    display:inline-block;flex:none;box-sizing:border-box;text-align:center;white-space:nowrap;overflow:hidden;
-    width:24px;height:24px;line-height:21px;margin-right:6px;vertical-align:middle;position:relative;top:-1px;
-    border:1.6px solid var(--ink);border-radius:50%;background:#fff;
-    font-size:13px;font-weight:700;color:var(--ink);letter-spacing:0;
-  }
-  .pc-type-badge.two{width:32px;height:32px;line-height:29px;font-size:11px;letter-spacing:-0.6px;text-indent:-0.5px;}
-  .pick-card .pc-accessory .pc-type-badge{width:19px;height:19px;line-height:16px;margin-right:4px;font-size:10.5px;border-width:1.4px;}
-  .pick-card .pc-accessory .pc-type-badge.two{width:26px;height:26px;line-height:23px;font-size:9px;}
-  .ts-item .ts-name .pc-type-badge{width:20px;height:20px;line-height:17px;margin-right:4px;font-size:11px;border-width:1.4px;}
-  .ts-item .ts-name .pc-type-badge.two{width:28px;height:28px;line-height:25px;font-size:9px;}
   .pc-spec-pill{
     display:inline-block;margin-left:6px;padding:0 8px;border:1.5px solid var(--ink);border-radius:10px;
     font-size:12px;font-weight:600;line-height:1.5;vertical-align:1px;white-space:nowrap;color:var(--ink);
@@ -595,7 +583,12 @@
   .pc-combo-sep{display:inline-block;margin:0 8px;font-weight:700;font-size:16px;color:var(--ink-soft);vertical-align:1px;}
   .pick-card .pc-scent-tag{
     display:inline-block;font-size:18px;font-weight:600;background:var(--amber-soft);color:var(--ink);
-    padding:4px 14px;border-radius:0;margin-right:5px;vertical-align:1px;
+    padding:4px 11px;border-radius:0;margin-right:7px;vertical-align:1px;
+  }
+  /* 品項(擴香瓶、隨行噴霧…):不上底色,底線的顏色跟前面香味代號一樣(顏色在程式裡依香味指定) */
+  .pick-card .pc-scent-item{
+    font-size:18px;font-weight:600;color:var(--ink);
+    border-bottom:4px solid var(--line);padding-bottom:1px;
   }
   .pick-card .pc-item .pc-item-qty{
     font-weight:700;white-space:nowrap;font-size:13px;
@@ -1244,7 +1237,7 @@
 </div>
 
 <script>
-const APP_VERSION = '20261010-11'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20261010-12'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -2276,37 +2269,6 @@ function darkenColor(hex, amount){
 }
 
 // 把顏色往白色混,取得淡色版本當色籤底色(ratio 0~1,越大越淡)
-// ===== 品項類型記號:除了香味色塊,再用一個「圈圈小字」標出這是哪一種商品 =====
-// 隨=隨行噴霧、居=居家噴霧、空=空間噴霧、擴=擴香瓶、香=香氛袋(亞麻袋)、木=木屑補充包、小蠟=小蠟燭、大蠟=大蠟燭
-// 由上往下比對,先比對到的先用。label 是 null 代表「明確不加記號」:用來擋住比較籠統的規則
-// (例如擴香補充液、擴香棒,不能被當成擴香瓶)。看不出是哪一種的(例如只寫「噴霧」)也不加記號,不亂猜。
-const TYPE_BADGE_RULES = [
-  [/補充液/, null],
-  [/擴香棒/, null],
-  [/補充包|木屑/, '木'],
-  [/隨行噴|隨身噴|隨噴/, '隨'],
-  [/居家噴|居噴/, '居'],
-  [/空間噴|空噴/, '空'],
-  [/擴香/, '擴'],
-  [/亞麻袋|香氛袋/, '香'],
-  [/小蠟/, '小蠟'],
-  [/大蠟/, '大蠟']
-];
-const TYPE_BADGE_TITLES = {隨:'隨行噴霧', 居:'居家噴霧', 空:'空間噴霧', 擴:'擴香瓶', 香:'香氛袋(亞麻袋)', 木:'木屑補充包', 小蠟:'小蠟燭', 大蠟:'大蠟燭'};
-function typeBadgeLabel(text){
-  const t = String(text || '').normalize('NFKC').replace(/[\s_]/g, '');
-  for(const [re, label] of TYPE_BADGE_RULES) if(re.test(t)) return label;
-  return null;
-}
-function typeBadgeHtml(text){
-  const label = typeBadgeLabel(text);
-  if(!label) return '';
-  return '<span class="pc-type-badge' + (label.length > 1 ? ' two' : '') + '" title="' + TYPE_BADGE_TITLES[label] + '">' + label + '</span>';
-}
-// 整個品名(可能是「G6擴香XG6噴霧」這種組合)→ 每個部分各一個記號
-function typeBadgesHtml(name){
-  return String(name || '').split(/(?<![A-Za-z])[Xx×]|[+＋]/).map(typeBadgeHtml).join('');
-}
 
 // 色塊的文字顏色:底色夠淺就維持深色字(回傳空字串=用預設);底色很深、深色字看不清楚時,改用白色字
 function readableTagTextColor(hex){
@@ -4485,7 +4447,7 @@ function normalizeCode(s){
 function tagScentCodes(name){
   const raw = String(name||'');
   const codes = Object.keys(scentColorMap);
-  if(codes.length === 0) return typeBadgesHtml(raw) + escapeHtml(raw);
+  if(codes.length === 0) return escapeHtml(raw);
   const normalized = normalizeCode(raw); // 全形轉半形後,字元位置跟原字串一一對應,長度不變
   const sorted = [...codes].sort((a,b)=>b.length-a.length);
   const pattern = new RegExp('(' + sorted.map(c=>c.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|') + ')', 'g');
@@ -4496,7 +4458,7 @@ function tagScentCodes(name){
   while((m = pattern.exec(normalized)) !== null){
     matches.push({code: m[0], start: m.index, end: m.index + m[0].length});
   }
-  if(matches.length === 0) return typeBadgesHtml(raw) + escapeHtml(raw);
+  if(matches.length === 0) return escapeHtml(raw);
 
   let result = '';
   let cursor = 0;
@@ -4521,7 +4483,7 @@ function tagScentCodes(name){
       const mm = restText.match(/(?<![A-Za-z])\s*[Xx×]\s*$/);
       if(mm){ restText = restText.slice(0, mm.index); comboSep = 'X'; }
     }
-    // 代號固定用半形顯示(match.code 已經是正規化過的半形),避免全形寫法讓色籤忽大忽小
+    // 代號固定用半形顯示(match.code 已經是正規化過的半形),避免全形寫法讓色塊忽大忽小
     let segText = match.code + restText;
     // 結尾的容量/重量(例如 300ml、50g)拉出來做成小標籤,規格才看得清楚
     let specPill = '';
@@ -4530,13 +4492,17 @@ function tagScentCodes(name){
       segText = capM[1];
       specPill = '<span class="pc-spec-pill">' + capM[2] + (/^(ml|毫升)$/i.test(capM[3]) ? 'ml' : 'g') + '</span>';
     }
-    const badgeHtml = typeBadgeHtml(match.code + restText);
+    // 色塊(底色)只用在香味代號(G6、S3…);後面的品項(擴香瓶、隨行噴霧…)不上底色,
+    // 改成在下面畫一條「跟香味同顏色」的粗底線
+    const itemText = segText.slice(match.code.length);
 
     const bg = scentColorMap[match.code];
     const shownBg = bg ? lightenColor(bg, 0.15) : '';
     const txt = bg ? readableTagTextColor(shownBg) : '';
     const tagStyle = bg ? ' style="background:' + shownBg + ';border:1.5px solid ' + bg + ';' + (txt ? 'color:' + txt + ';' : '') + '"' : '';
-    result += badgeHtml + '<span class="pc-scent-tag"' + tagStyle + '>' + escapeHtml(segText) + '</span>' + specPill;
+    result += '<span class="pc-scent-tag"' + tagStyle + '>' + escapeHtml(match.code) + '</span>' +
+      (itemText ? '<span class="pc-scent-item"' + (bg ? ' style="border-bottom-color:' + bg + ';"' : '') + '>' + escapeHtml(itemText) + '</span>' : '') +
+      specPill;
     if(comboSep) result += '<span class="pc-combo-sep">' + comboSep + '</span>';
 
     cursor = segEnd;
@@ -4604,7 +4570,7 @@ function renderPickList(){
         const label = info ? info.name : a.sku;
         const normName = x => normalizeCode(x).replace(/[\s_]/g, '');
         if(normName(label) === normName(it.displayName)) return ''; // 跟主品項同名,不重複列出
-        return '<div class="pc-accessory">+ 附:' + typeBadgeHtml(label) + escapeHtml(label) + ' x' + a.qty + '</div>';
+        return '<div class="pc-accessory">+ 附:' + escapeHtml(label) + ' x' + a.qty + '</div>';
       }).join('');
       const qtyClass = it.qty > 1 ? 'pc-item-qty qty-high' : 'pc-item-qty';
       const nameHtml = tagScentCodes(it.displayName);
@@ -4966,7 +4932,7 @@ function renderTodaySummary(){
   }
   document.getElementById('todaySummaryList').innerHTML =
     '<div class="today-summary-grid">' +
-    rows.map(r => '<div class="ts-item"><div class="ts-name">' + typeBadgesHtml(r.name) + escapeHtml(spaceComboX(r.name)) + '</div><div class="ts-qty">' + r.qty + '</div></div>').join('') +
+    rows.map(r => '<div class="ts-item"><div class="ts-name">' + escapeHtml(spaceComboX(r.name)) + '</div><div class="ts-qty">' + r.qty + '</div></div>').join('') +
     '</div>';
   panel.style.display = 'block';
 }
