@@ -146,6 +146,33 @@
   .bd-pending{background:#FDE3E1;color:#9A3B41;}
   .bd-done{background:var(--ok-soft);color:var(--sage-dark);}
 
+  /* ===== 蝦皮取貨 ===== */
+  .tab-badge{display:inline-block;margin-left:6px;min-width:18px;padding:0 6px;border-radius:10px;background:#E0524F;color:#fff;font-size:11.5px;font-weight:700;line-height:18px;text-align:center;}
+  .pickup-form{display:grid;grid-template-columns:1fr 1fr 1.4fr auto;gap:10px;align-items:center;}
+  .pickup-form input{font-family:inherit;font-size:16px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);width:100%;box-sizing:border-box;}
+  .pickup-form button.primary{padding:10px 22px;font-size:15px;}
+  .pickup-search{font-family:inherit;font-size:14px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);min-width:260px;box-sizing:border-box;}
+  .pickup-count{font-size:14px;font-weight:400;color:var(--ink-soft);}
+  .pickup-item{display:flex;align-items:center;flex-wrap:wrap;padding:8px 14px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;background:var(--paper);}
+  .pickup-item > *{margin:4px 14px 4px 0;}   /* 用 margin 不用 gap:門市的舊平板、舊版瀏覽器也看得到間距 */
+  .pickup-item > *:last-child{margin-right:0;}
+  .pickup-check{display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600;color:var(--sage-dark);}
+  .pickup-check input{width:26px;height:26px;cursor:pointer;accent-color:var(--sage);margin:0;}
+  .pickup-phone{font-size:20px;font-weight:700;letter-spacing:0.02em;font-variant-numeric:tabular-nums;color:var(--ink);}
+  .pickup-code{font-size:20px;font-weight:700;font-family:ui-monospace,Menlo,Consolas,monospace;background:#FFF6DC;border:1px solid #EBD79B;border-radius:6px;padding:1px 10px;color:#5A4A1A;}
+  .pickup-note{font-size:14px;color:var(--ink);}
+  .pickup-item > .pickup-meta{font-size:12.5px;color:var(--ink-soft);margin-left:auto;text-align:right;}
+  .pickup-item button.ghost{font-size:12px;padding:4px 10px;}
+  .pickup-item.picked{background:transparent;}
+  .pickup-item.picked .pickup-phone{text-decoration:line-through;color:var(--ink-soft);font-weight:600;}
+  .pickup-item.picked .pickup-code{background:transparent;border-color:var(--line);color:var(--ink-soft);}
+  @media (max-width:760px){
+    .pickup-form{grid-template-columns:1fr 1fr;}
+    .pickup-form input:nth-child(3), .pickup-form button.primary{grid-column:1 / -1;}
+    .pickup-search{min-width:0;width:100%;}
+    .page-tabs{overflow-x:auto;white-space:nowrap;}
+  }
+
   .update-banner{
     background:var(--warn);color:#fff;text-align:center;font-size:13.5px;font-weight:600;
     padding:10px 16px;border-radius:8px;margin-bottom:20px;cursor:pointer;
@@ -495,6 +522,7 @@
   .sku-status.err{color:var(--warn);}
   .gift-note{background:#FFF6DC;border:1px solid #EBD79B;border-radius:8px;padding:10px 14px;margin:0 0 14px;font-size:13px;line-height:1.7;color:#5A4A1A;}
   .gift-note b{color:#8A5A00;}
+  #kerryExportNote{margin:8px 0 0;}
   .pc-autogift{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:10px;background:#FFE9A8;border:1px solid #E0B84A;color:#7A5200;font-size:11.5px;font-weight:700;vertical-align:middle;white-space:nowrap;}
 
   .pick-grid{
@@ -858,6 +886,7 @@
     <button class="tab-btn" id="tab-page2" onclick="switchPage(2)">出貨回報</button>
     <button class="tab-btn" id="tab-page3" onclick="switchPage(3)">出貨核對</button>
     <button class="tab-btn" id="tab-page4" onclick="switchPage(4)">訂單查詢</button>
+    <button class="tab-btn" id="tab-page5" onclick="switchPage(5)">蝦皮取貨<span class="tab-badge" id="pickupTabBadge" style="display:none;">0</span></button>
   </div>
 
   <div id="page1">
@@ -937,6 +966,7 @@
 
     <div class="sku-status no-print" id="skuStatusBox"></div>
     <div class="gift-note no-print" id="shopGiftNote" style="display:none;"></div>
+    <div class="gift-note no-print" id="dupImportNote" style="display:none;"></div>
 
     <div class="download-list" id="kerryDownloadItem">
       <div class="dl-item">
@@ -946,6 +976,7 @@
         </div>
         <button class="ghost" onclick="downloadKerryCSV()">下載</button>
       </div>
+      <div class="gift-note no-print" id="kerryExportNote" style="display:none;"></div>
     </div>
   </div>
 
@@ -1188,6 +1219,34 @@
     </div>
   </div><!-- /page4 -->
 
+  <div id="page5" style="display:none;">
+    <div class="panel no-print">
+      <h2>蝦皮取貨</h2>
+      <div class="desc">客人用蝦皮到店取貨時,在這裡登記「手機號碼」和「驗證碼」;客人領走之後,勾選「已領取」。所有人看到的是同一份清單。</div>
+      <div class="pickup-form">
+        <input type="text" id="pickupPhone" inputmode="tel" maxlength="20" placeholder="手機號碼" autocomplete="off" onkeydown="if(event.key==='Enter') document.getElementById('pickupCode').focus()">
+        <input type="text" id="pickupCode" maxlength="40" placeholder="驗證碼" autocomplete="off" onkeydown="if(event.key==='Enter') document.getElementById('pickupNote').focus()">
+        <input type="text" id="pickupNote" maxlength="60" placeholder="備註(選填,例如姓名)" autocomplete="off" onkeydown="if(event.key==='Enter') addPickup()">
+        <button class="primary" id="pickupAddBtn" onclick="addPickup()">新增</button>
+      </div>
+      <div class="form-msg" id="pickupFormMsg"></div>
+    </div>
+
+    <div class="panel no-print">
+      <div class="panel-head-row">
+        <h2>待領取 <span class="pickup-count" id="pickupWaitingCount"></span></h2>
+        <input type="text" id="pickupSearch" class="pickup-search" placeholder="搜尋手機號碼(後幾碼也可以)、驗證碼、備註" oninput="renderPickups()">
+      </div>
+      <div id="pickupWaitingList" style="margin-top:12px;"></div>
+    </div>
+
+    <div class="panel no-print">
+      <h2>已領取</h2>
+      <div class="desc">最近領走的(最新 30 筆)。勾錯了可以按「取消」還原成待領取。</div>
+      <div id="pickupPickedList"></div>
+    </div>
+  </div><!-- /page5 -->
+
   </div><!-- /helperMode -->
 
   <div id="reportMode" style="display:none;">
@@ -1237,7 +1296,7 @@
 </div>
 
 <script>
-const APP_VERSION = '20261010-12'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20261010-14'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -1336,6 +1395,7 @@ async function handleAuthStateChange(user){
       loadDailyNotes();
       startLiveSessionListener();
       startBoardListener();
+      startPickupListener();
       refreshPendingMapsAndRepaint();
     }else{
       desc.textContent = '這個帳號還沒被登記,沒有使用權限';
@@ -1772,6 +1832,35 @@ async function importHistoricalRecords(){
   }
 }
 
+// ===== 訂單處理記錄(防止重複)=====
+// 系統要「記得」每張訂單處理到哪裡,才不會重複匯出黑貓、重複計算出貨件數:
+//  1) 已匯出黑貓:按「下載黑貓匯入檔」時記下來,之後同一張訂單不會再被匯出(例如缺貨留到下一批的訂單)
+//  2) 已確認完成揀貨:按「確認完成揀貨」時記下來,之後同一張訂單又被匯入時會先詢問
+// 記在這台電腦的瀏覽器裡;「已確認完成揀貨」另外還可以到資料庫的訂單歷史查(換電腦也查得到)。
+const KERRY_EXPORT_KEY = 'jeidi_kerry_exported_v1';
+const CONFIRMED_KEY = 'jeidi_confirmed_orders_v1';
+const LEDGER_KEEP_DAYS = 45;   // 記錄保留幾天(超過的自動清掉)
+function ledgerCutoff(){ const d = new Date(); d.setDate(d.getDate() - LEDGER_KEEP_DAYS); return ymd(d); }
+function loadLedger(key){
+  let o = {};
+  try{ o = JSON.parse(localStorage.getItem(key) || '{}') || {}; }catch(e){ o = {}; }
+  const cutoff = ledgerCutoff();
+  Object.keys(o).forEach(ch => Object.keys(o[ch] || {}).forEach(id => { if(o[ch][id] < cutoff) delete o[ch][id]; }));
+  return o;
+}
+function ledgerAdd(key, channel, orderIds){
+  if(!orderIds || orderIds.length === 0) return;
+  const o = loadLedger(key);
+  o[channel] = o[channel] || {};
+  const today = ymd(new Date());
+  orderIds.forEach(id => { if(id) o[channel][id] = today; });
+  try{ localStorage.setItem(key, JSON.stringify(o)); }catch(e){}
+}
+function ledgerGet(key, channel, orderId){
+  const o = loadLedger(key);
+  return (o[channel] && o[channel][orderId]) || null;
+}
+
 async function savePickRecord(channel, categoryCounts, totalOrders, totalItems, doneCount, skuBreakdown){
   await waitForFirebase();
   const {db, collection, addDoc, serverTimestamp} = window.__fb;
@@ -1783,16 +1872,16 @@ async function savePickRecord(channel, categoryCounts, totalOrders, totalItems, 
       items: skuBreakdown,
       confirmedAt: serverTimestamp()
     });
+    return true;
   }catch(err){
-    // 寫入失敗不影響「確認完成揀貨」這個動作本身的其他效果
+    return false;   // 寫入失敗要讓呼叫的地方知道,不然出貨核對的數字會默默少算
   }
 }
 
-// ===== 訂單歷史庫(每張確認完成揀貨的訂單完整明細,供之後搜尋訂單編號/姓名/商品名稱)=====
+// ===== 訂單歷史庫(每張確認完成揀貨的訂單完整明細,供之後搜尋訂單編號/姓名/商品名稱;也用來在匯入時檢查「這張訂單是不是已經出過了」)=====
 const ORDER_HISTORY_COLLECTION = 'order_history';
-
 async function saveOrderHistory(records){
-  if(records.length === 0) return;
+  if(records.length === 0) return true;
   await waitForFirebase();
   const {db, collection, doc, writeBatch, serverTimestamp} = window.__fb;
   try{
@@ -1810,8 +1899,9 @@ async function saveOrderHistory(records){
       });
       await batch.commit();
     }
+    return true;
   }catch(err){
-    // 寫入失敗不影響「確認完成揀貨」這個動作本身的其他效果
+    return false;
   }
 }
 
@@ -1972,6 +2062,8 @@ async function confirmResendDone(btnEl, id, category){
     alert('請先填寫補寄單號,才能確認完成。');
     return;
   }
+  if(btnEl.disabled) return;
+  btnEl.disabled = true;   // 防連點:連按兩下會被記成兩件
   await waitForFirebase();
   const {db, doc, updateDoc, serverTimestamp} = window.__fb;
   try{
@@ -1983,6 +2075,7 @@ async function confirmResendDone(btnEl, id, category){
     }
     loadResendRecords();
   }catch(err){
+    btnEl.disabled = false;
     alert('更新失敗: ' + err.message);
   }
 }
@@ -2421,7 +2514,7 @@ function loadChannelBatch(ch){
 }
 
 function selectChannel(ch){
-  setTimeout(renderShopGiftNote, 0);   // 通路切換完成後,更新「滿千送小蠟燭」的檢查結果顯示
+  setTimeout(()=>{ renderShopGiftNote(); renderDupImportNote(); }, 0);   // 通路切換完成後,更新上方提示的顯示
   if(ch === currentChannel) return;
   saveChannelBatch(currentChannel);
   currentChannel = ch;
@@ -2473,16 +2566,13 @@ function selectPinkoiType(t){
 
 // ===== 頁面切換 =====
 function switchPage(n){
-  document.getElementById('page1').style.display = n===1 ? 'block' : 'none';
-  document.getElementById('page2').style.display = n===2 ? 'block' : 'none';
-  document.getElementById('page3').style.display = n===3 ? 'block' : 'none';
-  document.getElementById('page4').style.display = n===4 ? 'block' : 'none';
-  document.getElementById('tab-page1').classList.toggle('active', n===1);
-  document.getElementById('tab-page2').classList.toggle('active', n===2);
-  document.getElementById('tab-page3').classList.toggle('active', n===3);
-  document.getElementById('tab-page4').classList.toggle('active', n===4);
+  for(let i = 1; i <= 5; i++){
+    document.getElementById('page' + i).style.display = n === i ? 'block' : 'none';
+    document.getElementById('tab-page' + i).classList.toggle('active', n === i);
+  }
   if(n===3){ updatePage3PickProgress(); loadCategoryTotals(); }
   if(n===4){ loadCompletedResends(); }
+  if(n===5){ renderPickups(); }
 }
 
 // 查詢今天 pick_records 裡,每個通路累加的總數/完成數(所有場次加總,不是只看最後一次)
@@ -2753,6 +2843,148 @@ function openChannelGuide(){
 
 function closeChannelGuide(){
   document.getElementById('channelGuideModal').style.display = 'none';
+}
+
+// ===== 蝦皮取貨(客人到店取貨:登記手機號碼+驗證碼,客人領走後勾選)=====
+// 資料存在資料庫的 shopee_pickups,所有人看到同一份(即時更新)。
+// status:waiting(待領取)/picked(已領取)/removed(刪除:不會真的從資料庫消失,只是不再顯示)
+const PICKUP_COLLECTION = 'shopee_pickups';
+let pickupRecords = [];
+let pickupUnsub = null;
+
+function pickupMs(r, key){ const t = r[key]; return (t && t.seconds) ? t.seconds * 1000 : null; }
+function fmtPhone(p){
+  const d = String(p || '').replace(/\D/g, '');
+  return /^09\d{8}$/.test(d) ? d.slice(0, 4) + '-' + d.slice(4, 7) + '-' + d.slice(7) : (d || String(p || ''));
+}
+function fmtPickupTime(ms){
+  const d = new Date(ms);
+  return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+}
+
+async function startPickupListener(){
+  await waitForFirebase();
+  if(pickupUnsub) return;
+  const {db, collection, query, orderBy, limit, onSnapshot} = window.__fb;
+  const q = query(collection(db, PICKUP_COLLECTION), orderBy('createdAt', 'desc'), limit(500));
+  pickupUnsub = onSnapshot(q, (snap)=>{
+    pickupRecords = snap.docs.map(d => ({id: d.id, ...d.data({serverTimestamps: 'estimate'})}));
+    renderPickups();
+  }, ()=>{ pickupUnsub = null; });   // 讀取失敗(登出、權限):重置,下次登入再重新監聽
+}
+
+// 搜尋:手機號碼(只要包含輸入的數字就算,所以打後幾碼也找得到)、驗證碼、備註
+function pickupMatches(r, q){
+  q = String(q || '').trim();
+  if(!q) return true;
+  const digits = q.replace(/\D/g, '');
+  const ql = q.toLowerCase();
+  return (digits !== '' && String(r.phone || '').replace(/\D/g, '').includes(digits)) ||
+         String(r.code || '').toLowerCase().includes(ql) ||
+         String(r.note || '').toLowerCase().includes(ql);
+}
+
+function pickupRowHtml(r){
+  const picked = r.status === 'picked';
+  const created = pickupMs(r, 'createdAt');
+  const days = created ? Math.floor((Date.now() - created) / 86400000) : 0;
+  let meta = created ? '登記 ' + fmtPickupTime(created) + (r.createdBy ? '・' + escapeHtml(String(r.createdBy).split('@')[0]) : '') : '';
+  if(picked){
+    const pm = pickupMs(r, 'pickedAt');
+    meta = (pm ? '領取 ' + fmtPickupTime(pm) : '已領取') + (r.pickedBy ? '・' + escapeHtml(String(r.pickedBy).split('@')[0]) : '');
+  }else if(created){
+    meta += '・' + (days <= 0 ? '今天登記' : '已放 ' + days + ' 天');
+  }
+  const control = picked
+    ? '<button class="ghost pickup-undo" onclick="setPickupStatus(\'' + r.id + '\', \'waiting\')">取消</button>'
+    : '<label class="pickup-check"><input type="checkbox" onchange="setPickupStatus(\'' + r.id + '\', \'picked\')"><span>已領取</span></label>';
+  return '<div class="pickup-item' + (picked ? ' picked' : '') + '">' + control +
+    '<span class="pickup-phone">' + escapeHtml(fmtPhone(r.phone)) + '</span>' +
+    '<span class="pickup-code" title="驗證碼">' + escapeHtml(r.code || '') + '</span>' +
+    (r.note ? '<span class="pickup-note">' + escapeHtml(r.note) + '</span>' : '') +
+    '<span class="pickup-meta">' + meta + '</span>' +
+    (picked ? '' : '<button class="ghost pickup-del" title="登記錯了,刪除這筆" onclick="setPickupStatus(\'' + r.id + '\', \'removed\')">刪除</button>') +
+    '</div>';
+}
+
+function renderPickups(){
+  const waitingAll = pickupRecords.filter(r => r.status === 'waiting');
+  // 分頁標籤上的紅色數字:還沒領的有幾筆
+  const badge = document.getElementById('pickupTabBadge');
+  if(badge){ badge.textContent = waitingAll.length; badge.style.display = waitingAll.length > 0 ? 'inline-block' : 'none'; }
+
+  const wBox = document.getElementById('pickupWaitingList');
+  const pBox = document.getElementById('pickupPickedList');
+  if(!wBox || !pBox) return;
+  const q = (document.getElementById('pickupSearch') || {}).value || '';
+
+  // 待領取:放最久的排最前面
+  const waiting = waitingAll.filter(r => pickupMatches(r, q))
+    .sort((a, b) => (pickupMs(a, 'createdAt') || Date.now()) - (pickupMs(b, 'createdAt') || Date.now()));
+  const countEl = document.getElementById('pickupWaitingCount');
+  if(countEl) countEl.textContent = waitingAll.length ? '(' + (q ? waiting.length + ' / ' : '') + waitingAll.length + ' 筆)' : '';
+  wBox.innerHTML = waiting.length
+    ? waiting.map(pickupRowHtml).join('')
+    : '<div class="resend-empty">' + (q ? '找不到符合的待領取資料' : '目前沒有待領取的包裹') + '</div>';
+
+  // 已領取:最新領的在最前面,只看最近 30 筆
+  const picked = pickupRecords.filter(r => r.status === 'picked' && pickupMatches(r, q))
+    .sort((a, b) => (pickupMs(b, 'pickedAt') || 0) - (pickupMs(a, 'pickedAt') || 0)).slice(0, 30);
+  pBox.innerHTML = picked.length ? picked.map(pickupRowHtml).join('') : '<div class="resend-empty">' + (q ? '找不到符合的已領取資料' : '還沒有已領取的紀錄') + '</div>';
+}
+
+let pickupSubmitting = false;   // 正在送出中(防連點:連按兩次不會登記成兩筆)
+async function addPickup(){
+  if(pickupSubmitting) return;
+  const msg = document.getElementById('pickupFormMsg');
+  const phoneEl = document.getElementById('pickupPhone'), codeEl = document.getElementById('pickupCode'), noteEl = document.getElementById('pickupNote');
+  const btn = document.getElementById('pickupAddBtn');
+  const phone = phoneEl.value.replace(/\D/g, '');
+  const code = codeEl.value.trim().replace(/\s+/g, ' ');
+  const note = noteEl.value.trim();
+  msg.style.color = '';
+  if(!phone){ msg.textContent = '請輸入手機號碼'; phoneEl.focus(); return; }
+  if(!code){ msg.textContent = '請輸入驗證碼'; codeEl.focus(); return; }
+  // 手機號碼打錯會害客人之後查不到:台灣手機是 09 開頭、共 10 碼,不符合就先確認一下
+  if(!/^09\d{8}$/.test(phone) && !confirm('手機號碼「' + phone + '」看起來不太對(台灣手機是 09 開頭、共 10 碼)。\n\n還是要新增嗎?')){ phoneEl.focus(); return; }
+  if(pickupRecords.some(r => r.status === 'waiting' && String(r.phone).replace(/\D/g, '') === phone && String(r.code) === code)
+     && !confirm('已經有一筆「' + fmtPhone(phone) + '、驗證碼 ' + code + '」的待領取了。\n\n還是要再新增一筆嗎?')){ return; }
+  pickupSubmitting = true;   // 驗證都通過了,在等資料庫之前先上鎖
+  btn.disabled = true;
+  try{
+    await waitForFirebase();
+    const {db, collection, addDoc, serverTimestamp} = window.__fb;
+    await addDoc(collection(db, PICKUP_COLLECTION), {
+      phone: phone, code: code, note: note, status: 'waiting', createdBy: currentUserEmail || '', createdAt: serverTimestamp()
+    });
+    phoneEl.value = ''; codeEl.value = ''; noteEl.value = '';
+    msg.textContent = '✓ 已新增:' + fmtPhone(phone) + '、驗證碼 ' + code;
+    phoneEl.focus();   // 游標回到手機欄,可以直接輸入下一筆
+    setTimeout(()=>{ if(msg.textContent.startsWith('✓')) msg.textContent = ''; }, 5000);
+  }catch(err){
+    msg.style.color = 'var(--warn)';
+    msg.textContent = '新增失敗:' + err.message;
+  }
+  pickupSubmitting = false;
+  btn.disabled = false;
+}
+
+// status:'picked' 勾選已領取 / 'waiting' 取消勾選 / 'removed' 刪除(登記錯了)
+async function setPickupStatus(id, status){
+  const rec = pickupRecords.find(r => r.id === id);
+  if(status === 'removed' && !confirm('確定要刪除「' + fmtPhone(rec ? rec.phone : '') + '」這筆嗎?(登記錯了才需要刪除)')){ renderPickups(); return; }
+  await waitForFirebase();
+  const {db, doc, updateDoc, serverTimestamp} = window.__fb;
+  const email = currentUserEmail || '';
+  const data = status === 'picked' ? {status: 'picked', pickedBy: email, pickedAt: serverTimestamp()}
+             : status === 'waiting' ? {status: 'waiting', pickedBy: '', pickedAt: null}
+             : {status: 'removed'};
+  try{
+    await updateDoc(doc(db, PICKUP_COLLECTION, id), data);
+  }catch(err){
+    alert('更新失敗:' + err.message + '\n請重新整理後再試一次。');
+    renderPickups();   // 失敗了,把畫面還原成資料庫裡的樣子(勾選框不能停在打勾)
+  }
 }
 
 // ===== 留言板 / 叫貨註記 =====
@@ -3805,13 +4037,13 @@ function parseShopRows(dataRows, headers){
   });
 
   // ===== 活動檢查:滿千送小蠟燭 =====
-  const giftReport = {added: [], borderline: [], hasGift: [], nodate: [], inWindow: 0};
+  const giftReport = {added: [], borderline: [], hasGift: [], nodate: [], inWindowIds: []};
   const giftByOrder = {};
   promoOrders.forEach(c=>{
     const ev = evaluateGiftPromo(c.promo);
     if(ev.status === 'outside' || ev.status === 'cancelled') return;
     if(ev.status === 'nodate'){ giftReport.nodate.push(c.orderId); return; }
-    giftReport.inWindow++;
+    giftReport.inWindowIds.push(c.orderId);
     if(ev.status === 'has') giftReport.hasGift.push(c.orderId);
     else if(ev.status === 'add'){ giftReport.added.push({orderId: c.orderId, merchPost: ev.merchPost}); giftByOrder[c.orderId] = c; }
     else if(ev.status === 'borderline') giftReport.borderline.push({orderId: c.orderId, merchPre: ev.merchPre, merchPost: ev.merchPost});
@@ -3842,8 +4074,14 @@ async function processFile(){
   }
 
   if(pickOrderGroups.length > 0 && !currentBatchConfirmed){
-    const proceed = confirm('上一批還沒按「確認完成揀貨」,現在處理新的檔案,上一批還沒檢完的訂單會自動合併帶到新的一批裡,已檢完的不會重複出現。確定要繼續嗎?');
-    if(!proceed) return;
+    const doneN = document.querySelectorAll('#pickList .pick-card-done').length;
+    const undoneN = pickOrderGroups.length - doneN;
+    const msg = doneN > 0
+      ? '上一批有 ' + doneN + ' 張訂單已經勾選檢完、但還沒按「確認完成揀貨」。\n\n繼續的話,系統會先幫您把這 ' + doneN + ' 張記錄起來(算進出貨核對),還沒檢完的 ' + undoneN + ' 張會自動帶到新的一批。\n\n確定要繼續嗎?'
+      : '上一批還沒按「確認完成揀貨」,現在處理新的檔案,上一批還沒檢完的訂單會自動合併帶到新的一批裡。確定要繼續嗎?';
+    if(!confirm(msg)) return;
+    // 已經勾選檢完的,先當作按了「確認完成揀貨」記錄起來(不然它們會憑空消失、出貨核對少算)
+    if(doneN > 0) confirmPickProgress();
   }
 
   document.getElementById('errorPanel').style.display = 'none';
@@ -3869,6 +4107,27 @@ async function processFile(){
     items = await readPinkoiItems();
   }
   if(!items) return; // 錯誤訊息已經在讀取函式裡顯示過了
+
+  // 檢查有沒有「之前已經確認完成揀貨」的訂單又被匯入(例如平台的待出貨清單隔天還在),先詢問要不要略過
+  lastDupSkip = null;
+  const dupCheck = await filterAlreadyConfirmed(items);
+  items = dupCheck.items;
+  if(dupCheck.skipped.length > 0){
+    lastDupSkip = {channel: currentChannel, ids: dupCheck.skipped};
+    if(shopGiftReport){   // 被略過的訂單,也不用再出現在「滿千送小蠟燭」的檢查結果裡
+      const skipSet = new Set(dupCheck.skipped);
+      shopGiftReport.added = shopGiftReport.added.filter(x => !skipSet.has(x.orderId));
+      shopGiftReport.borderline = shopGiftReport.borderline.filter(x => !skipSet.has(x.orderId));
+      ['hasGift', 'nodate', 'inWindowIds'].forEach(k => { shopGiftReport[k] = shopGiftReport[k].filter(id => !skipSet.has(id)); });
+    }
+  }
+  if(items.length === 0){
+    renderShopGiftNote();   // 被略過的訂單不算,上一次的「滿千送小蠟燭」舊提示也要跟著更新
+    renderDupImportNote();
+    alert('這份檔案裡的訂單,之前都已經確認完成揀貨過了,沒有新的訂單需要處理。');
+    return;
+  }
+  document.getElementById('kerryExportNote').style.display = 'none';   // 新的一批,上一次的黑貓匯出說明就不用留著了
 
   await finishProcessing(items);
 }
@@ -4269,6 +4528,7 @@ async function finishProcessing(rawItems){
     skuBox.textContent = 'SKU 對照:' + matchedSkuCount + ' / ' + countable + ' 筆項目已對到品名' + (matchedSkuCount < countable ? '(其餘顯示平台原始品名)' : '');
   }
   renderShopGiftNote();
+  renderDupImportNote();
 
   parsedItems = items;
   custItems = items.filter(it => it.hasCust);
@@ -4409,12 +4669,65 @@ async function refreshPendingMapsAndRepaint(){
   repaintPickListWithMaps();
 }
 
+
+// ===== 匯入時檢查:這些訂單是不是「之前已經確認完成揀貨」過 =====
+function withTimeout(promise, ms){
+  return Promise.race([promise, new Promise(resolve => setTimeout(() => resolve(null), ms))]);
+}
+async function findConfirmedOrderIds(channel, orderIds){
+  const found = {};   // 訂單編號 → 當初確認的日期
+  orderIds.forEach(id => { const d = ledgerGet(CONFIRMED_KEY, channel, id); if(d) found[id] = d; });   // 1) 這台電腦的記錄
+  // 2) 資料庫的訂單歷史(別台電腦確認的也查得到);查不到、斷線、慢都不影響匯入
+  try{
+    const cutoff = ledgerCutoff();
+    await withTimeout((async ()=>{
+      await waitForFirebase();
+      const {db, collection, query, where, getDocs} = window.__fb;
+      const rest = orderIds.filter(id => !found[id]);
+      for(let i = 0; i < rest.length; i += 30){   // 資料庫一次最多查 30 個
+        const snap = await getDocs(query(collection(db, ORDER_HISTORY_COLLECTION), where('orderId', 'in', rest.slice(i, i + 30))));
+        snap.forEach(d => { const x = d.data(); if(x.channel === channel && (x.date || '') >= cutoff) found[x.orderId] = x.date; });
+      }
+    })(), 8000);
+  }catch(err){}
+  return found;
+}
+
+let lastDupSkip = null;   // 最近一次匯入略過了哪些「已確認過」的訂單
+async function filterAlreadyConfirmed(items){
+  const channel = currentChannel;
+  const ids = [...new Set(items.map(it => it.orderId).filter(Boolean))];
+  const found = await findConfirmedOrderIds(channel, ids);
+  const dupIds = ids.filter(id => found[id]);
+  if(dupIds.length === 0) return {items: items, skipped: []};
+  const dates = dupIds.map(id => found[id]).sort();
+  const sample = dupIds.slice(0, 5).join('、') + (dupIds.length > 5 ? '…' : '');
+  const newCount = ids.length - dupIds.length;
+  const skip = confirm(
+    '這份檔案裡有 ' + dupIds.length + ' 張訂單之前已經「確認完成揀貨」過(' + sample + ';最近一次確認是 ' + dates[dates.length - 1] + ')。\n\n' +
+    '按「確定」:略過這 ' + dupIds.length + ' 張,只處理新的 ' + newCount + ' 張(建議,避免重複出貨、重複計算件數)\n' +
+    '按「取消」:仍然全部匯入(例如這些訂單其實要重新出貨)');
+  if(!skip) return {items: items, skipped: []};
+  const skipSet = new Set(dupIds);
+  return {items: items.filter(it => !skipSet.has(it.orderId)), skipped: dupIds};
+}
+
+function renderDupImportNote(){
+  const box = document.getElementById('dupImportNote');
+  if(!box) return;
+  const r = lastDupSkip;
+  if(!r || r.channel !== currentChannel || r.ids.length === 0){ box.style.display = 'none'; box.innerHTML = ''; return; }
+  box.innerHTML = '<div><b>⚠ 已略過 ' + r.ids.length + ' 張之前確認完成揀貨過的訂單</b>(不會重複出貨、也不會重複計算件數):' +
+    r.ids.slice(0, 12).map(escapeHtml).join('、') + (r.ids.length > 12 ? '…等' : '') + '</div>';
+  box.style.display = 'block';
+}
+
 // 官網匯入後,在上方顯示「滿千送小蠟燭」的檢查結果(補了哪幾張、哪幾張要自己判斷)
 function renderShopGiftNote(){
   const box = document.getElementById('shopGiftNote');
   if(!box) return;
   const r = currentChannel === 'shop' ? shopGiftReport : null;
-  if(!r || (r.inWindow === 0 && r.nodate.length === 0)){ box.style.display = 'none'; box.innerHTML = ''; return; }
+  if(!r || (r.inWindowIds.length === 0 && r.nodate.length === 0)){ box.style.display = 'none'; box.innerHTML = ''; return; }
   const fmt = n => Math.round(n).toLocaleString('en-US');
   const ids = list => list.map(escapeHtml).join('、');
   const parts = [];
@@ -4422,7 +4735,7 @@ function renderShopGiftNote(){
     parts.push('<b>🎁 滿千送小蠟燭:有 ' + r.added.length + ' 張訂單商品金額滿 ' + fmt(GIFT_PROMO.threshold) + ' 但沒有贈品,已自動補上「' + GIFT_PROMO.itemName + ' ×' + GIFT_PROMO.qty + '」</b>(括號是折扣後、不含運費的商品金額):' +
       r.added.map(a => escapeHtml(a.orderId) + '(' + fmt(a.merchPost) + ')').join('、'));
   }else{
-    parts.push('<b>🎁 滿千送小蠟燭:這批沒有漏送的訂單</b>(活動期間內 ' + r.inWindow + ' 張,其中 ' + r.hasGift.length + ' 張客人自己加了贈品)');
+    parts.push('<b>🎁 滿千送小蠟燭:這批沒有漏送的訂單</b>(活動期間內 ' + r.inWindowIds.length + ' 張,其中 ' + r.hasGift.length + ' 張客人自己加了贈品)');
   }
   if(r.borderline.length){
     parts.push('另外有 ' + r.borderline.length + ' 張訂單<b>折扣前滿千、折扣後沒滿</b>,沒有自動補,請您自己判斷:' +
@@ -4958,6 +5271,58 @@ function printRemainingList(){
 // 各通路的揀貨進度(按下「確認完成揀貨」才會記錄,不是勾選當下就即時送出)
 let channelProgress = {line:null, shop:null, shopee:null};
 
+// 把「已勾選檢完」的卡片記錄起來:算進出貨核對、存進訂單歷史、更新「揀貨未完成」追蹤,並記住這些訂單已經確認過。
+// 按「確認完成揀貨」、以及匯入新批次時順便處理上一批沒按確認的,都走這裡,數字才會一致。
+// 回傳 {doneOrderIds, saved}:saved 是 Promise,資料庫都寫入成功才會是 true
+function recordDoneCards(doneCards){
+  const skuTotals = {};
+  const categoryCounts = {};
+  let totalItemCount = 0;
+  const doneOrderIds = new Set();
+  const historyRecords = [];
+  doneCards.forEach(card=>{
+    const idx = parseInt(card.id.replace('pick-card-',''), 10);
+    const its = pickOrderGroups[idx] || [];
+    if(its.length > 0){
+      doneOrderIds.add(its[0].orderId);
+      const cat = its[0].shippingCategory || 'kerry';
+      categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+      historyRecords.push({
+        orderId: its[0].orderId,
+        name: its[0].name,
+        phone: its[0].phone || '',
+        address: its[0].address || '',
+        channel: currentChannel,
+        shippingCategory: its[0].shippingCategory || '',
+        items: its.map(it => ({sku: it.sku, name: it.displayName || it.itemName, qty: it.qty}))
+      });
+    }
+    its.forEach(it=>{
+      if(!it.sku) return;
+      if(!skuTotals[it.sku]) skuTotals[it.sku] = {sku: it.sku, name: it.displayName || it.itemName, qty: 0};
+      skuTotals[it.sku].qty += it.qty;
+      totalItemCount += it.qty;
+    });
+  });
+  const channel = currentChannel;
+  const done = doneCards.length;
+  // 這裡只回報「這次新完成」的數量,不是整批的總數,避免同一批分好幾次確認時,總數被重複疊加
+  const saves = [
+    savePickRecord(channel, categoryCounts, done, totalItemCount, done, Object.values(skuTotals)),
+    saveOrderHistory(historyRecords)
+  ];
+  ledgerAdd(CONFIRMED_KEY, channel, [...doneOrderIds]);   // 記住這些訂單已經確認過,之後又被匯入時才會被攔下來詢問
+
+  // 已勾選確認完成的訂單,解除「揀貨未完成」的追蹤;還沒勾選的,記錄到「揀貨未完成」清單,方便跨天追蹤有沒有一直被漏掉
+  doneOrderIds.forEach(oid => resolvePendingPick(channel, oid));
+  pickOrderGroups.forEach(its=>{
+    if(!its || its.length === 0) return;
+    const oid = its[0].orderId;
+    if(!doneOrderIds.has(oid)) markPendingPick(channel, oid, its[0].name);
+  });
+  return {doneOrderIds, saved: Promise.all(saves).then(r => r.every(ok => ok !== false))};
+}
+
 function confirmPickProgress(){
   const total = document.querySelectorAll('#pickList .pick-card').length;
   const doneCards = Array.from(document.querySelectorAll('#pickList .pick-card-done'));
@@ -4974,56 +5339,8 @@ function confirmPickProgress(){
   const note = document.getElementById('pickConfirmNote');
   const label = {line:'LINE', shop:'官網', shopee:'蝦皮', pinkoi:'PINKOI'}[currentChannel] || currentChannel;
 
-  // 彙整這次確認完成的訂單(已勾選的)裡每個SKU賣了幾件,以及每種物流分類各幾張
-  const skuTotals = {};
-  const categoryCounts = {};
-  let totalItemCount = 0;
-  const doneOrderIds = new Set();
-  doneCards.forEach(card=>{
-    const idx = parseInt(card.id.replace('pick-card-',''), 10);
-    const its = pickOrderGroups[idx] || [];
-    if(its.length > 0){
-      doneOrderIds.add(its[0].orderId);
-      const cat = its[0].shippingCategory || 'kerry';
-      categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
-    }
-    its.forEach(it=>{
-      if(!it.sku) return;
-      if(!skuTotals[it.sku]) skuTotals[it.sku] = {sku: it.sku, name: it.displayName || it.itemName, qty: 0};
-      skuTotals[it.sku].qty += it.qty;
-      totalItemCount += it.qty;
-    });
-  });
-  const skuBreakdown = Object.values(skuTotals);
-  // 這裡只回報「這次新完成」的數量(done),不是整批的總數(total),避免同一批分好幾次確認時,總數被重複疊加
-  savePickRecord(currentChannel, categoryCounts, done, totalItemCount, done, skuBreakdown);
-
-  // 把這次確認完成的訂單完整明細存進訂單歷史庫,方便之後搜尋(訂單編號/姓名/商品名稱都能查)
-  const historyRecords = [];
-  doneCards.forEach(card=>{
-    const idx = parseInt(card.id.replace('pick-card-',''), 10);
-    const its = pickOrderGroups[idx] || [];
-    if(its.length === 0) return;
-    historyRecords.push({
-      orderId: its[0].orderId,
-      name: its[0].name,
-      phone: its[0].phone || '',
-      address: its[0].address || '',
-      channel: currentChannel,
-      shippingCategory: its[0].shippingCategory || '',
-      items: its.map(it => ({sku: it.sku, name: it.displayName || it.itemName, qty: it.qty}))
-    });
-  });
-  saveOrderHistory(historyRecords);
-
-  // 已勾選確認完成的訂單,解除「揀貨未完成」的追蹤(不管有沒有留在畫面上,都已經處理完了)
-  doneOrderIds.forEach(oid => resolvePendingPick(currentChannel, oid));
-  // 還沒勾選的,記錄到「揀貨未完成」清單,方便跨天追蹤有沒有一直被漏掉
-  pickOrderGroups.forEach((its, idx)=>{
-    if(!its || its.length === 0) return;
-    const oid = its[0].orderId;
-    if(!doneOrderIds.has(oid)) markPendingPick(currentChannel, oid, its[0].name);
-  });
+  const rec = recordDoneCards(doneCards);
+  const doneOrderIds = rec.doneOrderIds;
 
   // 已確認完成的訂單,從畫面上移除,只留下還沒檢完的——這樣下次再按確認,回報的才會是「新完成的量」,不會把同一批的總數重複算好幾次
   const keptStates = captureCardStates(); // 留下來的訂單(部分勾選/稍後檢貨)要保留原本的狀態
@@ -5037,6 +5354,14 @@ function confirmPickProgress(){
   }else{
     note.textContent = '✓ 已確認 ' + label + ' ' + done + ' 張,還剩 ' + parsedItems.length + ' 張訂單還沒檢貨完成,留在下面繼續處理。';
   }
+  // 資料庫寫入失敗的話,出貨核對的數字會少算,一定要讓使用者知道
+  rec.saved.then(ok => {
+    if(!ok){
+      note.textContent += ' ⚠ 但是記錄到出貨核對時失敗了(網路或權限問題),出貨核對頁的數字可能會少算,請重新整理後確認。';
+      alert('⚠ 這次確認的 ' + done + ' 張訂單,記錄到出貨核對時失敗了(可能是網路或權限問題)。\n出貨核對頁的數字可能會少算,請重新整理後確認;若還是不對,請告訴開發的人。');
+    }
+    updatePage3PickProgress();
+  });
   updatePage3PickProgress();
   saveState();
 }
@@ -5184,13 +5509,43 @@ function findUnencodableChars(str){
 function downloadKerryCSV(){
   // 每張訂單一列(以第一筆項目的收件人資訊為準),只取真的要走黑貓的訂單
   const seen = new Set();
-  const rows = [];
-  const header = ['訂單編號','收件人-姓名','收件人-手機','收件人-地址','寄件人-姓名','寄件人-電話','寄件人-地址','出貨日期','品名','溫層','距離','規格','代收貨款','易碎物品'];
-  rows.push(header);
+  const orders = [];
   parsedItems.forEach(it=>{
     if(it.shippingCategory && it.shippingCategory !== 'kerry') return;
     if(seen.has(it.orderId) || !it.orderId) return;
     seen.add(it.orderId);
+    orders.push(it);
+  });
+  if(orders.length === 0){
+    alert('這批目前沒有要走黑貓的訂單。');
+    return;
+  }
+  // 之前已經匯出過黑貓的訂單(例如缺貨、留到下一批的),預設不再匯出,避免黑貓重複建單、重複列印物流單
+  const already = orders.filter(it => ledgerGet(KERRY_EXPORT_KEY, currentChannel, it.orderId));
+  let toExport = orders;
+  let skippedCount = 0;
+  if(already.length > 0){
+    const sample = already.slice(0, 5).map(it => it.orderId).join('、') + (already.length > 5 ? '…' : '');
+    const skip = confirm(
+      '這批有 ' + already.length + ' 張訂單之前已經匯出過黑貓(' + sample + ')。\n\n' +
+      '按「確定」:這次只匯出 ' + (orders.length - already.length) + ' 張新的訂單(建議,避免黑貓重複建單)\n' +
+      '按「取消」:連這 ' + already.length + ' 張一起匯出(例如上次匯入黑貓失敗,要重新匯)');
+    if(skip){
+      const alreadySet = new Set(already.map(it => it.orderId));
+      toExport = orders.filter(it => !alreadySet.has(it.orderId));
+      skippedCount = already.length;
+    }
+  }
+  const note = document.getElementById('kerryExportNote');
+  if(toExport.length === 0){
+    if(note){ note.innerHTML = '<div>這批的黑貓訂單(' + orders.length + ' 張)之前都已經匯出過了,所以沒有產生新的檔案。</div>'; note.style.display = 'block'; }
+    alert('這批的黑貓訂單之前都已經匯出過了,沒有新的訂單需要匯出。');
+    return;
+  }
+  const rows = [];
+  const header = ['訂單編號','收件人-姓名','收件人-手機','收件人-地址','寄件人-姓名','寄件人-電話','寄件人-地址','出貨日期','品名','溫層','距離','規格','代收貨款','易碎物品'];
+  rows.push(header);
+  toExport.forEach(it=>{
     rows.push([
       '\t' + it.orderId,
       it.name,
@@ -5213,6 +5568,13 @@ function downloadKerryCSV(){
   a.download = (currentChannel === 'shop' ? '官網' : 'LINE') + '_黑貓匯入_' + fmtDate() + '.csv';
   a.click();
   URL.revokeObjectURL(url);
+
+  ledgerAdd(KERRY_EXPORT_KEY, currentChannel, toExport.map(it => it.orderId));   // 記住這些訂單已經匯出過了
+  if(note){
+    note.innerHTML = '<div><b>這次匯出 ' + toExport.length + ' 張</b>(本批共 ' + orders.length + ' 張黑貓訂單)' +
+      (skippedCount > 0 ? ';<b>略過 ' + skippedCount + ' 張之前已經匯出過的</b>,不會重複建單' : '') + '。</div>';
+    note.style.display = 'block';
+  }
 }
 
 function csvQuoteAll(v){
