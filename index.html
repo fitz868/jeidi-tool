@@ -173,6 +173,28 @@
     .page-tabs{overflow-x:auto;white-space:nowrap;}
   }
 
+  /* 頂端「蝦皮取貨」方塊(跟補寄記錄並排) */
+  .top-boxes .pickup-box{flex:1;min-width:260px;}
+  .pickup-box{background:#FFF6DC;border:1px solid #EBD79B;border-radius:8px;padding:14px 16px;}
+  .pickup-box .resend-title{color:#7A5200;}
+  .pickup-box-list{display:flex;flex-direction:column;}
+  .pickup-box-list > *{margin-bottom:6px;}
+  .pickup-box-search{font-family:inherit;font-size:13px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--paper);color:var(--ink);width:100%;box-sizing:border-box;}
+  .pickup-mini{display:flex;align-items:center;flex-wrap:wrap;background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:5px 10px;}
+  .pickup-mini > *{margin:2px 10px 2px 0;}
+  .pickup-mini > *:last-child{margin-right:0;}
+  .pickup-mini .pickup-check input{width:20px;height:20px;}
+  .pickup-mini .pickup-phone{font-size:16px;}
+  .pickup-mini .pickup-code{font-size:15px;padding:0 8px;}
+  .pickup-mini .pickup-note{font-size:13px;}
+  .pickup-mini > .pickup-age{margin-left:auto;font-size:11.5px;color:var(--ink-soft);}
+  .pickup-mini button.pickup-x{font-size:12px;padding:1px 7px;line-height:1.4;}
+  .pickup-more{display:block;background:none;border:none;padding:0;font-family:inherit;text-align:left;font-size:12.5px;font-weight:600;color:var(--sage-dark);cursor:pointer;text-decoration:underline;margin-top:2px;}
+  .pickup-quick-form{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;}
+  .pickup-quick-form input{font-family:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--paper);color:var(--ink);width:100%;box-sizing:border-box;}
+  .pickup-quick-form input:nth-child(3), .pickup-quick-form button.primary, .pickup-quick-form .form-msg{grid-column:1 / -1;}
+  .pickup-quick-form button.primary{padding:8px 16px;font-size:14px;}
+
   .update-banner{
     background:var(--warn);color:#fff;text-align:center;font-size:13.5px;font-weight:600;
     padding:10px 16px;border-radius:8px;margin-bottom:20px;cursor:pointer;
@@ -875,6 +897,24 @@
       </details>
     </div>
 
+    <div class="pickup-box" id="pickupBox">
+      <div class="resend-title">蝦皮取貨(待領取) <span class="pickup-count" id="pickupBoxCount"></span></div>
+      <div id="pickupBoxSearchRow" style="display:none;margin-bottom:8px;">
+        <input type="text" id="pickupBoxSearch" class="pickup-box-search" placeholder="搜尋手機後幾碼、驗證碼、備註" oninput="renderPickups()">
+      </div>
+      <div id="pickupBoxList" class="pickup-box-list"><div class="resend-empty">讀取中...</div></div>
+      <details class="resend-form-details">
+        <summary>+ 新增蝦皮取貨</summary>
+        <div class="pickup-quick-form">
+          <input type="text" id="qPickupPhone" inputmode="tel" maxlength="20" placeholder="手機號碼" autocomplete="off" onkeydown="if(event.key==='Enter') document.getElementById('qPickupCode').focus()">
+          <input type="text" id="qPickupCode" maxlength="40" placeholder="驗證碼" autocomplete="off" onkeydown="if(event.key==='Enter') document.getElementById('qPickupNote').focus()">
+          <input type="text" id="qPickupNote" maxlength="60" placeholder="備註(選填,例如姓名)" autocomplete="off" onkeydown="if(event.key==='Enter') addPickup('qPickup')">
+          <button class="primary" id="qPickupAddBtn" onclick="addPickup('qPickup')">新增</button>
+          <div class="form-msg" id="qPickupFormMsg"></div>
+        </div>
+      </details>
+    </div>
+
     <div class="daily-note-box" id="dailyNoteBox" style="display:none;">
       <div class="daily-note-title">今日提醒</div>
       <div id="dailyNoteList"></div>
@@ -1296,7 +1336,7 @@
 </div>
 
 <script>
-const APP_VERSION = '20261010-14'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20261010-15'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -2851,6 +2891,7 @@ function closeChannelGuide(){
 const PICKUP_COLLECTION = 'shopee_pickups';
 let pickupRecords = [];
 let pickupUnsub = null;
+let pickupLoadError = '';   // 讀取資料庫失敗的原因(例如 Firestore 規則還沒更新);空字串 = 正常
 
 function pickupMs(r, key){ const t = r[key]; return (t && t.seconds) ? t.seconds * 1000 : null; }
 function fmtPhone(p){
@@ -2868,9 +2909,14 @@ async function startPickupListener(){
   const {db, collection, query, orderBy, limit, onSnapshot} = window.__fb;
   const q = query(collection(db, PICKUP_COLLECTION), orderBy('createdAt', 'desc'), limit(500));
   pickupUnsub = onSnapshot(q, (snap)=>{
+    pickupLoadError = '';
     pickupRecords = snap.docs.map(d => ({id: d.id, ...d.data({serverTimestamps: 'estimate'})}));
     renderPickups();
-  }, ()=>{ pickupUnsub = null; });   // 讀取失敗(登出、權限):重置,下次登入再重新監聽
+  }, (err)=>{
+    pickupUnsub = null;   // 讀取失敗(登出、權限):重置,下次登入再重新監聽
+    pickupLoadError = (err && err.message) ? err.message : '未知原因';
+    renderPickups();      // 把原因顯示出來,不要一直停在「讀取中」
+  });
 }
 
 // 搜尋:手機號碼(只要包含輸入的數字就算,所以打後幾碼也找得到)、驗證碼、備註
@@ -2907,11 +2953,50 @@ function pickupRowHtml(r){
     '</div>';
 }
 
+// 上方方塊裡的精簡一列:勾選、手機、驗證碼、備註、已放幾天、刪除
+function pickupMiniHtml(r){
+  const created = pickupMs(r, 'createdAt');
+  const days = created ? Math.floor((Date.now() - created) / 86400000) : 0;
+  return '<div class="pickup-mini">' +
+    '<label class="pickup-check"><input type="checkbox" onchange="setPickupStatus(\'' + r.id + '\', \'picked\')"><span>已領取</span></label>' +
+    '<span class="pickup-phone">' + escapeHtml(fmtPhone(r.phone)) + '</span>' +
+    '<span class="pickup-code" title="驗證碼">' + escapeHtml(r.code || '') + '</span>' +
+    (r.note ? '<span class="pickup-note">' + escapeHtml(r.note) + '</span>' : '') +
+    '<span class="pickup-age">' + (created ? (days <= 0 ? '今天' : '已放 ' + days + ' 天') : '') + '</span>' +
+    '<button class="ghost pickup-x" title="登記錯了,刪除這筆" onclick="setPickupStatus(\'' + r.id + '\', \'removed\')">✕</button>' +
+    '</div>';
+}
+
+const PICKUP_BOX_LIMIT = 8;   // 方塊裡平常最多先顯示幾筆(有輸入搜尋時顯示符合的前 20 筆)
+function renderPickupBox(waitingAll){
+  const list = document.getElementById('pickupBoxList');
+  if(!list) return;
+  const q = (document.getElementById('pickupBoxSearch') || {}).value || '';
+  const cnt = document.getElementById('pickupBoxCount');
+  if(cnt) cnt.textContent = waitingAll.length ? '(' + waitingAll.length + ' 筆)' : '';
+  const searchRow = document.getElementById('pickupBoxSearchRow');
+  if(searchRow) searchRow.style.display = waitingAll.length > 0 ? 'block' : 'none';
+  if(pickupLoadError && waitingAll.length === 0){
+    list.innerHTML = '<div class="resend-empty" style="color:var(--warn);">讀取失敗:' + escapeHtml(pickupLoadError) + '<br>請確認 Firebase 的 Firestore 規則已經更新(shopee_pickups)。</div>';
+    return;
+  }
+  const matched = waitingAll.filter(r => pickupMatches(r, q))
+    .sort((a, b) => (pickupMs(a, 'createdAt') || Date.now()) - (pickupMs(b, 'createdAt') || Date.now()));   // 放最久的排最前面
+  const shown = matched.slice(0, q ? 20 : PICKUP_BOX_LIMIT);
+  let h = shown.length ? shown.map(pickupMiniHtml).join('')
+    : '<div class="resend-empty">' + (q ? '找不到符合的待領取資料' : '目前沒有待領取的包裹') + '</div>';
+  if(matched.length > shown.length){
+    h += '<button type="button" class="pickup-more" onclick="switchPage(5)">還有 ' + (matched.length - shown.length) + ' 筆,到「蝦皮取貨」分頁看全部 ›</button>';
+  }
+  list.innerHTML = h;
+}
+
 function renderPickups(){
   const waitingAll = pickupRecords.filter(r => r.status === 'waiting');
   // 分頁標籤上的紅色數字:還沒領的有幾筆
   const badge = document.getElementById('pickupTabBadge');
   if(badge){ badge.textContent = waitingAll.length; badge.style.display = waitingAll.length > 0 ? 'inline-block' : 'none'; }
+  renderPickupBox(waitingAll);
 
   const wBox = document.getElementById('pickupWaitingList');
   const pBox = document.getElementById('pickupPickedList');
@@ -2923,9 +3008,11 @@ function renderPickups(){
     .sort((a, b) => (pickupMs(a, 'createdAt') || Date.now()) - (pickupMs(b, 'createdAt') || Date.now()));
   const countEl = document.getElementById('pickupWaitingCount');
   if(countEl) countEl.textContent = waitingAll.length ? '(' + (q ? waiting.length + ' / ' : '') + waitingAll.length + ' 筆)' : '';
-  wBox.innerHTML = waiting.length
-    ? waiting.map(pickupRowHtml).join('')
-    : '<div class="resend-empty">' + (q ? '找不到符合的待領取資料' : '目前沒有待領取的包裹') + '</div>';
+  wBox.innerHTML = (pickupLoadError && waitingAll.length === 0)
+    ? '<div class="resend-empty" style="color:var(--warn);">讀取失敗:' + escapeHtml(pickupLoadError) + '。請確認 Firebase 的 Firestore 規則已經更新(shopee_pickups)。</div>'
+    : waiting.length
+      ? waiting.map(pickupRowHtml).join('')
+      : '<div class="resend-empty">' + (q ? '找不到符合的待領取資料' : '目前沒有待領取的包裹') + '</div>';
 
   // 已領取:最新領的在最前面,只看最近 30 筆
   const picked = pickupRecords.filter(r => r.status === 'picked' && pickupMatches(r, q))
@@ -2934,11 +3021,13 @@ function renderPickups(){
 }
 
 let pickupSubmitting = false;   // 正在送出中(防連點:連按兩次不會登記成兩筆)
-async function addPickup(){
+// prefix:哪一個表單。'pickup' = 「蝦皮取貨」分頁裡的表單;'qPickup' = 頁面上方方塊裡的快速新增表單(兩邊邏輯、防呆完全一樣)
+async function addPickup(prefix){
   if(pickupSubmitting) return;
-  const msg = document.getElementById('pickupFormMsg');
-  const phoneEl = document.getElementById('pickupPhone'), codeEl = document.getElementById('pickupCode'), noteEl = document.getElementById('pickupNote');
-  const btn = document.getElementById('pickupAddBtn');
+  prefix = prefix || 'pickup';
+  const msg = document.getElementById(prefix + 'FormMsg');
+  const phoneEl = document.getElementById(prefix + 'Phone'), codeEl = document.getElementById(prefix + 'Code'), noteEl = document.getElementById(prefix + 'Note');
+  const btn = document.getElementById(prefix + 'AddBtn');
   const phone = phoneEl.value.replace(/\D/g, '');
   const code = codeEl.value.trim().replace(/\s+/g, ' ');
   const note = noteEl.value.trim();
