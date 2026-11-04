@@ -195,6 +195,18 @@
   .pickup-quick-form input:nth-child(3), .pickup-quick-form button.primary, .pickup-quick-form .form-msg{grid-column:1 / -1;}
   .pickup-quick-form button.primary{padding:8px 16px;font-size:14px;}
 
+  /* 補寄/蝦皮取貨:編輯、刪除按鈕 */
+  .resend-item button.resend-edit-btn, .resend-item button.resend-del-btn{margin-left:6px;}
+  .resend-item button.resend-del-btn{color:var(--warn);}
+  .plain-table td.resend-ops{white-space:nowrap;}
+  .plain-table td.resend-ops button{font-size:12px;padding:3px 9px;margin:0;}
+  .plain-table td.resend-ops button.resend-del-btn{color:var(--warn);}
+  .pickup-item button.ghost.pickup-edit{margin-left:auto;}
+  .pickup-item button.ghost.pickup-edit + .pickup-meta{margin-left:0;}
+  .pickup-item > .pickup-meta + button.ghost.pickup-edit{margin-left:6px;}
+  .pickup-item button.ghost.pickup-del{color:var(--warn);}
+  .pickup-mini button.pickup-e{font-size:12px;padding:1px 7px;line-height:1.4;}
+
   .update-banner{
     background:var(--warn);color:#fff;text-align:center;font-size:13.5px;font-weight:600;
     padding:10px 16px;border-radius:8px;margin-bottom:20px;cursor:pointer;
@@ -775,6 +787,59 @@
   🔄 有新版本可以用,點這裡重新整理(建議先確認手上的檢貨進度不會弄丟再點)
 </div>
 
+<div class="modal-overlay no-print" id="resendEditModal" style="display:none;" onclick="if(event.target===this) closeResendEdit()">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>編輯補寄記錄</h3>
+      <button class="modal-close-btn" onclick="closeResendEdit()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="desc" id="re-status-note"></div>
+      <div class="resend-form">
+        <label class="rf-label">通路</label>
+        <select id="re-channel"></select>
+        <label class="rf-label">訂單編號</label>
+        <input id="re-order" placeholder="訂單編號">
+        <label class="rf-label">物流方式</label>
+        <select id="re-category"></select>
+        <label class="rf-label">地址/超商店名</label>
+        <input id="re-address" placeholder="地址/超商店名">
+        <label class="rf-label">收件人姓名</label>
+        <input id="re-name" placeholder="姓名">
+        <label class="rf-label">收件人電話</label>
+        <input id="re-phone" placeholder="電話">
+        <label class="rf-label">補寄內容物</label>
+        <textarea id="re-contents" rows="2" placeholder="補寄內容物"></textarea>
+        <label class="rf-label">補寄單號</label>
+        <input id="re-tracking" placeholder="補寄單號(寄出後才有)">
+        <button class="primary" id="resendEditSaveBtn" onclick="saveResendEdit()">儲存</button>
+        <div class="form-msg" id="resendEditMsg"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay no-print" id="pickupEditModal" style="display:none;" onclick="if(event.target===this) closePickupEdit()">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3 id="pe-title">編輯蝦皮取貨</h3>
+      <button class="modal-close-btn" onclick="closePickupEdit()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="resend-form">
+        <label class="rf-label">手機號碼</label>
+        <input id="pe-phone" inputmode="tel" maxlength="20" placeholder="手機號碼" autocomplete="off">
+        <label class="rf-label">驗證碼</label>
+        <input id="pe-code" maxlength="40" placeholder="驗證碼" autocomplete="off">
+        <label class="rf-label">備註</label>
+        <input id="pe-note" maxlength="60" placeholder="備註(選填,例如姓名)" autocomplete="off" onkeydown="if(event.key==='Enter') savePickupEdit()">
+        <button class="primary" id="pickupEditSaveBtn" onclick="savePickupEdit()">儲存</button>
+        <div class="form-msg" id="pickupEditMsg"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="fab-bar no-print">
   <button class="fab-btn" id="liveFab" onclick="openLive()" title="各通路的即時進度、還缺的商品">📡 即時進行中<span class="board-badge live-badge" id="liveBadge" style="display:none;">0</span></button>
   <button class="fab-btn" id="boardFab" onclick="openBoard()" title="留言板 / 叫貨註記">💬 留言板<span class="board-badge" id="boardBadge" style="display:none;">0</span></button>
@@ -1336,7 +1401,7 @@
 </div>
 
 <script>
-const APP_VERSION = '20261010-15'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20261010-16'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -2014,6 +2079,8 @@ async function searchOrderHistory(){
   }
 }
 
+let resendPendingRecords = [];
+
 async function loadResendRecords(){
   await waitForFirebase();
   const {db, collection, query, where, getDocs} = window.__fb;
@@ -2027,6 +2094,7 @@ async function loadResendRecords(){
       const tb = b.createdAt && b.createdAt.seconds || 0;
       return tb - ta;
     });
+    resendPendingRecords = records;   // 編輯視窗要用:記住目前畫面上的待處理補寄資料
     renderResendRecords(records);
   }catch(err){
     const msg = '<div class="resend-empty">讀取失敗: ' + err.message + '</div>';
@@ -2064,6 +2132,8 @@ function renderResendListInto(box, records){
       </div>
       ${r.trackingNumber ? '<div class="resend-tracking-saved">✓ 單號已存:' + escapeHtml(r.trackingNumber) + '(樓下可以看到,按下方確認完成即可結案)</div>' : ''}
       <button class="primary" onclick="confirmResendDone(this, '${r.id}', '${r.category||''}')">確認完成</button>
+      <button class="ghost resend-edit-btn" onclick="openResendEdit('${r.id}')">編輯</button>
+      <button class="ghost resend-del-btn" onclick="deleteResend('${r.id}')">刪除</button>
     </div>
   `;
   }).join('');
@@ -2159,16 +2229,103 @@ function renderCompletedResends(){
     box.innerHTML = '<div class="resend-empty">沒有符合的紀錄</div>';
     return;
   }
-  box.innerHTML = '<table class="plain-table"><thead><tr><th>完成日期</th><th>通路</th><th>訂單編號</th><th>物流方式</th><th>補寄單號</th><th>姓名</th></tr></thead><tbody>' +
+  box.innerHTML = '<table class="plain-table"><thead><tr><th>完成日期</th><th>通路</th><th>訂單編號</th><th>物流方式</th><th>補寄單號</th><th>姓名</th><th>操作</th></tr></thead><tbody>' +
     list.map(r =>{
       const dateStr = r.completedAt && r.completedAt.seconds
         ? new Date(r.completedAt.seconds * 1000).toLocaleDateString('zh-TW')
         : '-';
       return '<tr><td>' + escapeHtml(dateStr) + '</td><td>' + escapeHtml(r.channel||'') + '</td><td>' + escapeHtml(r.orderNumber||'') + '</td><td>' +
       escapeHtml(SHIP_CATEGORY_LABEL[r.category] || r.category || '') + '</td><td>' + escapeHtml(r.trackingNumber||'') + '</td><td>' +
-      escapeHtml(r.name||'') + '</td></tr>';
+      escapeHtml(r.name||'') + '</td><td class="resend-ops"><button class="ghost resend-edit-btn" onclick="openResendEdit(\'' + r.id + '\')">編輯</button> <button class="ghost resend-del-btn" onclick="deleteResend(\'' + r.id + '\')">刪除</button></td></tr>';
     }).join('') +
     '</tbody></table>';
+}
+
+// ===== 補寄:編輯與刪除 =====
+// 編輯:跳出視窗修改欄位(待處理、已完成的都可以,已完成的可以改補寄單號)。
+// 刪除:不會真的從資料庫消失,只是狀態變成「已刪除」,清單和搜尋就不會再出現;並記下是誰刪的。
+let editingResendId = null;
+
+function findResendRecord(id){
+  return resendPendingRecords.find(r => r.id === id) || completedResendRecords.find(r => r.id === id) || null;
+}
+
+function openResendEdit(id){
+  const r = findResendRecord(id);
+  if(!r){ alert('找不到這筆資料,請重新整理後再試。'); return; }
+  editingResendId = id;
+  // 通路、物流方式的選項跟「新增補寄記錄」表單同步(之後新增選項也會自動跟著)
+  document.getElementById('re-channel').innerHTML = document.getElementById('rf-channel').innerHTML;
+  document.getElementById('re-category').innerHTML = document.getElementById('rf-category').innerHTML;
+  // 用 .value 填值(不用組 HTML 字串),姓名、地址裡有引號或特殊符號也不會出問題
+  document.getElementById('re-channel').value = r.channel || '';
+  document.getElementById('re-order').value = r.orderNumber || '';
+  document.getElementById('re-category').value = r.category || '';
+  document.getElementById('re-address').value = r.address || '';
+  document.getElementById('re-name').value = r.name || '';
+  document.getElementById('re-phone').value = r.phone || '';
+  document.getElementById('re-contents').value = r.contents || '';
+  document.getElementById('re-tracking').value = r.trackingNumber || '';
+  document.getElementById('re-status-note').textContent = r.status === '已完成' ? '這筆已經完成補寄,修改只會更正資料,不會重新計算出貨件數。' : '';
+  document.getElementById('resendEditMsg').textContent = '';
+  document.getElementById('resendEditModal').style.display = 'flex';
+}
+function closeResendEdit(){
+  document.getElementById('resendEditModal').style.display = 'none';
+  editingResendId = null;
+}
+
+async function saveResendEdit(){
+  const r = findResendRecord(editingResendId);
+  const msgEl = document.getElementById('resendEditMsg');
+  if(!r){ msgEl.textContent = '找不到這筆資料,請關掉視窗重新整理。'; return; }
+  const v = {
+    channel: document.getElementById('re-channel').value,
+    orderNumber: document.getElementById('re-order').value.trim(),
+    category: document.getElementById('re-category').value,
+    address: document.getElementById('re-address').value.trim(),
+    name: document.getElementById('re-name').value.trim(),
+    phone: document.getElementById('re-phone').value.trim(),
+    contents: document.getElementById('re-contents').value.trim(),
+    trackingNumber: document.getElementById('re-tracking').value.trim()
+  };
+  if(!v.orderNumber || !v.name){ msgEl.textContent = '請至少填寫訂單編號跟姓名。'; return; }
+  // 只送出真的有改的欄位
+  const changes = {};
+  Object.keys(v).forEach(k => { if(v[k] !== String(r[k] === undefined || r[k] === null ? '' : r[k])) changes[k] = v[k]; });
+  if(Object.keys(changes).length === 0){ closeResendEdit(); return; }
+  const btn = document.getElementById('resendEditSaveBtn');
+  if(btn.disabled) return;
+  btn.disabled = true;
+  await waitForFirebase();
+  const {db, doc, updateDoc, serverTimestamp} = window.__fb;
+  try{
+    await updateDoc(doc(db, RESEND_COLLECTION, r.id), Object.assign({}, changes, {editedBy: currentUserEmail || '', editedAt: serverTimestamp()}));
+    closeResendEdit();
+    loadResendRecords();
+    loadCompletedResends();
+  }catch(err){
+    msgEl.textContent = '儲存失敗:' + err.message;
+  }
+  btn.disabled = false;
+}
+
+async function deleteResend(id){
+  const r = findResendRecord(id);
+  if(!r){ alert('找不到這筆資料,請重新整理後再試。'); return; }
+  const done = r.status === '已完成';
+  const text = '確定要刪除這筆補寄嗎?\n\n' + (r.orderNumber || '') + '・' + (r.name || '') + (done ? '\n補寄單號:' + (r.trackingNumber || '(沒有)') : '') +
+    (done ? '\n\n這筆已經完成補寄。刪除後不會再出現在清單和搜尋裡,但「出貨核對」裡當時記下的出貨件數不會跟著減少。' : '');
+  if(!confirm(text)) return;
+  await waitForFirebase();
+  const {db, doc, updateDoc, serverTimestamp} = window.__fb;
+  try{
+    await updateDoc(doc(db, RESEND_COLLECTION, id), {status: '已刪除', deletedBy: currentUserEmail || '', deletedAt: serverTimestamp()});
+    loadResendRecords();
+    loadCompletedResends();
+  }catch(err){
+    alert('刪除失敗: ' + err.message);
+  }
 }
 
 // 補寄常用的寄件人資訊,填快遞單/超商寄件系統時參考用
@@ -2944,12 +3101,15 @@ function pickupRowHtml(r){
   const control = picked
     ? '<button class="ghost pickup-undo" onclick="setPickupStatus(\'' + r.id + '\', \'waiting\')">取消</button>'
     : '<label class="pickup-check"><input type="checkbox" onchange="setPickupStatus(\'' + r.id + '\', \'picked\')"><span>已領取</span></label>';
+  // 編輯、刪除:待領取、已領取的都可以(登記錯了、領取的紀錄想更正或清掉)
+  const ops = '<button class="ghost pickup-edit" title="修改手機、驗證碼、備註" onclick="openPickupEdit(\'' + r.id + '\')">編輯</button>' +
+              '<button class="ghost pickup-del" title="刪除這筆" onclick="setPickupStatus(\'' + r.id + '\', \'removed\')">刪除</button>';
   return '<div class="pickup-item' + (picked ? ' picked' : '') + '">' + control +
     '<span class="pickup-phone">' + escapeHtml(fmtPhone(r.phone)) + '</span>' +
     '<span class="pickup-code" title="驗證碼">' + escapeHtml(r.code || '') + '</span>' +
     (r.note ? '<span class="pickup-note">' + escapeHtml(r.note) + '</span>' : '') +
     '<span class="pickup-meta">' + meta + '</span>' +
-    (picked ? '' : '<button class="ghost pickup-del" title="登記錯了,刪除這筆" onclick="setPickupStatus(\'' + r.id + '\', \'removed\')">刪除</button>') +
+    ops +
     '</div>';
 }
 
@@ -2963,6 +3123,7 @@ function pickupMiniHtml(r){
     '<span class="pickup-code" title="驗證碼">' + escapeHtml(r.code || '') + '</span>' +
     (r.note ? '<span class="pickup-note">' + escapeHtml(r.note) + '</span>' : '') +
     '<span class="pickup-age">' + (created ? (days <= 0 ? '今天' : '已放 ' + days + ' 天') : '') + '</span>' +
+    '<button class="ghost pickup-e" title="編輯" onclick="openPickupEdit(\'' + r.id + '\')">✎</button>' +
     '<button class="ghost pickup-x" title="登記錯了,刪除這筆" onclick="setPickupStatus(\'' + r.id + '\', \'removed\')">✕</button>' +
     '</div>';
 }
@@ -3061,7 +3222,7 @@ async function addPickup(prefix){
 // status:'picked' 勾選已領取 / 'waiting' 取消勾選 / 'removed' 刪除(登記錯了)
 async function setPickupStatus(id, status){
   const rec = pickupRecords.find(r => r.id === id);
-  if(status === 'removed' && !confirm('確定要刪除「' + fmtPhone(rec ? rec.phone : '') + '」這筆嗎?(登記錯了才需要刪除)')){ renderPickups(); return; }
+  if(status === 'removed' && !confirm('確定要刪除「' + fmtPhone(rec ? rec.phone : '') + '」這筆嗎?' + (rec && rec.status === 'picked' ? '\n(這筆已經領取了,刪除後領取的紀錄也會一起消失)' : '(登記錯了才需要刪除)'))){ renderPickups(); return; }
   await waitForFirebase();
   const {db, doc, updateDoc, serverTimestamp} = window.__fb;
   const email = currentUserEmail || '';
@@ -3074,6 +3235,51 @@ async function setPickupStatus(id, status){
     alert('更新失敗:' + err.message + '\n請重新整理後再試一次。');
     renderPickups();   // 失敗了,把畫面還原成資料庫裡的樣子(勾選框不能停在打勾)
   }
+}
+
+// ----- 蝦皮取貨:編輯 -----
+let editingPickupId = null;
+function openPickupEdit(id){
+  const r = pickupRecords.find(x => x.id === id);
+  if(!r){ alert('找不到這筆資料,請重新整理後再試。'); return; }
+  editingPickupId = id;
+  document.getElementById('pe-phone').value = r.phone || '';
+  document.getElementById('pe-code').value = r.code || '';
+  document.getElementById('pe-note').value = r.note || '';
+  document.getElementById('pe-title').textContent = r.status === 'picked' ? '編輯蝦皮取貨(已領取)' : '編輯蝦皮取貨';
+  document.getElementById('pickupEditMsg').textContent = '';
+  document.getElementById('pickupEditModal').style.display = 'flex';
+  document.getElementById('pe-phone').focus();
+}
+function closePickupEdit(){
+  document.getElementById('pickupEditModal').style.display = 'none';
+  editingPickupId = null;
+}
+async function savePickupEdit(){
+  const r = pickupRecords.find(x => x.id === editingPickupId);
+  const msg = document.getElementById('pickupEditMsg');
+  if(!r){ msg.textContent = '找不到這筆資料,請關掉視窗重新整理。'; return; }
+  const phone = document.getElementById('pe-phone').value.replace(/\D/g, '');
+  const code = document.getElementById('pe-code').value.trim().replace(/\s+/g, ' ');
+  const note = document.getElementById('pe-note').value.trim();
+  if(!phone){ msg.textContent = '請輸入手機號碼'; return; }
+  if(!code){ msg.textContent = '請輸入驗證碼'; return; }
+  if(phone === String(r.phone || '').replace(/\D/g, '') && code === String(r.code || '') && note === String(r.note || '')){ closePickupEdit(); return; }   // 沒有改任何東西
+  if(!/^09\d{8}$/.test(phone) && phone !== String(r.phone || '').replace(/\D/g, '') && !confirm('手機號碼「' + phone + '」看起來不太對(台灣手機是 09 開頭、共 10 碼)。\n\n還是要存嗎?')) return;
+  if(r.status === 'waiting' && pickupRecords.some(x => x.id !== r.id && x.status === 'waiting' && String(x.phone).replace(/\D/g, '') === phone && String(x.code) === code)
+     && !confirm('已經有另一筆「' + fmtPhone(phone) + '、驗證碼 ' + code + '」的待領取了。\n\n還是要存嗎?')) return;
+  const btn = document.getElementById('pickupEditSaveBtn');
+  if(btn.disabled) return;
+  btn.disabled = true;
+  await waitForFirebase();
+  const {db, doc, updateDoc, serverTimestamp} = window.__fb;
+  try{
+    await updateDoc(doc(db, PICKUP_COLLECTION, r.id), {phone: phone, code: code, note: note, editedBy: currentUserEmail || '', editedAt: serverTimestamp()});
+    closePickupEdit();   // 清單是即時同步的,存好之後會自己更新
+  }catch(err){
+    msg.textContent = '儲存失敗:' + err.message;
+  }
+  btn.disabled = false;
 }
 
 // ===== 留言板 / 叫貨註記 =====
