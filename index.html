@@ -207,6 +207,82 @@
   .pickup-item button.ghost.pickup-del{color:var(--warn);}
   .pickup-mini button.pickup-e{font-size:12px;padding:1px 7px;line-height:1.4;}
 
+  /* ===== 特殊訂單 ===== */
+  .top-boxes .special-box{flex:1;min-width:280px;}
+  .special-box{background:#FDECEC;border:1px solid #E2A8A8;border-radius:8px;padding:14px 16px;}
+  .special-box .resend-title{color:#9A2A2A;}
+  .special-item{background:var(--paper);border:1px solid #E2A8A8;border-left:4px solid #C0392B;border-radius:6px;padding:8px 10px;margin-bottom:8px;}
+  .special-item.special-done{border-left-color:#9DB39A;border-color:var(--line);opacity:.9;}
+  .special-head{display:flex;align-items:center;flex-wrap:wrap;}
+  .special-head > *{margin:0 10px 4px 0;}
+  .special-order{font-weight:700;font-size:15px;}
+  .special-meta{margin-left:auto;margin-right:0;font-size:11.5px;color:var(--ink-soft);}
+  .special-text{font-size:14px;line-height:1.55;margin:2px 0 6px;word-break:break-word;}
+  .special-match{display:inline-block;font-size:12px;font-weight:700;color:#9A2A2A;background:#FFE3E3;border-radius:10px;padding:1px 8px;margin-bottom:6px;}
+  .special-reply-row{display:flex;align-items:center;}
+  .special-reply-row > *{margin-right:8px;}
+  .special-reply-row > *:last-child{margin-right:0;}
+  .special-reply{flex:1;min-width:0;font-family:inherit;font-size:13px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--paper);color:var(--ink);box-sizing:border-box;}
+  .special-reply-row button.primary{padding:6px 12px;font-size:13px;white-space:nowrap;}
+  .special-reply-done{font-size:13px;color:var(--sage-dark);line-height:1.5;}
+  .special-ops{margin-top:6px;}
+  .special-ops button.ghost{font-size:12px;padding:3px 9px;margin-right:6px;}
+  .special-ops button.ghost.del{color:var(--warn);}
+  .special-box .resend-form button.primary{padding:8px 16px;}
+  .pick-card-special{border:2px solid #C0392B;}
+  .pc-special{background:#C0392B;color:#fff;border-radius:8px 8px 0 0;padding:8px 14px;font-size:14px;font-weight:700;line-height:1.5;}
+  .pc-special .pc-special-text{font-weight:600;word-break:break-word;}
+  .pc-special .pc-special-by{font-weight:400;opacity:.85;margin-left:6px;font-size:12px;}
+  .special-pick-banner{background:#FDECEC;border:1px solid #E2A8A8;color:#9A2A2A;border-radius:8px;padding:10px 14px;margin:0 0 12px;font-size:13.5px;line-height:1.7;font-weight:600;}
+  .special-alert{position:sticky;top:0;z-index:60;background:#C0392B;color:#fff;padding:10px 16px;font-size:14px;font-weight:600;line-height:1.55;display:flex;align-items:center;box-shadow:0 2px 8px rgba(0,0,0,.25);}
+  .special-alert > div{flex:1;}
+  .special-alert button.ghost{margin-left:12px;flex:none;background:#fff;color:#9A2A2A;border-color:#fff;font-size:13px;padding:5px 12px;}
+
+  /* ===== 老闆專區(手機優先)===== */
+  .boss-wrap{max-width:640px;margin:0 auto;padding:4px 0 40px;}
+  .boss-hello{font-size:22px;font-weight:700;margin:10px 0 2px;color:var(--ink);}
+  .boss-sub{color:var(--ink-soft);font-size:14px;line-height:1.65;margin-bottom:12px;}
+  .boss-summary{display:flex;flex-wrap:wrap;margin-bottom:6px;}
+  .boss-chip{display:inline-block;margin:0 8px 8px 0;padding:5px 14px;border-radius:16px;font-size:13.5px;font-weight:700;}
+  .boss-chip-wait{background:#FFF1D6;color:#8A5A00;}
+  .boss-chip-new{background:#DDEFD9;color:#2E6B2E;}
+  .boss-seg{display:flex;margin-bottom:12px;}
+  .boss-seg button{flex:1;font-family:inherit;font-size:16px;font-weight:700;padding:13px 0;border:1px solid var(--line);background:var(--paper);color:var(--ink-soft);cursor:pointer;}
+  .boss-seg button:first-child{border-radius:10px 0 0 10px;}
+  .boss-seg button:last-child{border-radius:0 10px 10px 0;border-left:none;}
+  .boss-seg button.active{background:var(--sage);color:#fff;border-color:var(--sage);}
+  .boss-card{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:20px;}
+  .boss-label{display:block;font-size:13px;font-weight:700;color:var(--ink-soft);margin:12px 0 5px;}
+  .boss-label:first-child{margin-top:0;}
+  .boss-card input, .boss-card select, .boss-card textarea{width:100%;box-sizing:border-box;font-family:inherit;font-size:16px;padding:11px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);}
+  .boss-chips{display:flex;flex-wrap:wrap;margin:0 0 6px;}
+  .boss-chips button{font-family:inherit;font-size:15px;font-weight:600;padding:11px 16px;margin:0 8px 10px 0;border:1px solid var(--line);border-radius:18px;background:#fff;color:var(--ink);cursor:pointer;}
+  .boss-more{margin-top:12px;}
+  .boss-more summary{font-size:14px;font-weight:600;color:var(--sage-dark);cursor:pointer;padding:6px 0;}
+  .boss-card button.boss-submit{width:100%;margin-top:16px;padding:15px;font-size:17px;}
+  .boss-list-head{display:flex;align-items:center;justify-content:space-between;margin:22px 0 10px;}
+  .boss-list-head h3{margin:0;font-size:17px;}
+  .boss-item{background:var(--paper);border:1px solid var(--line);border-left:4px solid #E0A63A;border-radius:10px;padding:12px 14px;margin-bottom:10px;}
+  .boss-item-done{border-left-color:#7FA67A;}
+  .boss-item-new{border-color:#7FA67A;background:#F4FAF2;}
+  .boss-item-head{display:flex;align-items:center;flex-wrap:wrap;}
+  .boss-item-head > *{margin:0 8px 4px 0;}
+  .boss-type{font-size:12px;font-weight:700;padding:2px 9px;border-radius:10px;}
+  .boss-type-special{background:#FFE3E3;color:#9A2A2A;}
+  .boss-type-resend{background:#E1ECF7;color:#2D5F8F;}
+  .boss-new{font-size:12px;font-weight:700;color:#fff;background:#3F8F3F;border-radius:10px;padding:1px 9px;}
+  .boss-item .special-meta{margin-left:auto;margin-right:0;}
+  .boss-status{font-size:13.5px;color:#8A5A00;margin-top:4px;line-height:1.55;}
+  .boss-status-done{color:#2E6B2E;}
+  .boss-reply{margin-top:3px;font-weight:600;word-break:break-word;}
+  .boss-sub2{font-size:13px;color:var(--ink-soft);}
+
+  /* 手機:五個分頁一排放不下(需要約 464px),改成自動換行,每個分頁都看得到(原本第 5 個「蝦皮取貨」被藏在右邊要滑動才看得到) */
+  @media (max-width:520px){
+    .page-tabs{flex-wrap:wrap;overflow-x:visible;}
+    .page-tabs .tab-btn{margin-right:18px;}
+  }
+
   .update-banner{
     background:var(--warn);color:#fff;text-align:center;font-size:13.5px;font-weight:600;
     padding:10px 16px;border-radius:8px;margin-bottom:20px;cursor:pointer;
@@ -840,6 +916,27 @@
   </div>
 </div>
 
+<div class="modal-overlay no-print" id="specialEditModal" style="display:none;" onclick="if(event.target===this) closeSpecialEdit()">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>編輯特殊訂單</h3>
+      <button class="modal-close-btn" onclick="closeSpecialEdit()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="resend-form">
+        <label class="rf-label">通路</label>
+        <select id="se-channel"></select>
+        <label class="rf-label">訂單編號</label>
+        <input id="se-order" placeholder="訂單編號">
+        <label class="rf-label">要怎麼處理</label>
+        <textarea id="se-instruction" rows="4" placeholder="要怎麼處理"></textarea>
+        <button class="primary" id="specialEditSaveBtn" onclick="saveSpecialEdit()">儲存</button>
+        <div class="form-msg" id="specialEditMsg"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="fab-bar no-print">
   <button class="fab-btn" id="liveFab" onclick="openLive()" title="各通路的即時進度、還缺的商品">📡 即時進行中<span class="board-badge live-badge" id="liveBadge" style="display:none;">0</span></button>
   <button class="fab-btn" id="boardFab" onclick="openBoard()" title="留言板 / 叫貨註記">💬 留言板<span class="board-badge" id="boardBadge" style="display:none;">0</span></button>
@@ -911,7 +1008,11 @@
     </div>
   </header>
 
-  <div class="mode-tabs no-print" id="modeTabs" style="display:none;">
+  <div class="special-alert no-print" id="specialAlertBar" style="display:none;">
+  <div id="specialAlertText"></div>
+  <button class="ghost" onclick="dismissSpecialAlert()">知道了</button>
+</div>
+<div class="mode-tabs no-print" id="modeTabs" style="display:none;">
     <button class="tab-btn active" id="tab-mode-helper" onclick="switchMode('helper')">出貨助手</button>
     <button class="tab-btn" id="tab-mode-report" onclick="switchMode('report')" style="display:none;">報表</button>
   </div>
@@ -920,6 +1021,34 @@
 
   <div class="top-boxes no-print">
     <div class="announce-box" id="announceBox" style="display:none;"></div>
+
+    <div class="special-box" id="specialBox">
+      <div class="resend-title">特殊訂單(老闆指示) <span class="pickup-count" id="specialBoxCount"></span></div>
+      <div id="specialBoxList" class="special-list"><div class="resend-empty">讀取中...</div></div>
+      <details class="resend-form-details" id="specialFormDetails">
+        <summary>+ 新增特殊訂單</summary>
+        <div class="resend-form">
+          <label class="rf-label">通路</label>
+          <select id="sp-channel">
+            <option value="LINE">LINE</option>
+            <option value="官網">官網</option>
+            <option value="蝦皮">蝦皮</option>
+            <option value="PINKOI">PINKOI</option>
+            <option value="其他">其他</option>
+          </select>
+          <label class="rf-label">訂單編號</label>
+          <input id="sp-order" placeholder="訂單編號" autocomplete="off">
+          <label class="rf-label">要怎麼處理</label>
+          <textarea id="sp-instruction" rows="3" placeholder="例如:換貨、退款、改寄地址、先不要出貨⋯"></textarea>
+          <button class="primary" id="sp-add-btn" onclick="addSpecialOrder()">新增</button>
+          <div class="form-msg" id="sp-msg"></div>
+        </div>
+      </details>
+      <details class="resend-form-details">
+        <summary>已處理(最近 10 筆) <span class="pickup-count" id="specialDoneCount"></span></summary>
+        <div id="specialDoneList" class="special-list" style="margin-top:8px;"></div>
+      </details>
+    </div>
 
     <div class="resend-box" id="resendBox">
       <div class="resend-title">補寄記錄(待處理)</div>
@@ -946,6 +1075,7 @@
             <option value="home">蝦皮店到家宅配</option>
             <option value="shop2shop">蝦皮店到店</option>
             <option value="intl">跨境/國際配送</option>
+                      <option value="">(還不確定,樓下補)</option>
           </select>
           <label class="rf-label">地址/超商店名</label>
           <input id="rf-address" placeholder="地址/超商店名">
@@ -1112,7 +1242,8 @@
       </div>
     </div>
     <div class="desc no-print" id="pickConfirmNote">依排序往下滑檢查,或直接列印成紙本。品名已對照 SKU 表顯示簡單品名,配件會列在該項目下方。揀貨完成後按上方「確認完成揀貨」,進度會記錄到「出貨核對」頁面。</div>
-    <div id="sfQuickLinkBanner" class="no-print"></div>
+    <div id="specialPickBanner" class="special-pick-banner no-print" style="display:none;"></div>
+<div id="sfQuickLinkBanner" class="no-print"></div>
 
     <div class="pick-layout">
       <aside class="pick-sidebar no-print">
@@ -1354,6 +1485,76 @@
 
   </div><!-- /helperMode -->
 
+  <div id="bossMode" style="display:none;">
+    <div class="boss-wrap">
+      <div class="boss-hello" id="bossHello">您好</div>
+      <div class="boss-sub">在這裡輸入「特殊訂單」或「補寄」,出貨的人馬上看得到。處理好了,會顯示在下面「已處理」。</div>
+      <button class="ghost" id="bossExitPreview" style="display:none;margin-bottom:10px;" onclick="bossExitPreview()">← 離開老闆專區(預覽),回到出貨助手</button>
+      <div class="boss-summary" id="bossSummary"></div>
+
+      <div class="boss-seg">
+        <button id="bossTabSpecial" class="active" onclick="bossSwitchForm('special')">特殊訂單</button>
+        <button id="bossTabResend" onclick="bossSwitchForm('resend')">補寄</button>
+      </div>
+
+      <div class="boss-card" id="bossFormSpecial">
+        <label class="boss-label">通路</label>
+        <select id="bs-channel">
+          <option value="LINE">LINE</option>
+          <option value="官網">官網</option>
+          <option value="蝦皮">蝦皮</option>
+          <option value="PINKOI">PINKOI</option>
+          <option value="其他">其他</option>
+        </select>
+        <label class="boss-label">訂單編號</label>
+        <input id="bs-order" placeholder="訂單編號" autocomplete="off">
+        <label class="boss-label">要怎麼處理</label>
+        <div class="boss-chips">
+          <button type="button" onclick="bossAddChip('換貨')">換貨</button>
+          <button type="button" onclick="bossAddChip('退款')">退款</button>
+          <button type="button" onclick="bossAddChip('改寄地址')">改寄地址</button>
+          <button type="button" onclick="bossAddChip('先不要出貨')">先不要出貨</button>
+          <button type="button" onclick="bossAddChip('加贈品')">加贈品</button>
+          <button type="button" onclick="bossAddChip('取消訂單')">取消訂單</button>
+        </div>
+        <textarea id="bs-instruction" rows="4" placeholder="點上面的常用處理,或直接輸入,例如:客人要改寄到公司,先不要出貨"></textarea>
+        <button class="primary boss-submit" id="bs-add-btn" onclick="addSpecialOrder('bs')">送出給出貨的人</button>
+        <div class="form-msg" id="bs-msg"></div>
+      </div>
+
+      <div class="boss-card" id="bossFormResend" style="display:none;">
+        <label class="boss-label">通路</label>
+        <select id="br-channel">
+          <option value="LINE">LINE</option>
+          <option value="官網">官網</option>
+          <option value="蝦皮">蝦皮</option>
+        </select>
+        <label class="boss-label">訂單編號</label>
+        <input id="br-order" placeholder="訂單編號" autocomplete="off">
+        <label class="boss-label">要補寄什麼</label>
+        <textarea id="br-contents" rows="3" placeholder="例如:G6 小蠟燭 x1"></textarea>
+        <label class="boss-label">收件人姓名(選填)</label>
+        <input id="br-name" placeholder="不知道可以不填,樓下會補" autocomplete="off">
+        <details class="boss-more">
+          <summary>更多資料(選填,樓下會補)</summary>
+          <label class="boss-label">收件人電話</label>
+          <input id="br-phone" inputmode="tel" placeholder="電話" autocomplete="off">
+          <label class="boss-label">地址/超商店名</label>
+          <input id="br-address" placeholder="地址/超商店名" autocomplete="off">
+          <label class="boss-label">物流方式</label>
+          <select id="br-category"></select>
+        </details>
+        <button class="primary boss-submit" id="br-add-btn" onclick="addBossResend()">送出給出貨的人</button>
+        <div class="form-msg" id="br-msg"></div>
+      </div>
+
+      <div class="boss-list-head"><h3>待處理 <span class="pickup-count" id="bossPendingCount"></span></h3></div>
+      <div id="bossPendingList"></div>
+      <div class="boss-list-head"><h3>已處理 <span class="pickup-count" id="bossDoneCount"></span></h3><button class="ghost" id="bossReadAllBtn" style="display:none;" onclick="bossMarkAllRead()">全部標示為已讀</button></div>
+      <div id="bossDoneList"></div>
+    </div>
+  </div>
+
   <div id="reportMode" style="display:none;">
     <div class="panel no-print">
       <h2>報表</h2>
@@ -1401,7 +1602,7 @@
 </div>
 
 <script>
-const APP_VERSION = '20261010-16'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20261010-18'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -1492,16 +1693,27 @@ async function handleAuthStateChange(user){
       currentUserRole = snap.data().role || 'staff';
       overlay.style.display = 'none';
       shell.style.display = 'block';
-      document.getElementById('userEmailLabel').textContent = user.email + (currentUserRole === 'admin' ? '(管理者)' : '');
-      document.getElementById('modeTabs').style.display = 'flex';
-      document.getElementById('tab-mode-report').style.display = currentUserRole === 'admin' ? 'inline-block' : 'none';
-      loadAnnouncements();
-      loadResendRecords();
-      loadDailyNotes();
-      startLiveSessionListener();
-      startBoardListener();
-      startPickupListener();
-      refreshPendingMapsAndRepaint();
+      document.getElementById('userEmailLabel').textContent = user.email + (currentUserRole === 'admin' ? '(管理者)' : currentUserRole === 'boss' ? '(老闆)' : '');
+      if(currentUserRole === 'boss' || location.hash === '#boss'){
+        // 老闆(或管理者在網址後面加 #boss 預覽):只看到老闆專區,不會看到出貨助手的其他功能
+        enterBossMode();
+      }else{
+        bossViewActive = false;
+        document.getElementById('bossMode').style.display = 'none';
+        document.querySelectorAll('.fab-bar').forEach(el => { el.style.display = ''; });
+        switchMode('helper');
+        document.getElementById('modeTabs').style.display = 'flex';
+        document.getElementById('tab-mode-report').style.display = currentUserRole === 'admin' ? 'inline-block' : 'none';
+        loadAnnouncements();
+        loadResendRecords();
+        loadDailyNotes();
+        startLiveSessionListener();
+        startBoardListener();
+        startPickupListener();
+        startSpecialListener();
+        startResendListener();
+        refreshPendingMapsAndRepaint();
+      }
     }else{
       desc.textContent = '這個帳號還沒被登記,沒有使用權限';
       msgEl.textContent = user.email + ' 尚未獲得授權,請聯絡管理者新增這個帳號。';
@@ -1606,6 +1818,7 @@ let reportRawRecords = [];
 const CHART_COLORS = ['#6E7D5E','#B08968','#4C7A5C','#B5484F','#5B3A99','#1F5A80','#8A4B25','#4A3A80'];
 
 function switchMode(mode){
+  if(bossViewActive) return;   // 老闆專區裡不能切到出貨助手
   if(mode === 'report' && currentUserRole !== 'admin') return;
   document.getElementById('helperMode').style.display = mode==='helper' ? 'block' : 'none';
   document.getElementById('reportMode').style.display = mode==='report' ? 'block' : 'none';
@@ -2173,6 +2386,8 @@ async function confirmResendDone(btnEl, id, category){
     return;
   }
   if(btnEl.disabled) return;
+  // 物流方式還沒選(例如老闆通知補寄、樓下還沒補上):完成後不會計入出貨件數,先確認一下
+  if(!category && !confirm('這筆補寄還沒有選物流方式,確認完成後不會計入出貨件數。\n\n按「確定」= 還是要完成;按「取消」= 先去按「編輯」補上物流方式。')) return;
   btnEl.disabled = true;   // 防連點:連按兩下會被記成兩件
   await waitForFirebase();
   const {db, doc, updateDoc, serverTimestamp} = window.__fb;
@@ -2247,7 +2462,7 @@ function renderCompletedResends(){
 let editingResendId = null;
 
 function findResendRecord(id){
-  return resendPendingRecords.find(r => r.id === id) || completedResendRecords.find(r => r.id === id) || null;
+  return resendPendingRecords.find(r => r.id === id) || completedResendRecords.find(r => r.id === id) || bossResendRecords.find(r => r.id === id) || null;
 }
 
 function openResendEdit(id){
@@ -2375,6 +2590,7 @@ async function submitResendForm(){
     await addDoc(collection(db, RESEND_COLLECTION), {
       channel, orderNumber, category, address, name, phone, contents,
       status: '待處理',
+      createdBy: currentUserEmail || '',   // 記下是誰新增的(別人新增時,這邊才知道要跳出提醒)
       createdAt: serverTimestamp()
     });
     ['rf-order','rf-address','rf-name','rf-phone','rf-contents'].forEach(id=>{
@@ -3040,6 +3256,484 @@ function openChannelGuide(){
 
 function closeChannelGuide(){
   document.getElementById('channelGuideModal').style.display = 'none';
+}
+
+// ===== 特殊訂單(老闆直接輸入處理方式,出貨的人在檢貨卡上直接看到)=====
+// status:pending(待處理)/handled(已處理)/removed(刪除:不會真的消失,只是不再顯示)
+const SPECIAL_COLLECTION = 'special_orders';
+let specialOrders = [];
+let specialUnsub = null;
+let specialLoadError = '';
+let specialSeen = null;        // 已經看過的文件 id(第一次載入不跳提醒,之後出現的新文件才提醒)
+let specialPrevStatus = {};    // 每一筆上一次的狀態,用來知道「我新增的那筆被別人處理了」
+let specialAcked = {};         // 使用者已經確認「看過了」的特殊訂單 id(勾已檢貨時問過就不再問)
+let editingSpecialId = null;
+let specialSubmitting = false;
+
+// 訂單編號比對:不分大小寫、忽略前面的 # 和空白(LINE、官網、蝦皮的編號格式都不一樣,這樣才對得到)
+function normOrderKey(x){ return String(x == null ? '' : x).trim().replace(/^#+/, '').replace(/\s+/g, '').toLowerCase(); }
+function specialMs(r, key){ const t = r[key]; return (t && t.seconds) ? t.seconds * 1000 : null; }
+function specialWho(email){ return escapeHtml(String(email || '').split('@')[0]); }
+function specialPendingFor(oid){
+  const k = normOrderKey(oid);
+  if(!k) return [];
+  return specialOrders.filter(r => r.status === 'pending' && normOrderKey(r.orderNumber) === k);
+}
+// 這張訂單是不是在「目前畫面上的這批」裡;在的話回傳卡片
+function specialCardFor(orderNumber){
+  const k = normOrderKey(orderNumber);
+  if(!k) return null;
+  for(let i = 0; i < pickOrderGroups.length; i++){
+    const g = pickOrderGroups[i];
+    if(g && g[0] && normOrderKey(g[0].orderId) === k) return {idx: i, card: document.getElementById('pick-card-' + i)};
+  }
+  return null;
+}
+
+async function startSpecialListener(){
+  await waitForFirebase();
+  if(specialUnsub) return;
+  const {db, collection, query, orderBy, limit, onSnapshot} = window.__fb;
+  const q = query(collection(db, SPECIAL_COLLECTION), orderBy('createdAt', 'desc'), limit(300));
+  let failed = false;
+  const unsub = onSnapshot(q, (snap)=>{
+    specialLoadError = '';
+    const recs = []; const fresh = []; const handledForMe = [];
+    snap.docs.forEach(d => {
+      const r = {id: d.id, ...d.data({serverTimestamps: 'estimate'})};
+      recs.push(r);
+      // 別人新增的待處理 → 跳提醒(第一次載入、自己新增的、自己這台還沒送出的寫入都不提醒)
+      if(specialSeen && !specialSeen.has(d.id) && r.status === 'pending' && r.createdBy !== currentUserEmail && !(d.metadata && d.metadata.hasPendingWrites)) fresh.push(r);
+      // 我新增的那筆,被別人標記已處理了 → 回報給我(老闆就是靠這個知道處理好了)
+      if(specialPrevStatus[d.id] === 'pending' && r.status === 'handled' && r.createdBy === currentUserEmail && r.handledBy !== currentUserEmail) handledForMe.push(r);
+      specialPrevStatus[d.id] = r.status;
+    });
+    specialOrders = recs;
+    if(!specialSeen) specialSeen = new Set(recs.map(r => r.id)); else recs.forEach(r => specialSeen.add(r.id));
+    renderSpecialOrders();
+    if(!bossViewActive) fresh.forEach(r => {   // 老闆畫面不需要「新特殊訂單,請先看再出貨」的提醒(那是給出貨的人看的)
+      const hit = specialCardFor(r.orderNumber);
+      const where = hit ? (hit.card && hit.card.classList.contains('pick-card-done') ? ' ⚠ 這張訂單就在目前這批,而且已經勾選檢貨了,請先停手確認!' : ' ⚠ 這張訂單就在目前這批,請先看再出貨!') : '';
+      pushSpecialAlert('🔔 新的特殊訂單:' + escapeHtml(r.channel || '') + ' ' + escapeHtml(r.orderNumber || '') + ' — ' + escapeHtml(String(r.instruction || '').slice(0, 80)) + where);
+    });
+    handledForMe.forEach(r => pushSpecialAlert('✅ 您的特殊訂單已處理:' + escapeHtml(r.channel || '') + ' ' + escapeHtml(r.orderNumber || '') + (r.reply ? ' — ' + escapeHtml(r.reply) : '') + '(' + specialWho(r.handledBy) + ')'));
+  }, (err)=>{
+    failed = true; specialUnsub = null;
+    specialLoadError = (err && err.message) ? err.message : '未知原因';
+    renderSpecialOrders();
+  });
+  specialUnsub = failed ? null : unsub;
+}
+
+// ----- 提醒條 -----
+let specialAlertLines = [];
+function pushSpecialAlert(html){
+  specialAlertLines.push(html);
+  if(specialAlertLines.length > 3) specialAlertLines.shift();
+  const bar = document.getElementById('specialAlertBar'), t = document.getElementById('specialAlertText');
+  if(!bar || !t) return;
+  t.innerHTML = specialAlertLines.map(x => '<div>' + x + '</div>').join('');
+  bar.style.display = 'flex';
+}
+function dismissSpecialAlert(){
+  specialAlertLines = [];
+  const bar = document.getElementById('specialAlertBar'), t = document.getElementById('specialAlertText');
+  if(t) t.innerHTML = '';
+  if(bar) bar.style.display = 'none';
+}
+
+// ----- 畫面 -----
+function specialTextHtml(t){ return escapeHtml(t || '').replace(/\n/g, '<br>'); }
+
+function specialItemHtml(r, handled){
+  const created = specialMs(r, 'createdAt');
+  const meta = (created ? fmtPickupTime(created) + '・' : '') + specialWho(r.createdBy);
+  let h = '<div class="special-item' + (handled ? ' special-done' : '') + '">' +
+    '<div class="special-head"><span class="resend-channel">' + escapeHtml(r.channel || '') + '</span><span class="special-order">' + escapeHtml(r.orderNumber || '') + '</span><span class="special-meta">' + meta + '</span></div>' +
+    '<div class="special-text">' + specialTextHtml(r.instruction) + '</div>';
+  if(!handled){
+    const hit = specialCardFor(r.orderNumber);
+    if(hit) h += '<div class="special-match">📦 這張訂單就在目前這批' + (hit.card && hit.card.classList.contains('pick-card-done') ? ',而且已經勾選檢貨了!' : '') + '</div>';
+    h += '<div class="special-reply-row"><input type="text" class="special-reply" maxlength="200" placeholder="處理結果(選填,老闆看得到)"><button class="primary" onclick="markSpecialHandled(this, \'' + r.id + '\')">標記已處理</button></div>' +
+         '<div class="special-ops"><button class="ghost" onclick="openSpecialEdit(\'' + r.id + '\')">編輯</button><button class="ghost del" onclick="deleteSpecial(\'' + r.id + '\')">刪除</button></div>';
+  }else{
+    const hm = specialMs(r, 'handledAt');
+    h += '<div class="special-reply-done">✓ 已處理' + (hm ? ' ' + fmtPickupTime(hm) : '') + '・' + specialWho(r.handledBy) + (r.reply ? '<br>處理結果:' + specialTextHtml(r.reply) : '') + '</div>' +
+         '<div class="special-ops"><button class="ghost" onclick="unhandleSpecial(\'' + r.id + '\')">取消處理</button><button class="ghost" onclick="openSpecialEdit(\'' + r.id + '\')">編輯</button><button class="ghost del" onclick="deleteSpecial(\'' + r.id + '\')">刪除</button></div>';
+  }
+  return h + '</div>';
+}
+
+function renderSpecialOrders(){
+  const list = document.getElementById('specialBoxList');
+  const doneBox = document.getElementById('specialDoneList');
+  if(list){
+    const pending = specialOrders.filter(r => r.status === 'pending')
+      .sort((a, b) => (specialMs(a, 'createdAt') || Date.now()) - (specialMs(b, 'createdAt') || Date.now()));
+    const cnt = document.getElementById('specialBoxCount');
+    if(cnt) cnt.textContent = pending.length ? '(' + pending.length + ' 筆待處理)' : '';
+    list.innerHTML = (specialLoadError && specialOrders.length === 0)
+      ? '<div class="resend-empty" style="color:var(--warn);">讀取失敗:' + escapeHtml(specialLoadError) + '<br>請確認 Firebase 的 Firestore 規則已經更新(special_orders)。</div>'
+      : pending.length ? pending.map(r => specialItemHtml(r, false)).join('') : '<div class="resend-empty">目前沒有待處理的特殊訂單</div>';
+  }
+  if(doneBox){
+    const done = specialOrders.filter(r => r.status === 'handled')
+      .sort((a, b) => (specialMs(b, 'handledAt') || 0) - (specialMs(a, 'handledAt') || 0)).slice(0, 10);
+    const dc = document.getElementById('specialDoneCount');
+    if(dc) dc.textContent = done.length ? '(' + done.length + ')' : '';
+    doneBox.innerHTML = done.length ? done.map(r => specialItemHtml(r, true)).join('') : '<div class="resend-empty">還沒有已處理的紀錄</div>';
+  }
+  applySpecialToCards();
+  if(bossViewActive) renderBossLists();
+}
+
+// 在這批檢貨卡上標出有特殊指示的訂單(紅色警示),並在檢貨單上方顯示總提示
+function applySpecialToCards(){
+  const matched = [];
+  pickOrderGroups.forEach((g, idx) => {
+    const card = document.getElementById('pick-card-' + idx);
+    if(!card || !g || !g[0]) return;
+    const pend = specialPendingFor(g[0].orderId);
+    let blk = Array.from(card.children).find(x => x.classList && x.classList.contains('pc-special'));
+    if(pend.length === 0){
+      if(blk) blk.remove();
+      card.classList.remove('pick-card-special');
+      return;
+    }
+    if(!blk){ blk = document.createElement('div'); blk.className = 'pc-special'; card.insertBefore(blk, card.firstChild); }
+    blk.innerHTML = '🔔 特殊訂單(老闆指示,請先看再出貨)' + pend.map(r => '<div class="pc-special-text">' + specialTextHtml(r.instruction) + '<span class="pc-special-by">(' + specialWho(r.createdBy) + ')</span></div>').join('');
+    card.classList.add('pick-card-special');
+    matched.push(g[0].orderId);
+  });
+  const ban = document.getElementById('specialPickBanner');
+  if(ban){
+    if(matched.length){
+      ban.innerHTML = '🔔 這批有 ' + matched.length + ' 張訂單有老闆的特殊處理指示,請先看卡片上方的紅色提醒再出貨:' + matched.map(escapeHtml).join('、');
+      ban.style.display = 'block';
+    }else{ ban.style.display = 'none'; ban.innerHTML = ''; }
+  }
+}
+
+// 勾「已檢貨」/ 確認完成之前:這幾張訂單如果還有「沒標記已處理」的特殊指示,先問一次。回傳 true = 可以繼續
+function specialCheckBeforeDone(idxList, isFinalConfirm){
+  const lines = []; const ids = [];
+  idxList.forEach(idx => {
+    const g = pickOrderGroups[idx];
+    if(!g || !g[0]) return;
+    specialPendingFor(g[0].orderId).filter(r => !specialAcked[r.id]).forEach(r => {
+      ids.push(r.id);
+      lines.push(g[0].orderId + ':' + String(r.instruction || '').replace(/\s+/g, ' ').slice(0, 60));
+    });
+  });
+  if(ids.length === 0) return true;
+  const head = isFinalConfirm ? '這幾張訂單有老闆的特殊處理指示,還沒標記「已處理」:' : '這張訂單有老闆的特殊處理指示,還沒標記「已處理」:';
+  const tail = isFinalConfirm ? '\n\n確定都已經照指示處理、要確認完成嗎?' : '\n\n確定已經照指示處理,可以勾「已檢貨」嗎?';
+  if(!confirm(head + '\n\n' + lines.join('\n') + tail)) return false;
+  ids.forEach(id => { specialAcked[id] = true; });
+  return true;
+}
+
+// ----- 新增 / 處理 / 編輯 / 刪除 -----
+// prefix:哪一個表單。'sp' = 出貨助手頁面上方的方塊;'bs' = 老闆專區(欄位 id 都是「前綴-channel/order/instruction/add-btn/msg」)
+async function addSpecialOrder(prefix){
+  if(specialSubmitting) return;
+  prefix = prefix || 'sp';
+  const msg = document.getElementById(prefix + '-msg');
+  const channel = document.getElementById(prefix + '-channel').value;
+  const orderEl = document.getElementById(prefix + '-order'), insEl = document.getElementById(prefix + '-instruction');
+  const orderNumber = orderEl.value.trim(), instruction = insEl.value.trim();
+  const btn = document.getElementById(prefix + '-add-btn');
+  msg.style.color = '';
+  if(!orderNumber){ msg.textContent = '請輸入訂單編號'; orderEl.focus(); return; }
+  if(!instruction){ msg.textContent = '請輸入要怎麼處理'; insEl.focus(); return; }
+  if(specialPendingFor(orderNumber).length > 0 && !confirm('這張訂單已經有一筆待處理的特殊訂單了。\n\n還是要再新增一筆嗎?(如果只是要改內容,請按那一筆的「編輯」)')) return;
+  specialSubmitting = true; btn.disabled = true;
+  try{
+    await waitForFirebase();
+    const {db, collection, addDoc, serverTimestamp} = window.__fb;
+    await addDoc(collection(db, SPECIAL_COLLECTION), {channel: channel, orderNumber: orderNumber, instruction: instruction, status: 'pending', createdBy: currentUserEmail || '', createdAt: serverTimestamp()});
+    orderEl.value = ''; insEl.value = '';
+    msg.textContent = '✓ 已新增:' + channel + ' ' + orderNumber + '。出貨的人會馬上看到。';
+    setTimeout(()=>{ if(msg.textContent.startsWith('✓')) msg.textContent = ''; }, 6000);
+  }catch(err){
+    msg.style.color = 'var(--warn)';
+    msg.textContent = '新增失敗:' + err.message;
+  }
+  specialSubmitting = false; btn.disabled = false;
+}
+
+async function markSpecialHandled(btnEl, id){
+  if(btnEl.disabled) return;
+  const row = btnEl.closest('.special-item');
+  const reply = (row && row.querySelector('.special-reply') ? row.querySelector('.special-reply').value : '').trim();
+  btnEl.disabled = true;
+  try{
+    await waitForFirebase();
+    const {db, doc, updateDoc, serverTimestamp} = window.__fb;
+    await updateDoc(doc(db, SPECIAL_COLLECTION, id), {status: 'handled', handledBy: currentUserEmail || '', handledAt: serverTimestamp(), reply: reply});
+  }catch(err){
+    btnEl.disabled = false;
+    alert('更新失敗: ' + err.message);
+  }
+}
+async function unhandleSpecial(id){
+  try{
+    await waitForFirebase();
+    const {db, doc, updateDoc} = window.__fb;
+    await updateDoc(doc(db, SPECIAL_COLLECTION, id), {status: 'pending', handledBy: '', handledAt: null, reply: ''});
+    delete specialAcked[id];
+  }catch(err){ alert('更新失敗: ' + err.message); }
+}
+async function deleteSpecial(id){
+  const r = specialOrders.find(x => x.id === id);
+  if(!r) return;
+  if(!confirm('確定要刪除這筆特殊訂單嗎?\n\n' + (r.orderNumber || '') + ':' + String(r.instruction || '').replace(/\s+/g, ' ').slice(0, 60) + (r.status === 'pending' ? '\n\n(還沒處理,刪除後出貨的人就不會再看到這個提醒)' : ''))) return;
+  try{
+    await waitForFirebase();
+    const {db, doc, updateDoc, serverTimestamp} = window.__fb;
+    await updateDoc(doc(db, SPECIAL_COLLECTION, id), {status: 'removed', deletedBy: currentUserEmail || '', deletedAt: serverTimestamp()});
+  }catch(err){ alert('刪除失敗: ' + err.message); }
+}
+function openSpecialEdit(id){
+  const r = specialOrders.find(x => x.id === id);
+  if(!r){ alert('找不到這筆資料,請重新整理後再試。'); return; }
+  editingSpecialId = id;
+  document.getElementById('se-channel').innerHTML = document.getElementById('sp-channel').innerHTML;
+  document.getElementById('se-channel').value = r.channel || 'LINE';
+  document.getElementById('se-order').value = r.orderNumber || '';
+  document.getElementById('se-instruction').value = r.instruction || '';
+  document.getElementById('specialEditMsg').textContent = '';
+  document.getElementById('specialEditModal').style.display = 'flex';
+}
+function closeSpecialEdit(){
+  document.getElementById('specialEditModal').style.display = 'none';
+  editingSpecialId = null;
+}
+async function saveSpecialEdit(){
+  const r = specialOrders.find(x => x.id === editingSpecialId);
+  const msg = document.getElementById('specialEditMsg');
+  if(!r){ msg.textContent = '找不到這筆資料,請關掉視窗重新整理。'; return; }
+  const v = {channel: document.getElementById('se-channel').value, orderNumber: document.getElementById('se-order').value.trim(), instruction: document.getElementById('se-instruction').value.trim()};
+  if(!v.orderNumber){ msg.textContent = '請輸入訂單編號'; return; }
+  if(!v.instruction){ msg.textContent = '請輸入要怎麼處理'; return; }
+  const changes = {};
+  Object.keys(v).forEach(k => { if(v[k] !== String(r[k] == null ? '' : r[k])) changes[k] = v[k]; });
+  if(Object.keys(changes).length === 0){ closeSpecialEdit(); return; }
+  const btn = document.getElementById('specialEditSaveBtn');
+  if(btn.disabled) return;
+  btn.disabled = true;
+  try{
+    await waitForFirebase();
+    const {db, doc, updateDoc, serverTimestamp} = window.__fb;
+    await updateDoc(doc(db, SPECIAL_COLLECTION, r.id), Object.assign({}, changes, {editedBy: currentUserEmail || '', editedAt: serverTimestamp()}));
+    if(changes.instruction !== undefined || changes.orderNumber !== undefined) delete specialAcked[r.id];   // 內容改了,要重新確認看過
+    closeSpecialEdit();
+  }catch(err){
+    msg.textContent = '儲存失敗:' + err.message;
+  }
+  btn.disabled = false;
+}
+
+// ===== 老闆專區(老闆登入後只看到這個簡單畫面:輸入特殊訂單/補寄、看處理進度)=====
+// 這只是畫面上的簡化,不是權限限制:老闆的帳號在資料庫的權限跟一般員工一樣。
+// 使用方式:Firestore 的 user_roles 裡,老闆那一筆的 role 填 boss。管理者想預覽,在網址後面加 #boss。
+let bossViewActive = false;
+let bossResendRecords = [];
+let bossResendUnsub = null;
+let bossResendPrev = {};
+let bossResendSubmitting = false;
+let bossLoadError = '';
+
+function bossReadKey(){ return 'jeidi_boss_read_v1:' + (currentUserEmail || ''); }
+function bossReadUpTo(){
+  try{ const v = localStorage.getItem(bossReadKey()); return v === null ? null : (parseInt(v, 10) || 0); }catch(e){ return null; }
+}
+function bossSetReadUpTo(ms){ try{ localStorage.setItem(bossReadKey(), String(ms)); }catch(e){} }
+
+function enterBossMode(){
+  bossViewActive = true;
+  ['helperMode', 'reportMode', 'modeTabs'].forEach(id => { document.getElementById(id).style.display = 'none'; });
+  document.getElementById('bossMode').style.display = 'block';
+  document.querySelectorAll('.fab-bar').forEach(el => { el.style.display = 'none'; });   // 「即時進行中」「留言板」是員工用的,老闆不需要(還會蓋住輸入框)
+  document.getElementById('bossHello').textContent = '您好,' + String(currentUserEmail || '').split('@')[0];
+  document.getElementById('bossExitPreview').style.display = currentUserRole === 'boss' ? 'none' : 'inline-block';
+  if(bossReadUpTo() === null) bossSetReadUpTo(Date.now());   // 第一次使用:以前的紀錄不算「新」
+  const cat = document.getElementById('br-category');
+  if(cat && cat.options.length === 0) cat.innerHTML = document.getElementById('rf-category').innerHTML;   // 物流方式選項跟出貨助手的補寄表單一樣
+  bossSwitchForm('special');
+  renderBossLists();
+  startSpecialListener();
+  startBossResendListener();
+}
+function bossExitPreview(){
+  try{ history.replaceState(null, '', location.pathname + location.search); }catch(e){}
+  location.reload();
+}
+function bossSwitchForm(which){
+  document.getElementById('bossFormSpecial').style.display = which === 'special' ? 'block' : 'none';
+  document.getElementById('bossFormResend').style.display = which === 'resend' ? 'block' : 'none';
+  document.getElementById('bossTabSpecial').classList.toggle('active', which === 'special');
+  document.getElementById('bossTabResend').classList.toggle('active', which === 'resend');
+}
+// 常用處理方式:點一下就帶進輸入框(手機上打字很慢)
+function bossAddChip(text){
+  const ta = document.getElementById('bs-instruction');
+  const cur = ta.value.trim();
+  if(cur.split(/[、\n]/).map(x => x.trim()).includes(text)) return;   // 已經有了就不重複加
+  ta.value = cur ? cur + '、' + text : text;
+  ta.focus();
+}
+
+async function startBossResendListener(){
+  await waitForFirebase();
+  if(bossResendUnsub) return;
+  const {db, collection, query, where, onSnapshot} = window.__fb;
+  const q = query(collection(db, RESEND_COLLECTION), where('createdBy', '==', currentUserEmail));   // 只看我自己新增的補寄
+  let failed = false;
+  const unsub = onSnapshot(q, (snap)=>{
+    bossLoadError = '';
+    const recs = []; const completed = [];
+    snap.docs.forEach(d => {
+      const r = {id: d.id, ...d.data({serverTimestamps: 'estimate'})};
+      recs.push(r);
+      if(bossResendPrev[d.id] === '待處理' && r.status === '已完成') completed.push(r);   // 我新增的補寄,被別人處理完了
+      bossResendPrev[d.id] = r.status;
+    });
+    bossResendRecords = recs;
+    renderBossLists();
+    completed.forEach(r => pushSpecialAlert('✅ 您的補寄已寄出:' + escapeHtml(r.channel || '') + ' ' + escapeHtml(r.orderNumber || '') + (r.trackingNumber ? ' — 單號 ' + escapeHtml(r.trackingNumber) : '')));
+  }, (err)=>{
+    failed = true; bossResendUnsub = null;
+    bossLoadError = (err && err.message) ? err.message : '未知原因';
+    renderBossLists();
+  });
+  bossResendUnsub = failed ? null : unsub;
+}
+
+function bossItems(){
+  const items = [];
+  specialOrders.forEach(r => {
+    if(r.status === 'pending' || r.status === 'handled') items.push({kind: 'special', id: r.id, rec: r, done: r.status === 'handled', created: specialMs(r, 'createdAt'), doneAt: specialMs(r, 'handledAt')});
+  });
+  bossResendRecords.forEach(r => {
+    if(r.status === '待處理' || r.status === '已完成') items.push({kind: 'resend', id: r.id, rec: r, done: r.status === '已完成', created: specialMs(r, 'createdAt'), doneAt: specialMs(r, 'completedAt')});
+  });
+  return items;
+}
+
+function bossItemHtml(it, readUpTo){
+  const r = it.rec;
+  const unread = it.done && it.doneAt !== null && it.doneAt > readUpTo;
+  let h = '<div class="boss-item' + (it.done ? ' boss-item-done' : '') + (unread ? ' boss-item-new' : '') + '">' +
+    '<div class="boss-item-head"><span class="boss-type boss-type-' + it.kind + '">' + (it.kind === 'special' ? '特殊訂單' : '補寄') + '</span>' +
+    '<span class="resend-channel">' + escapeHtml(r.channel || '') + '</span><span class="special-order">' + escapeHtml(r.orderNumber || '') + '</span>' +
+    (unread ? '<span class="boss-new">新</span>' : '') +
+    '<span class="special-meta">' + (it.created ? fmtPickupTime(it.created) : '') + '</span></div>';
+  if(it.kind === 'special'){
+    h += '<div class="special-text">' + specialTextHtml(r.instruction) + '</div>';
+    h += it.done
+      ? '<div class="boss-status boss-status-done">✓ 已處理' + (it.doneAt ? ' ' + fmtPickupTime(it.doneAt) : '') + '・' + specialWho(r.handledBy) + (r.reply ? '<div class="boss-reply">處理結果:' + specialTextHtml(r.reply) + '</div>' : '') + '</div>'
+      : '<div class="boss-status">⏳ 處理中(出貨的人已經看得到了)</div>';
+  }else{
+    const who = [r.name, r.phone].filter(Boolean).join('　');
+    h += '<div class="special-text">補寄:' + specialTextHtml(r.contents || '') + (who ? '<br><span class="boss-sub2">' + escapeHtml(who) + '</span>' : '') + '</div>';
+    h += it.done
+      ? '<div class="boss-status boss-status-done">✓ 已寄出' + (it.doneAt ? ' ' + fmtPickupTime(it.doneAt) : '') + (r.trackingNumber ? '<div class="boss-reply">補寄單號:' + escapeHtml(r.trackingNumber) + '</div>' : '') + '</div>'
+      : '<div class="boss-status">⏳ 等待寄出(出貨的人已經看得到了)</div>';
+  }
+  if(!it.done){   // 還沒處理的才能改、能刪(打錯字);處理完的是紀錄,不能動
+    const e = it.kind === 'special' ? "openSpecialEdit('" + it.id + "')" : "openResendEdit('" + it.id + "')";
+    const d = it.kind === 'special' ? "deleteSpecial('" + it.id + "')" : "deleteResend('" + it.id + "')";
+    h += '<div class="special-ops"><button class="ghost" onclick="' + e + '">編輯</button><button class="ghost del" onclick="' + d + '">刪除</button></div>';
+  }
+  return h + '</div>';
+}
+
+function renderBossLists(){
+  const pBox = document.getElementById('bossPendingList'), dBox = document.getElementById('bossDoneList');
+  if(!pBox || !dBox) return;
+  const readUpTo = bossReadUpTo() || 0;
+  const items = bossItems();
+  const pending = items.filter(x => !x.done).sort((a, b) => (b.created || Date.now()) - (a.created || Date.now()));
+  const done = items.filter(x => x.done).sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0)).slice(0, 30);
+  const unread = done.filter(x => x.doneAt !== null && x.doneAt > readUpTo).length;
+  document.getElementById('bossPendingCount').textContent = pending.length ? '(' + pending.length + ')' : '';
+  document.getElementById('bossDoneCount').textContent = done.length ? '(' + done.length + ')' : '';
+  document.getElementById('bossReadAllBtn').style.display = unread > 0 ? 'inline-block' : 'none';
+  document.getElementById('bossSummary').innerHTML =
+    '<span class="boss-chip boss-chip-wait">待處理 ' + pending.length + ' 件</span>' +
+    (unread > 0 ? '<span class="boss-chip boss-chip-new">新處理好 ' + unread + ' 件</span>' : '');
+  const err = (specialLoadError || bossLoadError) && items.length === 0
+    ? '<div class="resend-empty" style="color:var(--warn);">讀取失敗:' + escapeHtml(specialLoadError || bossLoadError) + '<br>請聯絡開發的人確認資料庫規則。</div>' : '';
+  pBox.innerHTML = err || (pending.length ? pending.map(x => bossItemHtml(x, readUpTo)).join('') : '<div class="resend-empty">目前沒有待處理的項目</div>');
+  dBox.innerHTML = done.length ? done.map(x => bossItemHtml(x, readUpTo)).join('') : '<div class="resend-empty">還沒有處理好的項目</div>';
+}
+function bossMarkAllRead(){
+  const times = bossItems().filter(x => x.done && x.doneAt).map(x => x.doneAt);
+  bossSetReadUpTo(Math.max(Date.now(), ...times));
+  renderBossLists();
+}
+
+async function addBossResend(){
+  if(bossResendSubmitting) return;
+  const msg = document.getElementById('br-msg');
+  const v = {
+    channel: document.getElementById('br-channel').value,
+    orderNumber: document.getElementById('br-order').value.trim(),
+    contents: document.getElementById('br-contents').value.trim(),
+    name: document.getElementById('br-name').value.trim(),
+    phone: document.getElementById('br-phone').value.trim(),
+    address: document.getElementById('br-address').value.trim(),
+    category: document.getElementById('br-category').value
+  };
+  const btn = document.getElementById('br-add-btn');
+  msg.style.color = '';
+  if(!v.orderNumber){ msg.textContent = '請輸入訂單編號'; document.getElementById('br-order').focus(); return; }
+  if(!v.contents){ msg.textContent = '請輸入要補寄什麼'; document.getElementById('br-contents').focus(); return; }
+  if(bossResendRecords.some(r => r.status === '待處理' && normOrderKey(r.orderNumber) === normOrderKey(v.orderNumber))
+     && !confirm('這張訂單已經有一筆待處理的補寄了。\n\n還是要再新增一筆嗎?(如果只是要改內容,請按那一筆的「編輯」)')) return;
+  bossResendSubmitting = true; btn.disabled = true;
+  try{
+    await waitForFirebase();
+    const {db, collection, addDoc, serverTimestamp} = window.__fb;
+    await addDoc(collection(db, RESEND_COLLECTION), {
+      channel: v.channel, orderNumber: v.orderNumber, category: v.category, address: v.address, name: v.name, phone: v.phone, contents: v.contents,
+      status: '待處理', createdBy: currentUserEmail || '', createdAt: serverTimestamp()
+    });
+    ['br-order', 'br-contents', 'br-name', 'br-phone', 'br-address'].forEach(id => { document.getElementById(id).value = ''; });
+    msg.textContent = '✓ 已送出:' + v.channel + ' ' + v.orderNumber + '。出貨的人會馬上看到。';
+    setTimeout(()=>{ if(msg.textContent.startsWith('✓')) msg.textContent = ''; }, 6000);
+  }catch(err){
+    msg.style.color = 'var(--warn)';
+    msg.textContent = '送出失敗:' + err.message;
+  }
+  bossResendSubmitting = false; btn.disabled = false;
+}
+
+// ===== 補寄:即時同步(老闆新增補寄,出貨的人馬上看到,不用重新整理)=====
+let resendUnsub = null;
+let resendSeen = null;
+async function startResendListener(){
+  await waitForFirebase();
+  if(resendUnsub) return;
+  const {db, collection, query, where, onSnapshot} = window.__fb;
+  const q = query(collection(db, RESEND_COLLECTION), where('status', '==', '待處理'));
+  let failed = false;
+  const unsub = onSnapshot(q, (snap)=>{
+    const records = []; const fresh = [];
+    snap.docs.forEach(d => {
+      const r = {id: d.id, ...d.data({serverTimestamps: 'estimate'})};
+      records.push(r);
+      // 別人新增的(有記錄新增人、不是我、不是我這台還沒送出的寫入)→ 提醒。第一次載入不提醒。
+      if(resendSeen && !resendSeen.has(d.id) && r.createdBy && r.createdBy !== currentUserEmail && !(d.metadata && d.metadata.hasPendingWrites)) fresh.push(r);
+    });
+    records.sort((a, b) => ((b.createdAt && b.createdAt.seconds) || 0) - ((a.createdAt && a.createdAt.seconds) || 0));
+    if(!resendSeen) resendSeen = new Set(records.map(r => r.id)); else records.forEach(r => resendSeen.add(r.id));
+    resendPendingRecords = records;
+    renderResendRecords(records);
+    fresh.forEach(r => pushSpecialAlert('🔔 新的補寄:' + escapeHtml(r.channel || '') + ' ' + escapeHtml(r.orderNumber || '') + ' ' + escapeHtml(r.name || '') + (r.contents ? ' — ' + escapeHtml(String(r.contents).slice(0, 60)) : '')));
+  }, ()=>{ failed = true; resendUnsub = null; });   // 失敗就算了(loadResendRecords 會顯示讀取失敗的原因)
+  resendUnsub = failed ? null : unsub;
 }
 
 // ===== 蝦皮取貨(客人到店取貨:登記手機號碼+驗證碼,客人領走後勾選)=====
@@ -5235,6 +5929,7 @@ function renderPickList(){
   document.getElementById('pickConfirmNote').textContent = '依排序往下滑檢查,或直接列印成紙本。每個品項前面都有獨立勾選框,方便部分缺貨時只勾有貨的部分;勾選卡片上方「已檢貨」等於整張全選。品名已對照 SKU 表顯示簡單品名,配件會列在該項目下方。揀貨完成後按上方「確認完成揀貨」,進度會記錄到「出貨核對」頁面。';
   const searchInput = document.getElementById('pickSearchInput');
   if(searchInput) searchInput.value = '';
+  applySpecialToCards();
   updateSfQuickLinkBanner();
   updatePickProgress();
 }
@@ -5354,6 +6049,12 @@ function restoreCardStates(states){
 
 function togglePickDone(idx, done){
   const card = document.getElementById('pick-card-' + idx);
+  if(done && !specialCheckBeforeDone([idx])){
+    // 看過特殊指示、決定先不要出貨 → 把勾選框還原
+    const cb0 = card ? card.querySelector('.pc-check input') : null;
+    if(cb0) cb0.checked = false;
+    return;
+  }
   if(card){
     card.classList.toggle('pick-card-done', done);
     card.classList.remove('pick-card-partial');
@@ -5383,6 +6084,14 @@ function toggleItemPicked(cardIdx, itemIdx, checked){
   const doneCount = Array.from(itemEls).filter(el => el.classList.contains('pc-item-done')).length;
   const allDone = doneCount === itemEls.length;
   const noneDone = doneCount === 0;
+  if(allDone && checked && !specialCheckBeforeDone([cardIdx])){
+    // 這個勾選會讓整張勾完,但有還沒處理的特殊指示,而且使用者選擇先不要 → 還原這個品項
+    if(itemEl){
+      itemEl.classList.toggle('pc-item-done', false);
+      const icb = itemEl.querySelector('.pc-item-check input'); if(icb) icb.checked = false;
+    }
+    return;
+  }
   const masterCheckbox = card.querySelector('.pc-check input');
   if(masterCheckbox) masterCheckbox.checked = allDone;
   card.classList.toggle('pick-card-done', allDone);
@@ -5630,6 +6339,9 @@ function confirmPickProgress(){
     alert('目前還沒有任何訂單打勾已檢貨,沒有東西可以確認。');
     return;
   }
+  // 最後一道關:被確認完成的訂單裡,還有「特殊訂單」指示沒標記已處理 → 先問一次(避免沒看到就出貨了)
+  const doneIdx = doneCards.map(c => parseInt(c.id.replace('pick-card-', ''), 10)).filter(n => !isNaN(n));
+  if(!specialCheckBeforeDone(doneIdx, true)) return;
   channelProgress[currentChannel] = {total, done, time: new Date()};
   const note = document.getElementById('pickConfirmNote');
   const label = {line:'LINE', shop:'官網', shopee:'蝦皮', pinkoi:'PINKOI'}[currentChannel] || currentChannel;
