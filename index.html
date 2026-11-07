@@ -218,7 +218,8 @@
   .special-order{font-weight:700;font-size:15px;}
   .special-meta{margin-left:auto;margin-right:0;font-size:11.5px;color:var(--ink-soft);}
   .special-text{font-size:14px;line-height:1.55;margin:2px 0 6px;word-break:break-word;}
-  .special-match{display:inline-block;font-size:12px;font-weight:700;color:#9A2A2A;background:#FFE3E3;border-radius:10px;padding:1px 8px;margin-bottom:6px;}
+  .special-match{display:inline-block;font-family:inherit;font-size:12px;font-weight:700;color:#9A2A2A;background:#FFE3E3;border:none;border-radius:10px;padding:3px 10px;margin-bottom:6px;cursor:pointer;text-align:left;}
+  .special-match:hover{background:#FFD0D0;}
   .special-reply-row{display:flex;align-items:center;}
   .special-reply-row > *{margin-right:8px;}
   .special-reply-row > *:last-child{margin-right:0;}
@@ -228,7 +229,7 @@
   .special-ops{margin-top:6px;}
   .special-ops button.ghost{font-size:12px;padding:3px 9px;margin-right:6px;}
   .special-ops button.ghost.del{color:var(--warn);}
-  .special-box .resend-form button.primary{padding:8px 16px;}
+  .top-row-special .resend-form button.primary{padding:8px 16px;}
   .pick-card-special{border:2px solid #C0392B;}
   .pc-special{background:#C0392B;color:#fff;border-radius:8px 8px 0 0;padding:8px 14px;font-size:14px;font-weight:700;line-height:1.5;}
   .pc-special .pc-special-text{font-weight:600;word-break:break-word;}
@@ -282,6 +283,36 @@
     .page-tabs{flex-wrap:wrap;overflow-x:visible;}
     .page-tabs .tab-btn{margin-right:18px;}
   }
+
+  /* ===== 頁面上方的三個可展開的「列」===== */
+  .top-boxes .announce-box{flex:1 1 280px;}
+  .top-rows{flex:2 1 420px;min-width:280px;display:flex;flex-direction:column;}
+  .top-rows > .top-row{margin-bottom:10px;}
+  .top-rows > .top-row:last-child{margin-bottom:0;}
+  .top-row{border:1px solid;border-radius:8px;}
+  .top-row > summary{list-style:none;cursor:pointer;display:flex;align-items:center;padding:11px 14px;font-size:14px;font-weight:700;user-select:none;}
+  .top-row > summary::-webkit-details-marker{display:none;}
+  .top-row > summary:hover{filter:brightness(0.97);}
+  .top-row-count{margin-left:10px;font-size:12.5px;font-weight:700;padding:2px 11px;border-radius:12px;background:rgba(0,0,0,.07);color:var(--ink-soft);}
+  .top-row-count:empty{display:none;}
+  .top-row-count.has{color:#fff;}
+  .top-row-chev{margin-left:auto;margin-right:4px;width:8px;height:8px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg);opacity:.65;transition:transform .15s;}
+  .top-row[open] > summary .top-row-chev{transform:rotate(-135deg);}
+  .top-row-body{padding:2px 14px 14px;}
+  .top-row-special{background:#FDECEC;border-color:#E2A8A8;}
+  .top-row-special > summary{color:#9A2A2A;}
+  .top-row-special .top-row-count.has{background:#C0392B;}
+  .top-row-resend{background:var(--ok-soft);border-color:#C9DFC0;}
+  .top-row-resend > summary{color:var(--sage-dark);}
+  .top-row-resend .top-row-count.has{background:#4F7A4A;}
+  .top-row-pickup{background:#FFF6DC;border-color:#EBD79B;}
+  .top-row-pickup > summary{color:#7A5200;}
+  .top-row-pickup .top-row-count.has{background:#B8860B;}
+  @media (max-width:760px){ .top-rows{flex-basis:100%;} }
+  /* 跳到檢貨卡片時,閃一下讓人看到是哪一張 */
+  @keyframes pickFlash{0%,100%{box-shadow:0 0 0 0 rgba(192,57,43,0);}35%{box-shadow:0 0 0 7px rgba(192,57,43,.5);}}
+  .pick-card-flash{animation:pickFlash .9s ease 2;}
+  .special-jump{font-family:inherit;font-size:12.5px;font-weight:700;color:#9A2A2A;background:#fff;border:none;border-radius:12px;padding:3px 11px;margin-left:6px;cursor:pointer;}
 
   .update-banner{
     background:var(--warn);color:#fff;text-align:center;font-size:13.5px;font-weight:600;
@@ -1022,8 +1053,10 @@
   <div class="top-boxes no-print">
     <div class="announce-box" id="announceBox" style="display:none;"></div>
 
-    <div class="special-box" id="specialBox">
-      <div class="resend-title">特殊訂單(老闆指示) <span class="pickup-count" id="specialBoxCount"></span></div>
+    <div class="top-rows" id="topRows">
+    <details class="top-row top-row-special" id="specialBox" data-row="special">
+      <summary><span class="top-row-title">特殊訂單</span><span class="top-row-count" id="specialBoxCount"></span><span class="top-row-chev" aria-hidden="true"></span></summary>
+      <div class="top-row-body">
       <div id="specialBoxList" class="special-list"><div class="resend-empty">讀取中...</div></div>
       <details class="resend-form-details" id="specialFormDetails">
         <summary>+ 新增特殊訂單</summary>
@@ -1048,10 +1081,12 @@
         <summary>已處理(最近 10 筆) <span class="pickup-count" id="specialDoneCount"></span></summary>
         <div id="specialDoneList" class="special-list" style="margin-top:8px;"></div>
       </details>
-    </div>
+      </div>
+    </details>
 
-    <div class="resend-box" id="resendBox">
-      <div class="resend-title">補寄記錄(待處理)</div>
+    <details class="top-row top-row-resend" id="resendBox" data-row="resend">
+      <summary><span class="top-row-title">補寄記錄(待處理)</span><span class="top-row-count" id="resendBoxCount"></span><span class="top-row-chev" aria-hidden="true"></span></summary>
+      <div class="top-row-body">
       <div id="resendListBox" class="resend-list"><div class="resend-empty">讀取中...</div></div>
       <details class="resend-form-details">
         <summary>+ 新增補寄記錄</summary>
@@ -1090,10 +1125,12 @@
           <div id="resendQuickLinks"></div>
         </div>
       </details>
-    </div>
+      </div>
+    </details>
 
-    <div class="pickup-box" id="pickupBox">
-      <div class="resend-title">蝦皮取貨(待領取) <span class="pickup-count" id="pickupBoxCount"></span></div>
+    <details class="top-row top-row-pickup" id="pickupBox" data-row="pickup">
+      <summary><span class="top-row-title">蝦皮取貨(待領取)</span><span class="top-row-count" id="pickupBoxCount"></span><span class="top-row-chev" aria-hidden="true"></span></summary>
+      <div class="top-row-body">
       <div id="pickupBoxSearchRow" style="display:none;margin-bottom:8px;">
         <input type="text" id="pickupBoxSearch" class="pickup-box-search" placeholder="搜尋手機後幾碼、驗證碼、備註" oninput="renderPickups()">
       </div>
@@ -1108,6 +1145,8 @@
           <div class="form-msg" id="qPickupFormMsg"></div>
         </div>
       </details>
+      </div>
+    </details>
     </div>
 
     <div class="daily-note-box" id="dailyNoteBox" style="display:none;">
@@ -1602,7 +1641,7 @@
 </div>
 
 <script>
-const APP_VERSION = '20261010-18'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20261010-21'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -1690,7 +1729,8 @@ async function handleAuthStateChange(user){
     const snap = await getDoc(ref);
     if(snap.exists()){
       currentUserEmail = user.email;
-      currentUserRole = snap.data().role || 'staff';
+      const rawRole = snap.data().role || 'staff';
+      currentUserRole = String(rawRole).trim().toLowerCase() === 'boss' ? 'boss' : rawRole;   // 老闆的 role 寫成 BOSS、Boss、前後有空白,也認得
       overlay.style.display = 'none';
       shell.style.display = 'block';
       document.getElementById('userEmailLabel').textContent = user.email + (currentUserRole === 'admin' ? '(管理者)' : currentUserRole === 'boss' ? '(老闆)' : '');
@@ -2356,6 +2396,8 @@ function renderResendListInto(box, records){
 function renderResendRecords(records){
   renderResendListInto(document.getElementById('resendListBox'), records);
   renderResendListInto(document.getElementById('resendListBoxPage4'), records);
+  const cnt = document.getElementById('resendBoxCount');
+  if(cnt){ cnt.textContent = records.length ? records.length + ' 筆待處理' : '沒有待處理'; cnt.classList.toggle('has', records.length > 0); }
 }
 
 // 只存單號,不算完成——方便一個人先輸入單號,另一個人之後再按確認完成,兩個步驟可以分開兩個人做
@@ -3314,7 +3356,9 @@ async function startSpecialListener(){
     if(!bossViewActive) fresh.forEach(r => {   // 老闆畫面不需要「新特殊訂單,請先看再出貨」的提醒(那是給出貨的人看的)
       const hit = specialCardFor(r.orderNumber);
       const where = hit ? (hit.card && hit.card.classList.contains('pick-card-done') ? ' ⚠ 這張訂單就在目前這批,而且已經勾選檢貨了,請先停手確認!' : ' ⚠ 這張訂單就在目前這批,請先看再出貨!') : '';
-      pushSpecialAlert('🔔 新的特殊訂單:' + escapeHtml(r.channel || '') + ' ' + escapeHtml(r.orderNumber || '') + ' — ' + escapeHtml(String(r.instruction || '').slice(0, 80)) + where);
+      const jump = hit ? ' <button type="button" class="special-jump" data-order="' + escapeHtml(r.orderNumber || '') + '" onclick="jumpToPickCard(this.dataset.order)">跳到那張卡片</button>' : '';
+      openTopRow('specialBox');
+      pushSpecialAlert('🔔 新的特殊訂單:' + escapeHtml(r.channel || '') + ' ' + escapeHtml(r.orderNumber || '') + ' — ' + escapeHtml(String(r.instruction || '').slice(0, 80)) + where + jump);
     });
     handledForMe.forEach(r => pushSpecialAlert('✅ 您的特殊訂單已處理:' + escapeHtml(r.channel || '') + ' ' + escapeHtml(r.orderNumber || '') + (r.reply ? ' — ' + escapeHtml(r.reply) : '') + '(' + specialWho(r.handledBy) + ')'));
   }, (err)=>{
@@ -3353,7 +3397,7 @@ function specialItemHtml(r, handled){
     '<div class="special-text">' + specialTextHtml(r.instruction) + '</div>';
   if(!handled){
     const hit = specialCardFor(r.orderNumber);
-    if(hit) h += '<div class="special-match">📦 這張訂單就在目前這批' + (hit.card && hit.card.classList.contains('pick-card-done') ? ',而且已經勾選檢貨了!' : '') + '</div>';
+    if(hit) h += '<button type="button" class="special-match" data-order="' + escapeHtml(r.orderNumber || '') + '" onclick="jumpToPickCard(this.dataset.order)">📦 這張訂單就在目前這批' + (hit.card && hit.card.classList.contains('pick-card-done') ? ',而且已經勾選檢貨了!' : '') + ' → 按我跳到那張卡片</button>';
     h += '<div class="special-reply-row"><input type="text" class="special-reply" maxlength="200" placeholder="處理結果(選填,老闆看得到)"><button class="primary" onclick="markSpecialHandled(this, \'' + r.id + '\')">標記已處理</button></div>' +
          '<div class="special-ops"><button class="ghost" onclick="openSpecialEdit(\'' + r.id + '\')">編輯</button><button class="ghost del" onclick="deleteSpecial(\'' + r.id + '\')">刪除</button></div>';
   }else{
@@ -3371,7 +3415,7 @@ function renderSpecialOrders(){
     const pending = specialOrders.filter(r => r.status === 'pending')
       .sort((a, b) => (specialMs(a, 'createdAt') || Date.now()) - (specialMs(b, 'createdAt') || Date.now()));
     const cnt = document.getElementById('specialBoxCount');
-    if(cnt) cnt.textContent = pending.length ? '(' + pending.length + ' 筆待處理)' : '';
+    if(cnt){ cnt.textContent = pending.length ? pending.length + ' 筆待處理' : '沒有待處理'; cnt.classList.toggle('has', pending.length > 0); }
     list.innerHTML = (specialLoadError && specialOrders.length === 0)
       ? '<div class="resend-empty" style="color:var(--warn);">讀取失敗:' + escapeHtml(specialLoadError) + '<br>請確認 Firebase 的 Firestore 規則已經更新(special_orders)。</div>'
       : pending.length ? pending.map(r => specialItemHtml(r, false)).join('') : '<div class="resend-empty">目前沒有待處理的特殊訂單</div>';
@@ -3401,14 +3445,14 @@ function applySpecialToCards(){
       return;
     }
     if(!blk){ blk = document.createElement('div'); blk.className = 'pc-special'; card.insertBefore(blk, card.firstChild); }
-    blk.innerHTML = '🔔 特殊訂單(老闆指示,請先看再出貨)' + pend.map(r => '<div class="pc-special-text">' + specialTextHtml(r.instruction) + '<span class="pc-special-by">(' + specialWho(r.createdBy) + ')</span></div>').join('');
+    blk.innerHTML = '🔔 特殊訂單,請先看再出貨' + pend.map(r => '<div class="pc-special-text">' + specialTextHtml(r.instruction) + '<span class="pc-special-by">(' + specialWho(r.createdBy) + ')</span></div>').join('');
     card.classList.add('pick-card-special');
     matched.push(g[0].orderId);
   });
   const ban = document.getElementById('specialPickBanner');
   if(ban){
     if(matched.length){
-      ban.innerHTML = '🔔 這批有 ' + matched.length + ' 張訂單有老闆的特殊處理指示,請先看卡片上方的紅色提醒再出貨:' + matched.map(escapeHtml).join('、');
+      ban.innerHTML = '🔔 這批有 ' + matched.length + ' 張特殊訂單,請先看卡片上方的紅色提醒再出貨:' + matched.map(escapeHtml).join('、');
       ban.style.display = 'block';
     }else{ ban.style.display = 'none'; ban.innerHTML = ''; }
   }
@@ -3426,7 +3470,7 @@ function specialCheckBeforeDone(idxList, isFinalConfirm){
     });
   });
   if(ids.length === 0) return true;
-  const head = isFinalConfirm ? '這幾張訂單有老闆的特殊處理指示,還沒標記「已處理」:' : '這張訂單有老闆的特殊處理指示,還沒標記「已處理」:';
+  const head = isFinalConfirm ? '這幾張訂單有特殊處理指示,還沒標記「已處理」:' : '這張訂單有特殊處理指示,還沒標記「已處理」:';
   const tail = isFinalConfirm ? '\n\n確定都已經照指示處理、要確認完成嗎?' : '\n\n確定已經照指示處理,可以勾「已檢貨」嗎?';
   if(!confirm(head + '\n\n' + lines.join('\n') + tail)) return false;
   ids.forEach(id => { specialAcked[id] = true; });
@@ -3731,10 +3775,45 @@ async function startResendListener(){
     if(!resendSeen) resendSeen = new Set(records.map(r => r.id)); else records.forEach(r => resendSeen.add(r.id));
     resendPendingRecords = records;
     renderResendRecords(records);
+    if(fresh.length) openTopRow('resendBox');
     fresh.forEach(r => pushSpecialAlert('🔔 新的補寄:' + escapeHtml(r.channel || '') + ' ' + escapeHtml(r.orderNumber || '') + ' ' + escapeHtml(r.name || '') + (r.contents ? ' — ' + escapeHtml(String(r.contents).slice(0, 60)) : '')));
   }, ()=>{ failed = true; resendUnsub = null; });   // 失敗就算了(loadResendRecords 會顯示讀取失敗的原因)
   resendUnsub = failed ? null : unsub;
 }
+
+// ===== 頁面上方三個可展開的「列」(特殊訂單、補寄記錄、蝦皮取貨)=====
+// 平常縮成一條,上面直接顯示數量;點一下展開、再點縮起。展開/縮起的狀態會記住(這台電腦的瀏覽器)。
+const TOP_ROWS_KEY = 'jeidi_top_rows_v1';
+function loadTopRowState(){
+  try{ return JSON.parse(localStorage.getItem(TOP_ROWS_KEY) || '{}') || {}; }catch(e){ return {}; }
+}
+function initTopRows(){
+  const st = loadTopRowState();
+  document.querySelectorAll('details.top-row').forEach(el => {
+    const k = el.dataset.row;
+    if(st[k] === true) el.open = true;
+    el.addEventListener('toggle', () => {
+      const cur = loadTopRowState(); cur[k] = el.open;
+      try{ localStorage.setItem(TOP_ROWS_KEY, JSON.stringify(cur)); }catch(e){}
+    });
+  });
+}
+// 有新的特殊訂單 / 補寄從別人那邊進來:把那一列自動展開(不然收起來會看不到)
+function openTopRow(id){
+  const el = document.getElementById(id);
+  if(el && el.tagName === 'DETAILS') el.open = true;
+}
+// 跳到這張訂單的檢貨卡片(特殊訂單那一列、提醒條上的按鈕用)
+function jumpToPickCard(orderNumber){
+  const hit = specialCardFor(orderNumber);
+  if(!hit || !hit.card){ alert('這張訂單不在目前畫面的這批檢貨單裡。'); return; }
+  const p1 = document.getElementById('page1');
+  if(p1 && p1.style.display === 'none') switchPage(1);
+  if(hit.card.scrollIntoView) hit.card.scrollIntoView({behavior: 'smooth', block: 'center'});
+  hit.card.classList.add('pick-card-flash');
+  setTimeout(() => hit.card.classList.remove('pick-card-flash'), 2400);
+}
+initTopRows();
 
 // ===== 蝦皮取貨(客人到店取貨:登記手機號碼+驗證碼,客人領走後勾選)=====
 // 資料存在資料庫的 shopee_pickups,所有人看到同一份(即時更新)。
@@ -3828,7 +3907,7 @@ function renderPickupBox(waitingAll){
   if(!list) return;
   const q = (document.getElementById('pickupBoxSearch') || {}).value || '';
   const cnt = document.getElementById('pickupBoxCount');
-  if(cnt) cnt.textContent = waitingAll.length ? '(' + waitingAll.length + ' 筆)' : '';
+  if(cnt){ cnt.textContent = waitingAll.length ? waitingAll.length + ' 筆待領取' : '沒有待領取'; cnt.classList.toggle('has', waitingAll.length > 0); }
   const searchRow = document.getElementById('pickupBoxSearchRow');
   if(searchRow) searchRow.style.display = waitingAll.length > 0 ? 'block' : 'none';
   if(pickupLoadError && waitingAll.length === 0){
