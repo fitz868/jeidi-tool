@@ -285,8 +285,8 @@
   }
 
   /* ===== 頁面上方的三個可展開的「列」===== */
-  .top-boxes .announce-box{flex:1 1 280px;}
-  .top-rows{flex:2 1 420px;min-width:280px;display:flex;flex-direction:column;}
+  .top-boxes > *{box-sizing:border-box;}
+  .top-rows{display:flex;flex-direction:column;}
   .top-rows > .top-row{margin-bottom:10px;}
   .top-rows > .top-row:last-child{margin-bottom:0;}
   .top-row{border:1px solid;border-radius:8px;}
@@ -308,11 +308,21 @@
   .top-row-pickup{background:#FFF6DC;border-color:#EBD79B;}
   .top-row-pickup > summary{color:#7A5200;}
   .top-row-pickup .top-row-count.has{background:#B8860B;}
-  @media (max-width:760px){ .top-rows{flex-basis:100%;} }
   /* 跳到檢貨卡片時,閃一下讓人看到是哪一張 */
   @keyframes pickFlash{0%,100%{box-shadow:0 0 0 0 rgba(192,57,43,0);}35%{box-shadow:0 0 0 7px rgba(192,57,43,.5);}}
   .pick-card-flash{animation:pickFlash .9s ease 2;}
   .special-jump{font-family:inherit;font-size:12.5px;font-weight:700;color:#9A2A2A;background:#fff;border:none;border-radius:12px;padding:3px 11px;margin-left:6px;cursor:pointer;}
+
+  /* 補寄:要回覆客人的文字 + 複製 */
+  .resend-copy{margin:10px 0 6px;}
+  .resend-copy-label{font-size:11.5px;font-weight:700;color:var(--ink-soft);margin-bottom:4px;}
+  .resend-copy-text{font-size:13px;line-height:1.65;color:var(--ink-soft);background:#fff;border:1px dashed #B9C9B3;border-radius:6px;padding:8px 10px;margin-bottom:6px;word-break:break-all;user-select:all;}
+  .resend-copy-text b{color:var(--ink);font-size:14px;}
+  .resend-copy-blank{color:#B04A3A;font-weight:700;}
+  .resend-item button.resend-copy-btn{font-size:14px;font-weight:700;padding:11px 18px;margin:0 6px 6px 0;}
+  button.resend-copy-btn:disabled{opacity:.45;cursor:not-allowed;}
+  button.resend-copy-btn.copied{background:#DDEFD9;border-color:#7FA67A;color:#2E6B2E;}
+  .plain-table td.resend-ops button.resend-copy-btn{font-size:12px;padding:3px 9px;margin:0;}
 
   .update-banner{
     background:var(--warn);color:#fff;text-align:center;font-size:13.5px;font-weight:600;
@@ -343,10 +353,11 @@
   .checklist label{display:flex;align-items:center;gap:10px;font-size:14px;cursor:pointer;}
   .checklist input[type="checkbox"]{width:18px;height:18px;accent-color:var(--sage);cursor:pointer;}
 
-  .top-boxes{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:24px;align-items:flex-start;}
+  .top-boxes{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:16px;margin-bottom:24px;align-items:start;}
+  /* ↑ 公告、三個列(、今日提醒)用格線排:每一欄天生一樣寬,不管有沒有內距;寬度不夠(手機)會自動變成上下排 */
   .top-boxes .announce-box{flex:1;min-width:260px;margin-bottom:0;}
   .top-boxes .resend-box{flex:1;min-width:260px;}
-  .top-boxes .daily-note-box{flex:1;min-width:260px;}
+  .top-boxes .daily-note-box{flex:1 1 0;min-width:280px;}
 
   .daily-note-box{
     background:#F5E4E4;border:1px solid #E3B8B8;border-radius:8px;padding:14px 16px;
@@ -1641,7 +1652,7 @@
 </div>
 
 <script>
-const APP_VERSION = '20261010-21'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20261010-24'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -2218,6 +2229,12 @@ function ledgerGet(key, channel, orderId){
   const o = loadLedger(key);
   return (o[channel] && o[channel][orderId]) || null;
 }
+// 一次取出某個通路的整份記錄({訂單編號: 日期})。要查很多張訂單時用這個(只讀、解析一次),
+// 不要在迴圈裡一直呼叫 ledgerGet:每呼叫一次就會把整份記錄重新讀出來、解析一次,訂單多、記錄多的時候會很慢。
+function ledgerChannel(key, channel){
+  const o = loadLedger(key);
+  return o[channel] || {};
+}
 
 async function savePickRecord(channel, categoryCounts, totalOrders, totalItems, doneCount, skuBreakdown){
   await waitForFirebase();
@@ -2359,6 +2376,8 @@ async function loadResendRecords(){
 
 function renderResendListInto(box, records){
   if(!box) return;
+  // 清單會因為別人新增/修改而整個重畫:先記下這邊已經打了、但還沒儲存的單號(和游標),畫完再放回去
+  const kept = captureTypedInputs(box, '.resend-item', '.resend-tracking-input');
   if(records.length === 0){
     box.innerHTML = '<div class="resend-empty">目前沒有待處理的補寄</div>';
     return;
@@ -2369,7 +2388,7 @@ function renderResendListInto(box, records){
       ? '<a class="resend-item-link" href="' + portal.url + '" target="_blank" rel="noopener">📮 前往' + portal.label + '</a>'
       : '';
     return `
-    <div class="resend-item">
+    <div class="resend-item" data-id="${r.id}">
       <div class="resend-item-head">
         <span class="resend-channel">${escapeHtml(r.channel||'')}</span>
         <span class="resend-order">${escapeHtml(r.orderNumber||'')}</span>
@@ -2380,16 +2399,23 @@ function renderResendListInto(box, records){
       ${linkHtml}
       <div class="rql-sender">寄件人資訊(填單時參考):${RESEND_SENDER_INFO.name}・${RESEND_SENDER_INFO.phone}・${RESEND_SENDER_INFO.email}</div>
       <div class="resend-tracking-row">
-        <input type="text" class="resend-tracking-input" placeholder="補寄單號(寄出後填這裡)" value="${escapeHtml(r.trackingNumber||'')}">
+        <input type="text" class="resend-tracking-input" placeholder="補寄單號(寄出後填這裡)" value="${escapeHtml(r.trackingNumber||'')}" oninput="updateResendReplyPreview(this)">
         <button class="ghost" onclick="saveResendTracking(this, '${r.id}')">儲存單號</button>
       </div>
       ${r.trackingNumber ? '<div class="resend-tracking-saved">✓ 單號已存:' + escapeHtml(r.trackingNumber) + '(樓下可以看到,按下方確認完成即可結案)</div>' : ''}
+      <div class="resend-copy">
+        <div class="resend-copy-label">要回覆客人的文字(填好單號會自動帶入)</div>
+        <div class="resend-copy-text">${resendReplyPreviewHtml(r.trackingNumber||'')}</div>
+        <button type="button" class="ghost resend-copy-btn" onclick="copyResendReply(this)"${r.trackingNumber ? '' : ' disabled'}>📋 複製這段文字</button>
+      </div>
       <button class="primary" onclick="confirmResendDone(this, '${r.id}', '${r.category||''}')">確認完成</button>
       <button class="ghost resend-edit-btn" onclick="openResendEdit('${r.id}')">編輯</button>
       <button class="ghost resend-del-btn" onclick="deleteResend('${r.id}')">刪除</button>
     </div>
   `;
   }).join('');
+  restoreTypedInputs(box, '.resend-item', '.resend-tracking-input', kept,
+    id => { const r = records.find(x => x.id === id); return r ? (r.trackingNumber || '') : ''; }, updateResendReplyPreview);
 }
 
 // 待處理清單同時顯示在頁面1(出貨助手)跟頁面4(訂單查詢),兩邊都是同一份資料
@@ -2493,9 +2519,75 @@ function renderCompletedResends(){
         : '-';
       return '<tr><td>' + escapeHtml(dateStr) + '</td><td>' + escapeHtml(r.channel||'') + '</td><td>' + escapeHtml(r.orderNumber||'') + '</td><td>' +
       escapeHtml(SHIP_CATEGORY_LABEL[r.category] || r.category || '') + '</td><td>' + escapeHtml(r.trackingNumber||'') + '</td><td>' +
-      escapeHtml(r.name||'') + '</td><td class="resend-ops"><button class="ghost resend-edit-btn" onclick="openResendEdit(\'' + r.id + '\')">編輯</button> <button class="ghost resend-del-btn" onclick="deleteResend(\'' + r.id + '\')">刪除</button></td></tr>';
+      escapeHtml(r.name||'') + '</td><td class="resend-ops"><button class="ghost resend-copy-btn" title="複製要回覆客人的文字" onclick="copyResendReplyById(this, \'' + r.id + '\')">複製回覆</button> <button class="ghost resend-edit-btn" onclick="openResendEdit(\'' + r.id + '\')">編輯</button> <button class="ghost resend-del-btn" onclick="deleteResend(\'' + r.id + '\')">刪除</button></td></tr>';
     }).join('') +
     '</tbody></table>';
+}
+
+// ===== 清單重畫時,保留使用者已經打了、還沒儲存的輸入 =====
+// (別人新增資料 → 即時同步 → 清單整個重畫;不處理的話,打到一半的單號/處理結果會憑空消失)
+function captureTypedInputs(box, itemSel, inputSel){
+  const kept = {};
+  if(!box) return kept;
+  box.querySelectorAll(itemSel).forEach(el => {
+    const id = el.dataset.id, inp = el.querySelector(inputSel);
+    if(id && inp) kept[id] = {v: inp.value, focus: document.activeElement === inp, pos: inp.selectionStart};
+  });
+  return kept;
+}
+function restoreTypedInputs(box, itemSel, inputSel, kept, defaultFor, onChange){
+  if(!box) return;
+  box.querySelectorAll(itemSel).forEach(el => {
+    const k = kept[el.dataset.id], inp = el.querySelector(inputSel);
+    if(!k || !inp) return;
+    if(k.v !== defaultFor(el.dataset.id)){ inp.value = k.v; if(onChange) onChange(inp); }   // 有打過、跟資料庫裡存的不一樣 → 放回去
+    if(k.focus){ inp.focus(); try{ inp.setSelectionRange(k.pos, k.pos); }catch(e){} }
+  });
+}
+
+// ===== 補寄:要回覆客人的文字(單號自動帶入,按一下複製)=====
+const RESEND_REPLY_TEMPLATE = '您好，已於近日補寄，這是貨物單號{單號}，再麻煩您了，感謝';
+function buildResendReplyText(no){ return RESEND_REPLY_TEMPLATE.replace('{單號}', no); }
+function resendReplyPreviewHtml(no){
+  const parts = RESEND_REPLY_TEMPLATE.split('{單號}');
+  return escapeHtml(parts[0]) + (no ? '<b>' + escapeHtml(no) + '</b>' : '<span class="resend-copy-blank">＿＿＿＿</span>') + escapeHtml(parts[1]);
+}
+// 單號欄每打一個字:預覽跟著更新,有單號才能按複製
+function updateResendReplyPreview(inputEl){
+  const item = inputEl.closest('.resend-item');
+  if(!item) return;
+  const no = inputEl.value.trim();
+  const t = item.querySelector('.resend-copy-text'); if(t) t.innerHTML = resendReplyPreviewHtml(no);
+  const b = item.querySelector('.resend-copy-btn'); if(b) b.disabled = !no;
+}
+async function copyTextToClipboard(text){
+  try{ if(navigator.clipboard && navigator.clipboard.writeText){ await navigator.clipboard.writeText(text); return true; } }catch(e){}
+  try{   // 備用方法(舊瀏覽器、或不是 https 的環境)
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0;';
+    document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, text.length);
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return !!ok;
+  }catch(e){ return false; }
+}
+async function doCopyResendReply(btn, no){
+  if(!no){ alert('請先填補寄單號,再複製。'); return; }
+  const ok = await copyTextToClipboard(buildResendReplyText(no));
+  if(!btn.dataset.label) btn.dataset.label = btn.textContent;
+  btn.textContent = ok ? '已複製 ✓ 貼給客人吧' : '複製失敗,請直接選取上面的文字';
+  btn.classList.toggle('copied', ok);
+  clearTimeout(btn._copyTimer);
+  btn._copyTimer = setTimeout(() => { btn.textContent = btn.dataset.label; btn.classList.remove('copied'); }, 2500);
+}
+function copyResendReply(btn){   // 待處理的卡片:用單號欄「現在打的」(還沒按儲存也可以)
+  const item = btn.closest('.resend-item');
+  const inp = item ? item.querySelector('.resend-tracking-input') : null;
+  return doCopyResendReply(btn, inp ? inp.value.trim() : '');
+}
+function copyResendReplyById(btn, id){   // 已完成的清單:用已存的單號
+  const r = completedResendRecords.find(x => x.id === id);
+  return doCopyResendReply(btn, r ? String(r.trackingNumber || '').trim() : '');
 }
 
 // ===== 補寄:編輯與刪除 =====
@@ -3392,7 +3484,7 @@ function specialTextHtml(t){ return escapeHtml(t || '').replace(/\n/g, '<br>'); 
 function specialItemHtml(r, handled){
   const created = specialMs(r, 'createdAt');
   const meta = (created ? fmtPickupTime(created) + '・' : '') + specialWho(r.createdBy);
-  let h = '<div class="special-item' + (handled ? ' special-done' : '') + '">' +
+  let h = '<div class="special-item' + (handled ? ' special-done' : '') + '" data-id="' + r.id + '">' +
     '<div class="special-head"><span class="resend-channel">' + escapeHtml(r.channel || '') + '</span><span class="special-order">' + escapeHtml(r.orderNumber || '') + '</span><span class="special-meta">' + meta + '</span></div>' +
     '<div class="special-text">' + specialTextHtml(r.instruction) + '</div>';
   if(!handled){
@@ -3416,9 +3508,11 @@ function renderSpecialOrders(){
       .sort((a, b) => (specialMs(a, 'createdAt') || Date.now()) - (specialMs(b, 'createdAt') || Date.now()));
     const cnt = document.getElementById('specialBoxCount');
     if(cnt){ cnt.textContent = pending.length ? pending.length + ' 筆待處理' : '沒有待處理'; cnt.classList.toggle('has', pending.length > 0); }
+    const keptReply = captureTypedInputs(list, '.special-item', '.special-reply');   // 別人新增造成重畫時,樓下打到一半的「處理結果」不能被清掉
     list.innerHTML = (specialLoadError && specialOrders.length === 0)
       ? '<div class="resend-empty" style="color:var(--warn);">讀取失敗:' + escapeHtml(specialLoadError) + '<br>請確認 Firebase 的 Firestore 規則已經更新(special_orders)。</div>'
       : pending.length ? pending.map(r => specialItemHtml(r, false)).join('') : '<div class="resend-empty">目前沒有待處理的特殊訂單</div>';
+    restoreTypedInputs(list, '.special-item', '.special-reply', keptReply, () => '', null);
   }
   if(doneBox){
     const done = specialOrders.filter(r => r.status === 'handled')
@@ -5176,6 +5270,10 @@ async function processFile(){
   }
   if(!items) return; // 錯誤訊息已經在讀取函式裡顯示過了
 
+  // 檔案讀好了:馬上開始下載後面要用的表(商品表、備註、顏色、待出貨、待揀貨),不要等防重複檢查、不要等使用者回答詢問
+  const mapsPromise = loadImportMaps(currentChannel);
+  mapsPromise.catch(()=>{});   // 如果中途使用者取消,這份資料沒用到,也不要跳出沒人處理的錯誤
+
   // 檢查有沒有「之前已經確認完成揀貨」的訂單又被匯入(例如平台的待出貨清單隔天還在),先詢問要不要略過
   lastDupSkip = null;
   const dupCheck = await filterAlreadyConfirmed(items);
@@ -5197,7 +5295,7 @@ async function processFile(){
   }
   document.getElementById('kerryExportNote').style.display = 'none';   // 新的一批,上一次的黑貓匯出說明就不用留著了
 
-  await finishProcessing(items);
+  await finishProcessing(items, mapsPromise);
 }
 
 async function readLineItems(){
@@ -5530,7 +5628,13 @@ async function readPinkoiItems(){
   });
 }
 
-async function finishProcessing(rawItems){
+// 匯入需要的五份資料,同時下載(三份 Google 試算表 + 兩個資料庫查詢)。
+// 以前是一份下載完才下載下一份,三份試算表光排隊就要好幾秒。
+function loadImportMaps(ch){
+  return Promise.all([loadSkuMap(), loadOrderNotes(), loadScentColors(), loadPendingShipmentsMap(ch), loadPendingPicksMap(ch)]);
+}
+
+async function finishProcessing(rawItems, prefetched){
   let items = rawItems;
 
   // 如果上一批(同一個通路)還有沒檢完的訂單,合併進這一批一起顯示,不要讓它憑空消失
@@ -5568,11 +5672,10 @@ async function finishProcessing(rawItems){
   }
 
   // 套用 SKU 對照表:有查到就用乾淨品名,查不到就維持原始平台品名
-  await loadSkuMap();
-  await loadOrderNotes();
-  await loadScentColors();
-  pendingShipmentMap = await loadPendingShipmentsMap(currentChannel);
-  pendingPickMap = await loadPendingPicksMap(currentChannel);
+  // 五件事(三份試算表、兩個資料庫查詢)互相不依賴,同時進行;匯入一開始就已經先開始下載了(prefetched),這裡通常只是等它們收尾
+  const loaded = await (prefetched || loadImportMaps(currentChannel));
+  pendingShipmentMap = loaded[3];
+  pendingPickMap = loaded[4];
   let matchedSkuCount = 0;
   items.forEach(it=>{
     const info = skuMap[it.sku];
@@ -5744,7 +5847,8 @@ function withTimeout(promise, ms){
 }
 async function findConfirmedOrderIds(channel, orderIds){
   const found = {};   // 訂單編號 → 當初確認的日期
-  orderIds.forEach(id => { const d = ledgerGet(CONFIRMED_KEY, channel, id); if(d) found[id] = d; });   // 1) 這台電腦的記錄
+  const led = ledgerChannel(CONFIRMED_KEY, channel);
+  orderIds.forEach(id => { if(led[id]) found[id] = led[id]; });   // 1) 這台電腦的記錄(整份只讀一次)
   // 2) 資料庫的訂單歷史(別台電腦確認的也查得到);查不到、斷線、慢都不影響匯入
   try{
     const cutoff = ledgerCutoff();
@@ -5752,10 +5856,13 @@ async function findConfirmedOrderIds(channel, orderIds){
       await waitForFirebase();
       const {db, collection, query, where, getDocs} = window.__fb;
       const rest = orderIds.filter(id => !found[id]);
-      for(let i = 0; i < rest.length; i += 30){   // 資料庫一次最多查 30 個
-        const snap = await getDocs(query(collection(db, ORDER_HISTORY_COLLECTION), where('orderId', 'in', rest.slice(i, i + 30))));
+      const chunks = [];
+      for(let i = 0; i < rest.length; i += 30) chunks.push(rest.slice(i, i + 30));   // 資料庫一次最多查 30 個
+      // 每一組同時送出,不要一組等一組(300 張訂單就是 10 趟網路來回,排隊要好幾秒)
+      await Promise.all(chunks.map(async ch => {
+        const snap = await getDocs(query(collection(db, ORDER_HISTORY_COLLECTION), where('orderId', 'in', ch)));
         snap.forEach(d => { const x = d.data(); if(x.channel === channel && (x.date || '') >= cutoff) found[x.orderId] = x.date; });
-      }
+      }));
     })(), 8000);
   }catch(err){}
   return found;
@@ -6607,7 +6714,8 @@ function downloadKerryCSV(){
     return;
   }
   // 之前已經匯出過黑貓的訂單(例如缺貨、留到下一批的),預設不再匯出,避免黑貓重複建單、重複列印物流單
-  const already = orders.filter(it => ledgerGet(KERRY_EXPORT_KEY, currentChannel, it.orderId));
+  const kerryLed = ledgerChannel(KERRY_EXPORT_KEY, currentChannel);
+  const already = orders.filter(it => kerryLed[it.orderId]);
   let toExport = orders;
   let skippedCount = 0;
   if(already.length > 0){
