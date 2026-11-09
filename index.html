@@ -23,7 +23,7 @@
     getFirestore, collection, addDoc, query, where, getDocs, doc, updateDoc, getDoc, setDoc, serverTimestamp, onSnapshot, increment, writeBatch, orderBy, limit
   } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
   import {
-    getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut
+    getAuth, GoogleAuthProvider, signInWithPopup, signInWithCredential, onAuthStateChanged, signOut
   } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
   const firebaseConfig = {
@@ -42,7 +42,7 @@
 
   window.__fb = {
     db, collection, addDoc, query, where, getDocs, doc, updateDoc, getDoc, setDoc, serverTimestamp, onSnapshot, increment, writeBatch, orderBy, limit,
-    auth, googleProvider, signInWithPopup, onAuthStateChanged, signOut
+    auth, googleProvider, signInWithPopup, signInWithCredential, GoogleAuthProvider, onAuthStateChanged, signOut
   };
   window.__fbReady = true;
   window.dispatchEvent(new Event('fbready'));
@@ -326,6 +326,10 @@
 
   .line-pre-note{background:#FFF6DC;border:1px solid #EBD79B;border-radius:8px;padding:10px 14px;margin:0 0 14px;font-size:13.5px;line-height:1.7;color:#5A4A1A;}
   .line-pre-note b{color:#7A5200;}
+
+  .auth-alt{margin-top:20px;padding-top:16px;border-top:1px dashed var(--line);text-align:center;}
+  .auth-alt-text{font-size:12.5px;color:var(--ink-soft);line-height:1.7;margin-bottom:12px;}
+  #gisBtn{display:flex;justify-content:center;min-height:44px;}
 
   .update-banner{
     background:var(--warn);color:#fff;text-align:center;font-size:13.5px;font-weight:600;
@@ -893,6 +897,10 @@
     <div class="auth-icon"><span class="brand-logo auth-logo" role="img" aria-label="JEIDI"></span></div>
     <div class="auth-desc" id="authDesc">請使用公司登記過的 Google 帳號登入</div>
     <button class="primary" id="authSignInBtn" onclick="signInWithGoogle()">使用 Google 帳號登入</button>
+    <div class="auth-alt" id="authAlt" style="display:none;">
+      <div class="auth-alt-text">用 iPhone 登入時,如果出現「missing initial state」,請改按下面這個。<br>請用 Safari 或 Chrome 開這個網頁,不要在 LINE 裡打開。</div>
+      <div id="gisBtn"></div>
+    </div>
     <div class="auth-msg" id="authMsg"></div>
   </div>
 </div>
@@ -1656,7 +1664,7 @@
 </div>
 
 <script>
-const APP_VERSION = '20261010-25'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20261010-26'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -1717,6 +1725,54 @@ async function signInWithGoogle(){
   }
 }
 
+// ===== 第二種登入方式:Google 官方的登入元件(Google Identity Services)=====
+// 原本的「使用 Google 帳號登入」會經過 jeidi868.firebaseapp.com,iPhone 的瀏覽器會擋掉兩個網站之間共用的暫存資料,
+// 出現「missing initial state」。這個方式不經過那個網址,拿到 Google 的憑證後直接登入 Firebase。
+// 需要在 Google Cloud 的 Web 用戶端,把 https://fitz868.github.io 加進「已授權的 JavaScript 來源」。
+const GOOGLE_WEB_CLIENT_ID = '837658854531-84o0ojkosb4lrtr1o81238405bqfd554.apps.googleusercontent.com';
+let gisLoading = null;
+let gisInitialized = false;
+function loadGoogleIdentity(){
+  if(window.google && window.google.accounts && window.google.accounts.id) return Promise.resolve(true);
+  if(gisLoading) return gisLoading;
+  gisLoading = new Promise(resolve => {
+    const sc = document.createElement('script');
+    sc.src = 'https://accounts.google.com/gsi/client'; sc.async = true; sc.defer = true;
+    sc.onload = () => resolve(!!(window.google && window.google.accounts && window.google.accounts.id));
+    sc.onerror = () => resolve(false);
+    document.head.appendChild(sc);
+    setTimeout(() => resolve(false), 8000);   // 載入太久就放棄,不要卡住
+  });
+  return gisLoading;
+}
+async function initGoogleSignInButton(){
+  const box = document.getElementById('gisBtn'), wrap = document.getElementById('authAlt');
+  if(!box || !wrap) return;
+  const ok = await loadGoogleIdentity();
+  if(!ok){ wrap.style.display = 'none'; return; }   // 載入失敗(例如被擋):隱藏第二個按鈕,原本的按鈕不受影響
+  try{
+    if(!gisInitialized){
+      google.accounts.id.initialize({client_id: GOOGLE_WEB_CLIENT_ID, callback: onGoogleCredential, ux_mode: 'popup', auto_select: false});
+      gisInitialized = true;
+    }
+    box.innerHTML = '';
+    google.accounts.id.renderButton(box, {type: 'standard', theme: 'outline', size: 'large', text: 'signin_with', shape: 'rectangular', locale: 'zh-TW', width: 240});   // 登入框內容寬約 246px,按鈕不要比它寬
+    wrap.style.display = '';
+  }catch(e){ wrap.style.display = 'none'; }
+}
+async function onGoogleCredential(resp){
+  const msgEl = document.getElementById('authMsg');
+  msgEl.textContent = '';
+  try{
+    if(!resp || !resp.credential) throw new Error('沒有收到 Google 的登入資料');
+    await waitForFirebase();
+    const {auth, GoogleAuthProvider, signInWithCredential} = window.__fb;
+    await signInWithCredential(auth, GoogleAuthProvider.credential(resp.credential));   // 成功後會觸發 onAuthStateChanged,接下來跟原本的登入一樣
+  }catch(err){
+    msgEl.textContent = '登入失敗: ' + err.message;
+  }
+}
+
 function signOutUser(){
   waitForFirebase().then(()=>{
     const {auth, signOut} = window.__fb;
@@ -1735,6 +1791,7 @@ async function handleAuthStateChange(user){
     currentUserRole = null;
     overlay.style.display = 'flex';
     shell.style.display = 'none';
+    initGoogleSignInButton();   // 只有顯示登入畫面時才載入 Google 登入元件(已登入的人不會載入)
     return;
   }
 
