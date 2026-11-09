@@ -331,6 +331,8 @@
   .auth-alt-text{font-size:12.5px;color:var(--ink-soft);line-height:1.7;margin-bottom:12px;}
   #gisBtn{display:flex;justify-content:center;min-height:44px;}
 
+  .line-bag-note{background:#EEF3F8;border:1px solid #CBD8E6;border-radius:8px;padding:8px 12px;margin:8px 0;font-size:13px;line-height:1.6;color:#2F4A66;}
+
   .update-banner{
     background:var(--warn);color:#fff;text-align:center;font-size:13.5px;font-weight:600;
     padding:10px 16px;border-radius:8px;margin-bottom:20px;cursor:pointer;
@@ -1262,6 +1264,7 @@
     <div class="stat-row" id="statRow"></div>
 
     <div class="sku-status no-print" id="skuStatusBox"></div>
+    <div class="line-bag-note no-print" id="lineBagNote" style="display:none;"></div>
     <div class="gift-note no-print" id="shopGiftNote" style="display:none;"></div>
     <div class="gift-note no-print" id="dupImportNote" style="display:none;"></div>
 
@@ -1664,7 +1667,7 @@
 </div>
 
 <script>
-const APP_VERSION = '20261010-26'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20261010-27'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -6090,6 +6093,39 @@ function parseCombo(comboStr, ownSku){
   }).filter(c => c.sku !== ownSku);
 }
 
+// ===== 紙袋:LINE 禮物的訂單一律不附紙袋 =====
+// SKU 表裡的禮盒,「組合成分」會寫 paperbag-M x1(大紙袋),代表禮盒要附一個紙袋;但 LINE 禮物通路不用送。
+// 所以 LINE 的檢貨卡上不列出紙袋(只過濾「附贈的配件」;客人自己買的紙袋商品是主品項,不受影響)。
+const NO_PAPER_BAG_CHANNELS = ['line'];
+function isPaperBagSku(sku){
+  const info = skuMap[sku];
+  const nm = info ? String(info.name || '') : '';
+  return /^paperbag/i.test(String(sku || '')) || /紙袋$/.test(nm) || nm === '小提袋';
+}
+function accessoriesFor(it){
+  const acc = parseCombo(it.combo, it.sku);
+  return NO_PAPER_BAG_CHANNELS.includes(currentChannel) ? acc.filter(a => !isPaperBagSku(a.sku)) : acc;
+}
+// 檢貨單上方的小說明:這批有幾張訂單的紙袋被自動拿掉了(讓人知道不是漏掉)
+function renderLineBagNote(){
+  const el = document.getElementById('lineBagNote');
+  if(!el) return;
+  let orders = 0, bags = 0;
+  if(NO_PAPER_BAG_CHANNELS.includes(currentChannel)){
+    pickOrderGroups.forEach(its => {
+      let hit = false;
+      its.forEach(it => parseCombo(it.combo, it.sku).forEach(a => { if(isPaperBagSku(a.sku)){ hit = true; bags += a.qty * (it.qty || 1); } }));
+      if(hit) orders++;
+    });
+  }
+  if(orders){
+    el.style.display = '';
+    el.textContent = 'ℹ️ LINE 禮物不附紙袋:這批有 ' + orders + ' 張訂單的禮盒,原本組合裡的紙袋(共 ' + bags + ' 個)已不列出,不用放。';
+  }else{
+    el.style.display = 'none';
+  }
+}
+
 // 從訂單編號抓出訂單本來的日期(不同通路編號規則不同,抓不到就回傳空字串)
 function extractOrderDate(orderId, channel){
   const id = String(orderId||'');
@@ -6123,7 +6159,7 @@ function renderPickList(){
     const its = byOrder[oid];
     const name = its[0].name;
     const itemsHtml = its.map((it, itemIdx)=>{
-      const accessories = parseCombo(it.combo, it.sku);
+      const accessories = accessoriesFor(it);
       const accHtml = accessories.map(a=>{
         const info = skuMap[a.sku];
         const label = info ? info.name : a.sku;
@@ -6187,6 +6223,7 @@ function renderPickList(){
   const searchInput = document.getElementById('pickSearchInput');
   if(searchInput) searchInput.value = '';
   applySpecialToCards();
+  renderLineBagNote();
   updateSfQuickLinkBanner();
   updatePickProgress();
 }
