@@ -333,6 +333,28 @@
 
   .line-bag-note{background:#EEF3F8;border:1px solid #CBD8E6;border-radius:8px;padding:8px 12px;margin:8px 0;font-size:13px;line-height:1.6;color:#2F4A66;}
 
+  .special-locate{margin:6px 0;padding:7px 10px;border-radius:8px;font-size:13px;line-height:1.65;background:#EEF3F8;border:1px solid #CBD8E6;color:#2F4A66;}
+  .special-locate.warn{background:#FFF1D6;border-color:#E6B35A;color:#7A4A00;}
+  .special-locate.unk{background:#F3F3F0;border-color:#D8D8D0;color:#555;}
+  .special-copy-row{margin:4px 0 6px;}
+  .special-copy,.special-switch{font-family:inherit;font-size:12.5px;font-weight:600;background:#fff;border:1px solid var(--line);border-radius:7px;padding:4px 11px;cursor:pointer;color:var(--ink);}
+  .special-copy:hover,.special-switch:hover{background:#F1F4EC;}
+  .special-copy.copied{background:#DDEFD9;border-color:#7FA67A;color:#2E6B2E;}
+
+  /* 數量放大:全部的數量都比以前大(原本 13px,比品名還小);2 件以上再更大、更醒目 */
+  .pick-card .pc-item span.pc-item-qty{font-size:21px;line-height:1.3;padding:1px 13px;}   /* 加上 span 是為了蓋過檔案後面那條原本的 13px 規則 */
+  /* 數量 2 件以上:整條(撐滿卡片左右兩邊)用螢光筆黃底色標出來;列印也要印得出來(瀏覽器預設不印背景色) */
+  .pick-card .pc-item.pc-item-multi{
+    background:#FFEB3B;margin:3px -18px;padding:7px 18px;
+    -webkit-print-color-adjust:exact;print-color-adjust:exact;
+  }
+  .pick-card .pc-item.pc-item-multi span.pc-item-qty{
+    font-size:32px;font-weight:900;line-height:1.2;padding:0 16px;
+    background:#fff;color:#C62828;border:3px solid #C62828;
+    -webkit-print-color-adjust:exact;print-color-adjust:exact;
+  }
+  .pick-card .pc-item.pc-item-multi .pc-scent-tag{box-shadow:0 0 0 1.5px rgba(0,0,0,.3);}   /* 黃底上的黃色香味色塊,邊界才看得清楚 */
+
   .update-banner{
     background:var(--warn);color:#fff;text-align:center;font-size:13.5px;font-weight:600;
     padding:10px 16px;border-radius:8px;margin-bottom:20px;cursor:pointer;
@@ -1667,7 +1689,7 @@
 </div>
 
 <script>
-const APP_VERSION = '20261010-27'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20261010-31'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -3167,6 +3189,7 @@ function selectChannel(ch){
   applyChannelUploadUI(ch);
   loadChannelBatch(ch);
   saveState();
+  renderSpecialOrders();   // 換了通路,特殊訂單的「在哪裡」提示要跟著更新
 }
 
 function selectShopeeType(t){
@@ -3520,7 +3543,8 @@ async function startSpecialListener(){
     renderSpecialOrders();
     if(!bossViewActive) fresh.forEach(r => {   // 老闆畫面不需要「新特殊訂單,請先看再出貨」的提醒(那是給出貨的人看的)
       const hit = specialCardFor(r.orderNumber);
-      const where = hit ? (hit.card && hit.card.classList.contains('pick-card-done') ? ' ⚠ 這張訂單就在目前這批,而且已經勾選檢貨了,請先停手確認!' : ' ⚠ 這張訂單就在目前這批,請先看再出貨!') : '';
+      const shipLab = hit ? specialShipLabel(currentChannel, (pickOrderGroups[hit.idx][0] || {}).shippingCategory) : '';
+      const where = hit ? (hit.card && hit.card.classList.contains('pick-card-done') ? ' ⚠ 這張訂單就在目前這批(' + shipLab + '),而且已經勾選檢貨了,請先停手確認!' : ' ⚠ 這張訂單就在目前這批(' + shipLab + '),請先看再出貨!') : '';
       const jump = hit ? ' <button type="button" class="special-jump" data-order="' + escapeHtml(r.orderNumber || '') + '" onclick="jumpToPickCard(this.dataset.order)">跳到那張卡片</button>' : '';
       openTopRow('specialBox');
       pushSpecialAlert('🔔 新的特殊訂單:' + escapeHtml(r.channel || '') + ' ' + escapeHtml(r.orderNumber || '') + ' — ' + escapeHtml(String(r.instruction || '').slice(0, 80)) + where + jump);
@@ -3554,6 +3578,124 @@ function dismissSpecialAlert(){
 // ----- 畫面 -----
 function specialTextHtml(t){ return escapeHtml(t || '').replace(/\n/g, '<br>'); }
 
+// ===== 特殊訂單:這張訂單現在在哪裡?是哪個物流? =====
+// 老闆選的是「通路」,不會填物流,所以由系統去找:
+//  1) 在目前這批檢貨單裡 → 顯示它的通路與物流;
+//  2) 在別的通路那一批(這台電腦存的)→ 提醒要先切過去;
+//  3) 已經確認完成揀貨 → 去資料庫的訂單紀錄查,顯示哪天確認、是哪個物流(例如:蝦皮・新竹物流已經檢完貨,老闆才補單);
+//  4) 都查不到 → 明講找不到,請到平台後台搜尋。
+const SPECIAL_CH_LABEL = {line: 'LINE', shop: '官網', shopee: '蝦皮', pinkoi: 'PINKOI'};
+const SPECIAL_HISTORY_TTL = 60000;
+const specialHistoryCache = {};   // {標準化訂單編號: {found, ch, cat, date, err, loading, at}}
+let specialHistoryLoading = false;
+function specialShipLabel(ch, cat){
+  return (SPECIAL_CH_LABEL[ch] || ch || '?') + (cat && SHIP_CATEGORY_LABEL[cat] ? '・' + SHIP_CATEGORY_LABEL[cat] : '');
+}
+function specialOrderNoForCopy(no){ return String(no == null ? '' : no).trim().replace(/^#+/, '').replace(/\s+/g, ''); }
+// 先在這台電腦的檢貨資料裡找(目前這批 / 別的通路存著的那一批)
+function specialLocateLocal(orderNumber){
+  const hit = specialCardFor(orderNumber);
+  if(hit){
+    const g = pickOrderGroups[hit.idx] || [];
+    return {where: 'current', ch: currentChannel, cat: (g[0] && g[0].shippingCategory) || '', done: !!(hit.card && hit.card.classList.contains('pick-card-done'))};
+  }
+  const k = normOrderKey(orderNumber);
+  if(!k) return null;
+  for(const ch of ['line', 'shop', 'shopee', 'pinkoi']){
+    if(ch === currentChannel) continue;
+    const b = channelBatches[ch];
+    if(!b || !b.parsedItems) continue;
+    const it = b.parsedItems.find(x => normOrderKey(x.orderId) === k);
+    if(it) return {where: 'other', ch, cat: it.shippingCategory || ''};
+  }
+  return null;
+}
+// 訂單編號可能有 # 或大小寫的差別,資料庫是「一字不差」才比對得到,所以每個編號多查幾種寫法
+function specialOrderVariants(no){
+  const t = String(no == null ? '' : no).trim();
+  if(!t) return [];
+  const t0 = t.replace(/^#+/, '').replace(/\s+/g, '');
+  const set = new Set([t, t0, '#' + t0, t0.toUpperCase(), t0.toLowerCase(), '#' + t0.toUpperCase(), '#' + t0.toLowerCase()]);
+  return [...set].filter(Boolean);
+}
+// 這台電腦找不到的待處理特殊訂單,去資料庫的訂單紀錄查(一次查完,結果記起來,查到再重畫一次)
+async function ensureSpecialHistory(pending){
+  const now = Date.now();
+  const need = pending.filter(r => {
+    const k = normOrderKey(r.orderNumber);
+    if(!k || specialLocateLocal(r.orderNumber)) return false;
+    const c = specialHistoryCache[k];
+    return !c || (!c.loading && now - c.at > SPECIAL_HISTORY_TTL);
+  });
+  if(!need.length || specialHistoryLoading) return;
+  specialHistoryLoading = true;
+  const keys = need.map(r => normOrderKey(r.orderNumber));
+  keys.forEach(k => { specialHistoryCache[k] = {loading: true, at: now}; });
+  try{
+    await waitForFirebase();
+    const {db, collection, query, where, getDocs} = window.__fb;
+    const variants = [];
+    need.forEach(r => specialOrderVariants(r.orderNumber).forEach(v => { if(!variants.includes(v)) variants.push(v); }));
+    const chunks = []; for(let i = 0; i < variants.length; i += 30) chunks.push(variants.slice(i, i + 30));
+    const found = {};
+    await Promise.all(chunks.map(async ch => {
+      const snap = await getDocs(query(collection(db, ORDER_HISTORY_COLLECTION), where('orderId', 'in', ch)));
+      snap.forEach(d => {
+        const x = d.data(), k = normOrderKey(x.orderId), cur = found[k];
+        if(!cur || String(x.date || '') >= String(cur.date || '')) found[k] = {found: true, ch: x.channel || '', cat: x.shippingCategory || '', date: x.date || ''};
+      });
+    }));
+    keys.forEach(k => { specialHistoryCache[k] = Object.assign({at: Date.now()}, found[k] || {found: false}); });
+  }catch(e){
+    keys.forEach(k => { specialHistoryCache[k] = {err: true, at: Date.now()}; });
+  }
+  specialHistoryLoading = false;
+  renderSpecialOrders();   // 查到了(或查不到),重畫一次把結果顯示出來
+}
+function specialLocateHtml(r){
+  const local = specialLocateLocal(r.orderNumber), k = normOrderKey(r.orderNumber);
+  let msg = '', cls = '';
+  if(local && local.where === 'other'){
+    const cn = SPECIAL_CH_LABEL[local.ch] || local.ch;
+    msg = '📦 這張訂單在「' + cn + '」那一批:<b>' + escapeHtml(specialShipLabel(local.ch, local.cat)) + '</b>。目前畫面是「' + (SPECIAL_CH_LABEL[currentChannel] || currentChannel) + '」,請先切過去再找。 ' +
+      '<button type="button" class="special-switch" data-ch="' + local.ch + '" data-order="' + escapeHtml(r.orderNumber || '') + '" onclick="specialSwitchChannel(this.dataset.ch, this.dataset.order)">切到' + cn + '</button>';
+  }else if(!local && k){
+    const h = specialHistoryCache[k];
+    if(h && h.found){
+      cls = ' warn';
+      msg = '✅ 這張訂單已經在 ' + escapeHtml(h.date || '') + ' <b>確認完成揀貨</b>:<b>' + escapeHtml(specialShipLabel(h.ch, h.cat)) + '</b>。已經檢完貨了,所以檢貨單上找不到它是正常的;要追加或修改,請直接到平台後台找這張訂單。';
+    }else if(h && h.err){
+      cls = ' unk'; msg = '❓ 暫時查不到這張訂單的紀錄(連線問題)。請到平台後台搜尋。';
+    }else if(h && h.found === false){
+      cls = ' unk'; msg = '❓ 這台電腦和資料庫裡都找不到這張訂單的檢貨紀錄(可能還沒匯入、編號打錯,或很久以前就出貨了)。請到平台後台搜尋。';
+    }else{
+      cls = ' unk'; msg = '⏳ 正在查這張訂單…';
+    }
+  }
+  return (msg ? '<div class="special-locate' + cls + '">' + msg + '</div>' : '') +
+    '<div class="special-copy-row"><button type="button" class="special-copy" data-order="' + escapeHtml(r.orderNumber || '') + '" onclick="copySpecialOrderNo(this)">📋 複製訂單編號</button></div>';
+}
+// 老闆專區:她補的訂單如果已經檢完貨了,她當下就會知道(查不到的不顯示,免得她困惑)
+function bossLocateHtml(r){
+  const h = specialHistoryCache[normOrderKey(r.orderNumber)];
+  if(!h || !h.found) return '';
+  return '<div class="special-locate warn">⚠ 這張訂單已經在 ' + escapeHtml(h.date || '') + ' 確認完成揀貨(' + escapeHtml(specialShipLabel(h.ch, h.cat)) + '),已經檢完貨了,出貨的人可能來不及處理。</div>';
+}
+async function copySpecialOrderNo(btn){
+  const no = specialOrderNoForCopy(btn.dataset.order);
+  if(!no) return;
+  const ok = await copyTextToClipboard(no);
+  if(!btn.dataset.label) btn.dataset.label = btn.textContent;
+  btn.textContent = ok ? '已複製 ✓ ' + no : '複製失敗,請自己選取訂單編號';
+  btn.classList.toggle('copied', ok);
+  clearTimeout(btn._t);
+  btn._t = setTimeout(() => { btn.textContent = btn.dataset.label; btn.classList.remove('copied'); }, 2500);
+}
+function specialSwitchChannel(ch, orderNumber){
+  selectChannel(ch);
+  setTimeout(() => jumpToPickCard(orderNumber), 300);
+}
+
 function specialItemHtml(r, handled){
   const created = specialMs(r, 'createdAt');
   const meta = (created ? fmtPickupTime(created) + '・' : '') + specialWho(r.createdBy);
@@ -3562,7 +3704,8 @@ function specialItemHtml(r, handled){
     '<div class="special-text">' + specialTextHtml(r.instruction) + '</div>';
   if(!handled){
     const hit = specialCardFor(r.orderNumber);
-    if(hit) h += '<button type="button" class="special-match" data-order="' + escapeHtml(r.orderNumber || '') + '" onclick="jumpToPickCard(this.dataset.order)">📦 這張訂單就在目前這批' + (hit.card && hit.card.classList.contains('pick-card-done') ? ',而且已經勾選檢貨了!' : '') + ' → 按我跳到那張卡片</button>';
+    if(hit) h += '<button type="button" class="special-match" data-order="' + escapeHtml(r.orderNumber || '') + '" onclick="jumpToPickCard(this.dataset.order)">📦 這張訂單就在目前這批(' + specialShipLabel(currentChannel, (pickOrderGroups[hit.idx][0] || {}).shippingCategory) + ')' + (hit.card && hit.card.classList.contains('pick-card-done') ? ',而且已經勾選檢貨了!' : '') + ' → 按我跳到那張卡片</button>';
+    h += specialLocateHtml(r);
     h += '<div class="special-reply-row"><input type="text" class="special-reply" maxlength="200" placeholder="處理結果(選填,老闆看得到)"><button class="primary" onclick="markSpecialHandled(this, \'' + r.id + '\')">標記已處理</button></div>' +
          '<div class="special-ops"><button class="ghost" onclick="openSpecialEdit(\'' + r.id + '\')">編輯</button><button class="ghost del" onclick="deleteSpecial(\'' + r.id + '\')">刪除</button></div>';
   }else{
@@ -3574,6 +3717,7 @@ function specialItemHtml(r, handled){
 }
 
 function renderSpecialOrders(){
+  ensureSpecialHistory(specialOrders.filter(r => r.status === 'pending'));
   const list = document.getElementById('specialBoxList');
   const doneBox = document.getElementById('specialDoneList');
   if(list){
@@ -3842,6 +3986,7 @@ function bossItemHtml(it, readUpTo){
     '<span class="special-meta">' + (it.created ? fmtPickupTime(it.created) : '') + '</span></div>';
   if(it.kind === 'special'){
     h += '<div class="special-text">' + specialTextHtml(r.instruction) + '</div>';
+    if(!it.done) h += bossLocateHtml(r);
     h += it.done
       ? '<div class="boss-status boss-status-done">✓ 已處理' + (it.doneAt ? ' ' + fmtPickupTime(it.doneAt) : '') + '・' + specialWho(r.handledBy) + (r.reply ? '<div class="boss-reply">處理結果:' + specialTextHtml(r.reply) + '</div>' : '') + '</div>'
       : '<div class="boss-status">⏳ 處理中(出貨的人已經看得到了)</div>';
@@ -6169,7 +6314,7 @@ function renderPickList(){
       }).join('');
       const qtyClass = it.qty > 1 ? 'pc-item-qty qty-high' : 'pc-item-qty';
       const nameHtml = tagScentCodes(it.displayName);
-      return '<div class="pc-item">' +
+      return '<div class="pc-item' + (it.qty > 1 ? ' pc-item-multi' : '') + '">' +
         '<label class="pc-item-check no-print"><input type="checkbox" onchange="toggleItemPicked(' + idx + ', ' + itemIdx + ', this.checked)"></label>' +
         '<span class="pc-item-name">' + nameHtml + (it.autoGift ? '<span class="pc-autogift" title="滿千送小蠟燭:這張訂單金額已滿 1,000 但客人沒加贈品,系統自動補上,請另外幫客人任選一個小蠟燭">系統補上</span>' : '') + '</span><span class="' + qtyClass + '">x' + it.qty + '</span></div>' + accHtml;
     }).join('');
@@ -6222,7 +6367,7 @@ function renderPickList(){
   document.getElementById('pickConfirmNote').textContent = '依排序往下滑檢查,或直接列印成紙本。每個品項前面都有獨立勾選框,方便部分缺貨時只勾有貨的部分;勾選卡片上方「已檢貨」等於整張全選。品名已對照 SKU 表顯示簡單品名,配件會列在該項目下方。揀貨完成後按上方「確認完成揀貨」,進度會記錄到「出貨核對」頁面。';
   const searchInput = document.getElementById('pickSearchInput');
   if(searchInput) searchInput.value = '';
-  applySpecialToCards();
+  renderSpecialOrders();   // (裡面會呼叫 applySpecialToCards)檢貨單重畫了,特殊訂單那一列的提示也要重畫
   renderLineBagNote();
   updateSfQuickLinkBanner();
   updatePickProgress();
@@ -6618,6 +6763,7 @@ function recordDoneCards(doneCards){
     const oid = its[0].orderId;
     if(!doneOrderIds.has(oid)) markPendingPick(channel, oid, its[0].name);
   });
+  Promise.all(saves).then(() => { Object.keys(specialHistoryCache).forEach(k => { delete specialHistoryCache[k]; }); if(specialOrders.length) renderSpecialOrders(); }).catch(() => {});
   return {doneOrderIds, saved: Promise.all(saves).then(r => r.every(ok => ok !== false))};
 }
 
