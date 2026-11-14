@@ -355,6 +355,19 @@
   }
   .pick-card .pc-item.pc-item-multi .pc-scent-tag{box-shadow:0 0 0 1.5px rgba(0,0,0,.3);}   /* 黃底上的黃色香味色塊,邊界才看得清楚 */
 
+  /* 補寄:每一項資料一顆複製鈕 */
+  .cp-group{margin:6px 0;padding:6px 10px;background:#F6F3EA;border-radius:8px;max-width:480px;}   /* 限制寬度:複製鈕才會貼近文字,又對齊成一直排 */
+  .cp-group.cp-warn{background:#FFF1D6;border:1px solid #E6B35A;}
+  .cp-title{font-size:12px;font-weight:700;color:var(--sage-dark);margin-bottom:3px;}
+  .cp-group.cp-warn .cp-title{color:#7A4A00;}
+  .cp-row{display:flex;align-items:center;gap:8px;margin:2px 0;font-size:14px;}
+  .cp-label{flex:0 0 46px;color:var(--ink-soft);font-size:12.5px;}
+  .cp-val{flex:1;min-width:0;word-break:break-all;color:var(--ink);}
+  .cp-val.cp-empty{color:var(--ink-soft);font-size:12.5px;}
+  .cp-row button.cp-btn, .resend-item .cp-row button.cp-btn{flex:0 0 auto;margin:0;padding:2px 11px;font-size:12px;font-weight:600;background:#fff;border:1px solid var(--line);border-radius:7px;cursor:pointer;color:var(--ink);}
+  .cp-row button.cp-btn:hover{background:#F1F4EC;}
+  .cp-row button.cp-btn.copied{background:#DDEFD9;border-color:#7FA67A;color:#2E6B2E;}
+
   .update-banner{
     background:var(--warn);color:#fff;text-align:center;font-size:13.5px;font-weight:600;
     padding:10px 16px;border-radius:8px;margin-bottom:20px;cursor:pointer;
@@ -1689,7 +1702,7 @@
 </div>
 
 <script>
-const APP_VERSION = '20261010-31'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20261010-35'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -2460,6 +2473,30 @@ async function loadResendRecords(){
   }
 }
 
+// ===== 補寄:每一項資料都有「複製」鈕(填 7-11、全家、黑貓的出貨單時,一項一項貼過去)=====
+const RESEND_SEVEN_RECIPIENT_EMAIL = 'fitz@jeidi.com.tw';   // 7-11 出貨單的「收件人 EMAIL」固定填這個(不填客人的)
+function cpRowHtml(label, value){
+  const v = String(value == null ? '' : value).trim();
+  if(!v) return '<div class="cp-row"><span class="cp-label">' + label + '</span><span class="cp-val cp-empty">(沒有填)</span></div>';
+  return '<div class="cp-row"><span class="cp-label">' + label + '</span><span class="cp-val">' + escapeHtml(v) + '</span>' +
+    '<button type="button" class="cp-btn" data-copy="' + escapeHtml(v) + '" onclick="copyFieldBtn(this)">複製</button></div>';
+}
+function senderCopyHtml(){   // 寄件人資訊:姓名、電話、EMAIL 各有一顆複製鈕
+  return '<div class="cp-group"><div class="cp-title">寄件人資訊(填單時參考)</div>' +
+    cpRowHtml('姓名', RESEND_SENDER_INFO.name) + cpRowHtml('電話', RESEND_SENDER_INFO.phone) + cpRowHtml('EMAIL', RESEND_SENDER_INFO.email) + '</div>';
+}
+function sevenEmailHtml(){   // 7-11 配送:提醒收件人 EMAIL 要填哪一個
+  return '<div class="cp-group cp-warn"><div class="cp-title">⚠ 7-11 配送:收件人 EMAIL 請填這個(不是客人的)</div>' + cpRowHtml('EMAIL', RESEND_SEVEN_RECIPIENT_EMAIL) + '</div>';
+}
+async function copyFieldBtn(btn){
+  const ok = await copyTextToClipboard(btn.dataset.copy || '');
+  if(!btn.dataset.label) btn.dataset.label = btn.textContent;
+  btn.textContent = ok ? '已複製 ✓' : '複製失敗';
+  btn.classList.toggle('copied', ok);
+  clearTimeout(btn._t);
+  btn._t = setTimeout(() => { btn.textContent = btn.dataset.label; btn.classList.remove('copied'); }, 1800);
+}
+
 function renderResendListInto(box, records){
   if(!box) return;
   // 清單會因為別人新增/修改而整個重畫:先記下這邊已經打了、但還沒儲存的單號(和游標),畫完再放回去
@@ -2479,11 +2516,12 @@ function renderResendListInto(box, records){
         <span class="resend-channel">${escapeHtml(r.channel||'')}</span>
         <span class="resend-order">${escapeHtml(r.orderNumber||'')}</span>
       </div>
-      <div class="resend-line">${escapeHtml(r.name||'')}　${escapeHtml(r.phone||'')}</div>
-      <div class="resend-line">${escapeHtml(SHIP_CATEGORY_LABEL[r.category]||r.category||'')}${r.address ? '｜' : ''}${escapeHtml(r.address||'')}</div>
+      <div class="cp-group"><div class="cp-title">收件人</div>${cpRowHtml('姓名', r.name)}${cpRowHtml('電話', r.phone)}${cpRowHtml('地址', r.address)}</div>
+      <div class="resend-line">物流:${escapeHtml(SHIP_CATEGORY_LABEL[r.category]||r.category||'')}</div>
       <div class="resend-line">內容:${escapeHtml(r.contents||'')}</div>
       ${linkHtml}
-      <div class="rql-sender">寄件人資訊(填單時參考):${RESEND_SENDER_INFO.name}・${RESEND_SENDER_INFO.phone}・${RESEND_SENDER_INFO.email}</div>
+      ${r.category === 'seven' ? sevenEmailHtml() : ''}
+      ${senderCopyHtml()}
       <div class="resend-tracking-row">
         <input type="text" class="resend-tracking-input" placeholder="補寄單號(寄出後填這裡)" value="${escapeHtml(r.trackingNumber||'')}" oninput="updateResendReplyPreview(this)">
         <button class="ghost" onclick="saveResendTracking(this, '${r.id}')">儲存單號</button>
@@ -2784,7 +2822,7 @@ function renderResendQuickLinks(){
   box.innerHTML = '<div class="resend-quick-links">' +
     '<div class="rql-title">📮 寄件資訊</div>' +
     linkHtml +
-    '<div class="rql-sender">寄件人資訊(填單時參考):' + RESEND_SENDER_INFO.name + '・' + RESEND_SENDER_INFO.phone + '・' + RESEND_SENDER_INFO.email + '</div>' +
+    (cat === 'seven' ? sevenEmailHtml() : '') + senderCopyHtml() +
     '</div>';
 }
 
@@ -6386,7 +6424,7 @@ function updateSfQuickLinkBanner(){
   banner.innerHTML = '<div class="resend-quick-links">' +
     '<div class="rql-title">📮 這批有順豐的訂單</div>' +
     '<a href="' + portal.url + '" target="_blank" rel="noopener">前往' + portal.label + '</a>' +
-    '<div class="rql-sender">寄件人資訊(填單時參考):' + RESEND_SENDER_INFO.name + '・' + RESEND_SENDER_INFO.phone + '・' + RESEND_SENDER_INFO.email + '</div>' +
+    senderCopyHtml() +
     '</div>';
 }
 
@@ -6906,7 +6944,7 @@ function renderResult(){
 }
 
 function escapeHtml(s){
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 // ===== Big5 編碼(瀏覽器只能「讀」Big5,寫不出來,所以反向掃描建立對照表自己組位元組)=====
