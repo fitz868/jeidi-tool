@@ -377,6 +377,9 @@
   .dup-tbl th{position:sticky;top:0;background:#F1F4EC;text-align:left;padding:5px 9px;border-bottom:1px solid var(--line);}
   .dup-tbl td{padding:4px 9px;border-bottom:1px solid #EEE;word-break:break-all;}
 
+  .cloud-panel .btn-row select{margin-right:6px;}
+  #cloudSaveNote{margin-top:8px;}
+
   .update-banner{
     background:var(--warn);color:#fff;text-align:center;font-size:13.5px;font-weight:600;
     padding:10px 16px;border-radius:8px;margin-bottom:20px;cursor:pointer;
@@ -1311,6 +1314,7 @@
     <div class="line-bag-note no-print" id="lineBagNote" style="display:none;"></div>
     <div class="gift-note no-print" id="shopGiftNote" style="display:none;"></div>
     <div class="gift-note no-print" id="dupImportNote" style="display:none;"></div>
+<div class="gift-note no-print" id="cloudSaveNote" style="display:none;"></div>
 
     <div class="download-list" id="kerryDownloadItem">
       <div class="dl-item">
@@ -1661,6 +1665,7 @@
       <div id="bossPendingList"></div>
       <div class="boss-list-head"><h3>已處理 <span class="pickup-count" id="bossDoneCount"></span></h3><button class="ghost" id="bossReadAllBtn" style="display:none;" onclick="bossMarkAllRead()">全部標示為已讀</button></div>
       <div id="bossDoneList"></div>
+      <div id="cloudPanelBoss"></div>
     </div>
   </div>
 
@@ -1707,6 +1712,8 @@
       <div class="form-msg" id="historyImportMsg"></div>
     </div>
 
+    <div id="cloudPanelReport"></div>
+
     <div class="panel no-print" id="dupCheckPanel">
       <h2>檢查資料有沒有重複</h2>
       <div class="desc">只讀取、<b>不會改任何資料</b>。檢查「訂單紀錄」(每張確認完成揀貨的訂單會記一筆)和「揀貨紀錄」(每次按確認會記一筆)裡,有沒有同一張訂單被記了不只一次。</div>
@@ -1722,7 +1729,7 @@
 </div>
 
 <script>
-const APP_VERSION = '20261010-40'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20261010-42'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -2259,6 +2266,179 @@ function exportReportExcel(){
   XLSX.utils.book_append_sheet(wb, ws, '報表');
   XLSX.writeFile(wb, '報表_' + ymd(new Date()) + '.xlsx');
 }
+
+// ===== 每天匯入的訂單存到雲端(老闆拿去分析;一個人匯入就好)=====
+// 每張訂單一份文件,編號固定是「通路__訂單編號」→ 同一張訂單重複匯入只會存一次,也不會改到已經存的資料。
+// 不存客人的姓名、電話、地址、備註(只留縣市);平台檔案裡的日期、付款、金額、折扣、運費欄位挑出來一起存。
+const CLOUD_ORDERS_COLLECTION = 'daily_orders';
+const CLOUD_CH_LABEL = {line: 'LINE', shop: '官網', shopee: '蝦皮', pinkoi: 'PINKOI'};
+const CLOUD_EXTRA_ALLOW = /日期|時間|date|time|created|paid|付款|金額|總計|合計|小計|折扣|優惠|折價|coupon|discount|運費|shipping|payment|total|price|subtotal|fee|稅|tax|幣|currency|狀態|status/i;
+const CLOUD_EXTRA_DENY = /name|姓名|名稱|address|地址|phone|電話|手機|mail|信箱|收件|買家|客戶|備註|note|remark|留言|刻印|統編|帳號|身分|生日|\bid\b/i;
+const CLOUD_CITIES = ['台北市', '新北市', '桃園市', '台中市', '台南市', '高雄市', '基隆市', '新竹市', '新竹縣', '苗栗縣', '彰化縣', '南投縣', '雲林縣', '嘉義市', '嘉義縣', '屏東縣', '宜蘭縣', '花蓮縣', '台東縣', '澎湖縣', '金門縣', '連江縣'];
+function cloudRegion(addr){
+  const t = String(addr || '').replace(/臺/g, '台');
+  for(const c of CLOUD_CITIES){ if(t.indexOf(c) !== -1) return c; }
+  return '';
+}
+// 只留日期、付款、金額、折扣、運費這類欄位(而且欄位名稱不能像姓名、電話、地址、備註);欄位數量和長度都有上限
+function cloudExtra(headers, row){
+  const out = {};
+  if(!headers || !row || row.length !== headers.length) return out;   // 對不上(例如蝦皮多個檔案的欄位不同)就不存,免得標錯欄位
+  let n = 0;
+  headers.forEach((h, i) => {
+    const key = String(h == null ? '' : h).trim();
+    if(!key || n >= 15 || !CLOUD_EXTRA_ALLOW.test(key) || CLOUD_EXTRA_DENY.test(key)) return;
+    const v = String(row[i] == null ? '' : row[i]).trim();
+    if(!v) return;
+    out[key.replace(/[.\/~*\[\]`]/g, '_').slice(0, 40)] = v.slice(0, 80); n++;
+  });
+  return out;
+}
+function buildCloudOrders(items, channel){
+  const groups = {}, order = [];
+  items.forEach(it => {
+    const id = String(it.orderId == null ? '' : it.orderId).trim();
+    if(!id) return;
+    if(!groups[id]){ groups[id] = []; order.push(id); }
+    groups[id].push(it);
+  });
+  const today = ymd(new Date());
+  return order.map(id => {
+    const g = groups[id], first = g[0];
+    const lines = g.map(it => ({sku: String(it.sku || ''), name: String(it.itemName || '').slice(0, 120), qty: Number(it.qty) || 0, price: Number(it.price) || 0, subtotal: Number(it.subtotal) || 0, gift: !!it.autoGift}));
+    const real = lines.filter(l => !l.gift);
+    return {
+      uid: channel + '__' + normOrderKey(id).replace(/\//g, '_'),
+      orderId: id, channel,
+      shippingCategory: first.shippingCategory || '',
+      lines,
+      itemQty: real.reduce((n, l) => n + l.qty, 0),
+      orderTotal: real.reduce((n, l) => n + l.subtotal, 0),
+      hasCust: g.some(x => x.hasCust),
+      cancelled: g.some(x => x.cancelled),
+      region: cloudRegion(first.address),
+      extra: cloudExtra(rawHeaders, first.rawRow),
+      importDate: today,
+      importedBy: currentUserEmail || ''
+    };   // importedAt(寫入時間)要等到真的寫入的那一刻才加(用資料庫的時間)
+  });
+}
+function setCloudNote(html){
+  const el = document.getElementById('cloudSaveNote');
+  if(!el) return;
+  el.innerHTML = html; el.style.display = html ? '' : 'none';
+}
+async function findExistingCloudOrders(uids){
+  const set = new Set();
+  const {db, collection, query, where, getDocs} = window.__fb;
+  const chunks = [];
+  for(let i = 0; i < uids.length; i += 30) chunks.push(uids.slice(i, i + 30));
+  await Promise.all(chunks.map(async ch => {
+    const snap = await getDocs(query(collection(db, CLOUD_ORDERS_COLLECTION), where('uid', 'in', ch)));
+    snap.forEach(d => { const x = d.data(); if(x && x.uid) set.add(x.uid); });
+  }));
+  return set;
+}
+async function saveImportedOrdersToCloud(items, channel){
+  const docs = buildCloudOrders(items, channel);   // 先(同步)整理好;等一下 rawHeaders 可能會被下一次匯入蓋掉
+  if(docs.length === 0){ setCloudNote(''); return; }
+  setCloudNote('☁ 正在把 ' + docs.length + ' 張訂單存到雲端…');
+  let existing = null;   // 老闆、管理者讀得到資料,可以先查哪些已經存過;一般員工讀不到(只能寫),就直接寫,已經存過的會被資料庫擋掉
+  try{ await waitForFirebase(); existing = await withTimeout(findExistingCloudOrders(docs.map(d => d.uid)), 8000); }catch(e){ existing = null; }
+  const todo = existing ? docs.filter(d => !existing.has(d.uid)) : docs;
+  let ok = 0, fail = 0;
+  try{
+    const {db, doc, setDoc, serverTimestamp} = window.__fb;
+    for(let i = 0; i < todo.length; i += 25){
+      await Promise.all(todo.slice(i, i + 25).map(d => setDoc(doc(db, CLOUD_ORDERS_COLLECTION, d.uid), Object.assign({}, d, {importedAt: serverTimestamp()})).then(() => { ok++; }, () => { fail++; })));
+    }
+  }catch(e){ fail = todo.length - ok; }
+  const had = existing ? docs.length - todo.length : 0;
+  if(existing){
+    setCloudNote('☁ 已把 <b>' + ok + '</b> 張新訂單存到雲端' + (had ? '(另外 ' + had + ' 張之前已經存過)' : '') + (fail ? ' ⚠ 有 ' + fail + ' 張沒存成功(網路或權限問題,<b>不影響檢貨</b>),請告訴開發的人。' : '。'));
+  }else if(ok > 0){
+    setCloudNote('☁ 已送出 <b>' + ok + '</b> 張新訂單到雲端(已經存過的會自動略過)。');
+  }else if(fail > 0){
+    setCloudNote('☁ 沒有新的訂單被存進去(可能都已經存過了;如果每次都這樣,請告訴開發的人)。<b>不影響檢貨</b>。');
+  }
+}
+
+// ── 讀取、統計、下載(老闆畫面、管理者報表共用)──
+const cloudData = {};
+function buildCloudPanel(prefix, title){
+  const p = prefix + '-cl';
+  return '<div class="' + (prefix === 'boss' ? 'boss-card' : 'panel no-print') + ' cloud-panel">' +
+    '<h2>' + title + '</h2>' +
+    '<div class="desc">每次匯入檔案時,系統會把檔案裡的訂單自動存到雲端(同一張訂單只會存一次)。這裡可以選範圍、看統計、下載 CSV 去分析。<b>裡面沒有客人的姓名、電話、地址</b>(只有縣市)。「日期」是<b>匯入的那一天</b>,平台的下單日期等欄位在 CSV 最後一欄。</div>' +
+    '<div class="btn-row">' +
+      '<select id="' + p + '-range"><option value="today">今天匯入的</option><option value="7">最近 7 天</option><option value="30" selected>最近 30 天</option><option value="90">最近 90 天</option><option value="all">全部</option></select> ' +
+      '<select id="' + p + '-ch"><option value="all">全部通路</option>' + Object.keys(CLOUD_CH_LABEL).map(k => '<option value="' + k + '">' + CLOUD_CH_LABEL[k] + '</option>').join('') + '</select> ' +
+      '<button class="primary" id="' + p + '-load" onclick="loadCloudOrders(\'' + prefix + '\')">載入</button> ' +
+      '<button class="ghost" id="' + p + '-csv" onclick="downloadCloudCsv(\'' + prefix + '\')" disabled>下載 CSV</button>' +
+    '</div>' +
+    '<div class="form-msg" id="' + p + '-msg"></div>' +
+    '<div id="' + p + '-result"></div>' +
+  '</div>';
+}
+function mountCloudPanels(){
+  const b = document.getElementById('cloudPanelBoss'), r = document.getElementById('cloudPanelReport');
+  if(b) b.innerHTML = buildCloudPanel('boss', '📊 每日訂單資料(雲端)');
+  if(r) r.innerHTML = buildCloudPanel('rpt', '每日訂單資料(雲端)');
+}
+function analyzeCloudOrders(docs){
+  const live = docs.filter(d => !d.cancelled), sum = (arr, f) => arr.reduce((n, x) => n + f(x), 0);
+  const by = keyFn => { const m = {}; live.forEach(d => { const k = keyFn(d); const r = m[k] = m[k] || {orders: 0, qty: 0, amount: 0}; r.orders++; r.qty += d.itemQty || 0; r.amount += d.orderTotal || 0; }); return m; };
+  const sku = {};
+  live.forEach(d => (d.lines || []).forEach(l => { if(l.gift) return; const k = l.sku || l.name || '(沒有 SKU)'; const r = sku[k] = sku[k] || {sku: l.sku || '', name: l.name || '', qty: 0, amount: 0}; r.qty += l.qty || 0; r.amount += l.subtotal || 0; }));
+  return {orders: live.length, cancelled: docs.length - live.length, qty: sum(live, d => d.itemQty || 0), amount: sum(live, d => d.orderTotal || 0), byChannel: by(d => d.channel), byDay: by(d => d.importDate || '?'), topSku: Object.values(sku).sort((a, b) => b.qty - a.qty).slice(0, 15)};
+}
+async function loadCloudOrders(prefix){
+  const p = prefix + '-cl', g = id => document.getElementById(p + '-' + id);
+  g('load').disabled = true; g('msg').textContent = '讀取中…(只讀取,不會改任何資料)'; g('result').innerHTML = ''; g('csv').disabled = true;
+  try{
+    await waitForFirebase();
+    const {db, collection, query, where, getDocs} = window.__fb;
+    const rng = g('range').value; let cutoff = '';
+    if(rng !== 'all'){ const d = new Date(); d.setDate(d.getDate() - (rng === 'today' ? 0 : parseInt(rng, 10))); cutoff = ymd(d); }
+    const ref = collection(db, CLOUD_ORDERS_COLLECTION), snap = await getDocs(cutoff ? query(ref, where('importDate', '>=', cutoff)) : ref);
+    let docs = []; snap.forEach(d => docs.push(d.data()));
+    if(cutoff) docs = docs.filter(x => (x.importDate || '') >= cutoff);
+    if(g('ch').value !== 'all') docs = docs.filter(x => x.channel === g('ch').value);
+    cloudData[prefix] = {docs, cutoff, range: rng, at: new Date()};
+    g('msg').textContent = ''; renderCloudSummary(prefix);
+  }catch(err){
+    g('msg').textContent = '讀取失敗:' + (err && err.message ? err.message : err) + '(可能是網路或權限問題;只有老闆和管理者讀得到這份資料)';
+  }
+  g('load').disabled = false;
+}
+function renderCloudSummary(prefix){
+  const p = prefix + '-cl', box = document.getElementById(p + '-result'), D = cloudData[prefix];
+  if(!D){ box.innerHTML = ''; return; }
+  const a = analyzeCloudOrders(D.docs), money = n => '$' + Math.round(n).toLocaleString('en-US'), h = [];
+  document.getElementById(p + '-csv').disabled = D.docs.length === 0;
+  if(D.docs.length === 0){ box.innerHTML = '<div class="dup-sub">這個範圍沒有資料(可能這幾天還沒有人匯入,或還沒開始存雲端)。</div>'; return; }
+  h.push('<div class="dup-ok">共 <b>' + a.orders + '</b> 張訂單、<b>' + a.qty + '</b> 件,品項小計 <b>' + money(a.amount) + '</b>' + (a.cancelled ? '(已取消 ' + a.cancelled + ' 張,不計入)' : '') + '</div>');
+  h.push('<div class="dup-sub">「品項小計」是每個品項的單價 × 數量加起來,<b>沒有扣折扣、沒有含運費</b>,所以不等於實收金額。</div>');
+  const tbl = (head, rows) => '<div class="dup-wrap"><table class="dup-tbl"><tr>' + head.map(x => '<th>' + x + '</th>').join('') + '</tr>' + rows.map(r => '<tr>' + r.map(x => '<td>' + x + '</td>').join('') + '</tr>').join('') + '</table></div>';
+  h.push(tbl(['通路', '訂單數', '件數', '品項小計'], Object.keys(a.byChannel).map(k => [escapeHtml(CLOUD_CH_LABEL[k] || k), a.byChannel[k].orders, a.byChannel[k].qty, money(a.byChannel[k].amount)])));
+  h.push(tbl(['匯入日期', '訂單數', '件數', '品項小計'], Object.keys(a.byDay).sort().reverse().slice(0, 40).map(k => [escapeHtml(k), a.byDay[k].orders, a.byDay[k].qty, money(a.byDay[k].amount)])));
+  h.push('<div class="dup-sub"><b>賣最多的商品(前 15 名)</b></div>');
+  h.push(tbl(['SKU', '品名', '件數', '品項小計'], a.topSku.map(r => [escapeHtml(r.sku), escapeHtml(r.name), r.qty, money(r.amount)])));
+  box.innerHTML = h.join('');
+}
+function downloadCloudCsv(prefix){
+  const D = cloudData[prefix]; if(!D || D.docs.length === 0) return;
+  const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  const lines = [['匯入日期', '通路', '訂單編號', '物流方式', '縣市', '商品SKU', '商品名稱', '數量', '單價', '小計', '系統補的贈品', '有客製文字', '已取消', '平台欄位(日期、付款、金額、折扣、運費…)'].map(q).join(',')];
+  D.docs.slice().sort((x, y) => String(y.importDate).localeCompare(String(x.importDate)) || String(x.orderId).localeCompare(String(y.orderId))).forEach(d => {
+    const extra = Object.keys(d.extra || {}).map(k => k + '=' + d.extra[k]).join(' | ');
+    (d.lines || []).forEach(l => lines.push([d.importDate, CLOUD_CH_LABEL[d.channel] || d.channel, d.orderId, SHIP_CATEGORY_LABEL[d.shippingCategory] || d.shippingCategory || '', d.region || '', l.sku, l.name, l.qty, l.price, l.subtotal, l.gift ? '是' : '', d.hasCust ? '是' : '', d.cancelled ? '是' : '', extra].map(q).join(',')));
+  });
+  const blob = new Blob(['\ufeff' + lines.join('\r\n')], {type: 'text/csv;charset=utf-8'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'orders_' + ymd(new Date()).replace(/-/g, '') + '.csv';
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+mountCloudPanels();
 
 // ===== 檢查資料有沒有重複(只讀取、不會改任何資料;管理者在「報表」頁用)=====
 // 訂單紀錄:同一個通路、同一個訂單編號(# 號、大小寫、空白不同也算同一張)出現不只一筆 → 重複
@@ -5590,6 +5770,7 @@ function parseShopRows(dataRows, headers){
       subtotal: price * qty,
       sku: sku,
       rawRow: r,
+      cancelled: !!ctx.promo.cancelled,
       shippingCategory: ctx.shippingCategory
     });
   });
@@ -5669,6 +5850,9 @@ async function processFile(){
   // 檔案讀好了:馬上開始下載後面要用的表(商品表、備註、顏色、待出貨、待揀貨),不要等防重複檢查、不要等使用者回答詢問
   const mapsPromise = loadImportMaps(currentChannel);
   mapsPromise.catch(()=>{});   // 如果中途使用者取消,這份資料沒用到,也不要跳出沒人處理的錯誤
+
+  // 把這份檔案裡的訂單(整份,包含之前已經確認過的)存到雲端,讓老闆能下載去分析。不等它做完,失敗也不影響檢貨
+  saveImportedOrdersToCloud(items, currentChannel).catch(() => {});
 
   // 檢查有沒有「之前已經確認完成揀貨」的訂單又被匯入(例如平台的待出貨清單隔天還在),先詢問要不要略過
   lastDupSkip = null;
