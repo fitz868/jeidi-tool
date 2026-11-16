@@ -1722,7 +1722,7 @@
 </div>
 
 <script>
-const APP_VERSION = '20261010-38'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20261010-40'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -2262,6 +2262,10 @@ function exportReportExcel(){
 
 // ===== 檢查資料有沒有重複(只讀取、不會改任何資料;管理者在「報表」頁用)=====
 // 訂單紀錄:同一個通路、同一個訂單編號(# 號、大小寫、空白不同也算同一張)出現不只一筆 → 重複
+function tsMs(d){ const t = d && d.confirmedAt; if(!t) return null; if(t.seconds != null) return t.seconds * 1000; if(typeof t.toMillis === 'function') return t.toMillis(); return null; }
+function fmtTs(ms){ return ms == null ? '?' : new Date(ms).toLocaleString('zh-TW', {timeZone: 'Asia/Taipei', hour12: false, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit'}); }
+function fmtGap(ms){ if(ms == null) return '?'; const m = ms / 60000; return m < 1 ? '不到 1 分鐘' : m < 60 ? Math.round(m) + ' 分鐘' : m < 1440 ? (m / 60).toFixed(1) + ' 小時' : (m / 1440).toFixed(1) + ' 天'; }
+function gapKind(ms){ return ms == null ? 'unk' : ms < 60000 ? 'quick' : ms < 3600000 ? 'mid' : 'long'; }
 function analyzeOrderHistory(docs){
   const groups = {};
   docs.forEach(d => { const k = (d.channel || '') + '|' + normOrderKey(d.orderId); (groups[k] = groups[k] || []).push(d); });
@@ -2270,18 +2274,38 @@ function analyzeOrderHistory(docs){
     const g = groups[k]; if(g.length < 2) return;
     const dates = g.map(x => x.date || '').sort();
     const raws = g.map(x => String(x.orderId == null ? '' : x.orderId)).filter((v, i, a) => a.indexOf(v) === i);
-    dups.push({channel: g[0].channel || '', orderId: g[0].orderId, name: g[0].name || '', count: g.length, dates, sameDay: dates.some((d, i) => i > 0 && d === dates[i - 1]), raws, ids: g.map(x => x.id)});
+    const times = g.map(tsMs).filter(v => v != null).sort((a, b) => a - b);
+    const spanMs = times.length > 1 ? times[times.length - 1] - times[0] : null;
+    dups.push({channel: g[0].channel || '', orderId: g[0].orderId, name: g[0].name || '', count: g.length, dates, sameDay: dates.some((d, i) => i > 0 && d === dates[i - 1]), raws, ids: g.map(x => x.id), times, spanMs, gap: gapKind(spanMs)});
   });
   dups.sort((a, b) => (b.count - a.count) || String(b.dates[b.dates.length - 1]).localeCompare(String(a.dates[a.dates.length - 1])));
-  return {total: docs.length, distinct: Object.keys(groups).length, dupOrders: dups.length, extraDocs: dups.reduce((n, d) => n + d.count - 1, 0), sameDay: dups.filter(d => d.sameDay).length, variantDiff: dups.filter(d => d.raws.length > 1).length, dups};
+  const gapCount = k => dups.filter(d => d.gap === k).length;
+  return {total: docs.length, distinct: Object.keys(groups).length, dupOrders: dups.length, extraDocs: dups.reduce((n, d) => n + d.count - 1, 0), sameDay: dups.filter(d => d.sameDay).length, variantDiff: dups.filter(d => d.raws.length > 1).length, gapQuick: gapCount('quick'), gapMid: gapCount('mid'), gapLong: gapCount('long'), gapUnknown: gapCount('unk'), dups};
 }
+// 每天每通路對帳:揀貨紀錄的訂單數合計、訂單紀錄的筆數、不重複的訂單數,三個應該一樣;不一樣就列出來,並說明是哪一種
+function reconcileDaily(histDocs, pickDocs){
+  const NORMAL = ['line', 'shop', 'shopee', 'pinkoi'], rows = {};
+  const row = (date, ch) => { const k = date + '|' + ch; return rows[k] = rows[k] || {date, channel: ch, pick: 0, docs: 0, ids: {}}; };
+  pickDocs.forEach(d => { if(d.isHistoricalImport || NORMAL.indexOf(d.channel) < 0) return; row(d.date || '', d.channel).pick += (d.totalOrders || 0); });
+  histDocs.forEach(d => { if(NORMAL.indexOf(d.channel) < 0) return; const r = row(d.date || '', d.channel); r.docs++; r.ids[normOrderKey(d.orderId)] = 1; });
+  const out = [];
+  Object.keys(rows).forEach(k => {
+    const r = rows[k], distinct = Object.keys(r.ids).length;
+    if(r.docs === 0 || (r.pick === r.docs && r.docs === distinct)) return;
+    const kind = (r.pick === r.docs && r.docs > distinct) ? 'both' : (r.pick === distinct && r.docs > distinct) ? 'historyOnly' : (r.pick > distinct && r.docs > distinct) ? 'pickMore' : r.pick < distinct ? 'pickLess' : 'other';
+    out.push({date: r.date, channel: r.channel, pick: r.pick, docs: r.docs, distinct, kind});
+  });
+  out.sort((a, b) => b.date.localeCompare(a.date) || a.channel.localeCompare(b.channel));
+  return out;
+}
+const RC_TEXT = {both: '揀貨紀錄也一起重複了(出貨核對的數字偏多)', historyOnly: '只有訂單紀錄重複,出貨核對的數字是對的', pickMore: '揀貨紀錄多算了一些(出貨核對的數字偏多)', pickLess: '揀貨紀錄比實際的訂單數少(可能有紀錄沒寫成功)', other: '對不上,原因待查'};
 // 揀貨紀錄:「匯入歷史紀錄」匯了兩次(同一天同通路同數字)一定重複;平常的確認,內容完全一樣而且一次確認 5 張以上才列為「可能重複」(只有 1、2 張的,常常剛好一樣,不算)
 function analyzePickRecords(docs){
   const sig = d => [d.date || '', d.channel || '', d.totalOrders || 0, d.totalItems || 0, d.doneCount || 0, d.revenue || 0, JSON.stringify((d.items || []).map(i => [i.sku, i.qty]).sort())].join('|');
   const groups = {};
   docs.forEach(d => { if(d.isHistoricalImport || (d.totalOrders || 0) >= 5) (groups[(d.isHistoricalImport ? 'H' : 'N') + '|' + sig(d)] = groups[(d.isHistoricalImport ? 'H' : 'N') + '|' + sig(d)] || []).push(d); });
   const dups = [];
-  Object.keys(groups).forEach(k => { const g = groups[k]; if(g.length > 1) dups.push({hist: k[0] === 'H', date: g[0].date || '', channel: g[0].channel || '', totalOrders: g[0].totalOrders || 0, totalItems: g[0].totalItems || 0, count: g.length, ids: g.map(x => x.id)}); });
+  Object.keys(groups).forEach(k => { const g = groups[k]; if(g.length > 1) dups.push({hist: k[0] === 'H', date: g[0].date || '', channel: g[0].channel || '', totalOrders: g[0].totalOrders || 0, totalItems: g[0].totalItems || 0, count: g.length, ids: g.map(x => x.id), times: g.map(tsMs).filter(v => v != null).sort((a, b) => a - b)}); });
   dups.sort((a, b) => String(b.date).localeCompare(String(a.date)));
   return {total: docs.length, dupGroups: dups.length, extraDocs: dups.reduce((n, d) => n + d.count - 1, 0), dups};
 }
@@ -2301,7 +2325,7 @@ async function runDupCheck(){
       return cutoff ? arr.filter(x => (x.date || '') >= cutoff) : arr;
     };
     const res = await Promise.all([readAll(ORDER_HISTORY_COLLECTION), readAll(PICK_RECORDS_COLLECTION)]);
-    lastDupReport = {range, cutoff, at: new Date(), oh: analyzeOrderHistory(res[0]), pr: analyzePickRecords(res[1])};
+    lastDupReport = {range, cutoff, at: new Date(), oh: analyzeOrderHistory(res[0]), pr: analyzePickRecords(res[1]), rc: reconcileDaily(res[0], res[1])};
     msg.textContent = '';
     renderDupReport();
   }catch(err){
@@ -2312,30 +2336,37 @@ async function runDupCheck(){
 function renderDupReport(){
   const out = document.getElementById('dupResult'), r = lastDupReport;
   if(!r){ out.innerHTML = ''; return; }
-  const oh = r.oh, pr = r.pr, h = [];
+  const oh = r.oh, pr = r.pr, rc = r.rc || [], h = [];
   const scope = r.cutoff ? ('最近 ' + r.range + ' 天(' + r.cutoff + ' 之後)') : '全部';
   h.push('<div class="dup-sum">範圍:' + scope + '。讀了 <b>' + oh.total + '</b> 筆訂單紀錄、<b>' + pr.total + '</b> 筆揀貨紀錄(讀取筆數會算進資料庫的用量)。</div>');
   if(oh.dupOrders === 0) h.push('<div class="dup-ok">✓ 訂單紀錄:<b>沒有重複</b>(' + oh.distinct + ' 張訂單,每張只有一筆)</div>');
   else{
     h.push('<div class="dup-bad">⚠ 訂單紀錄:<b>' + oh.dupOrders + ' 張訂單重複</b>,多出 <b>' + oh.extraDocs + '</b> 筆(共 ' + oh.distinct + ' 張訂單)</div>');
-    h.push('<div class="dup-sub">其中「同一天寫了不只一次」<b>' + oh.sameDay + '</b> 張(通常是重複按、或兩台電腦同時確認同一批);「編號寫法不同(例如有沒有 #)、程式攔不到」<b>' + oh.variantDiff + '</b> 張。不同天又確認一次的,可能是真的重新出貨。</div>');
-    h.push('<div class="dup-wrap"><table class="dup-tbl"><tr><th>通路</th><th>訂單編號</th><th>筆數</th><th>確認日期</th><th>類型</th></tr>' + oh.dups.slice(0, 60).map(d => '<tr><td>' + escapeHtml(d.channel) + '</td><td>' + d.raws.map(escapeHtml).join(' / ') + '</td><td>' + d.count + '</td><td>' + d.dates.map(escapeHtml).join('、') + '</td><td>' + (d.sameDay ? '同一天重複' : '不同天') + (d.raws.length > 1 ? '・寫法不同' : '') + '</td></tr>').join('') + '</table></div>');
+    h.push('<div class="dup-sub">其中「同一天寫了不只一次」<b>' + oh.sameDay + '</b> 張;「編號寫法不同(例如有沒有 #)、程式攔不到」<b>' + oh.variantDiff + '</b> 張。不同天又確認一次的,可能是真的重新出貨。</div>');
+    h.push('<div class="dup-sub"><b>寫入時間的間隔</b>(看是怎麼發生的):不到 1 分鐘內寫了多份 <b>' + oh.gapQuick + '</b> 張(像是同一個動作寫了多份,或兩台電腦同時確認);相隔 1 分鐘~1 小時 <b>' + oh.gapMid + '</b> 張(像是兩次不同的確認);超過 1 小時 <b>' + oh.gapLong + '</b> 張(像是隔了一陣子又確認一次)' + (oh.gapUnknown ? ';沒有寫入時間 ' + oh.gapUnknown + ' 張' : '') + '。</div>');
+    h.push('<div class="dup-wrap"><table class="dup-tbl"><tr><th>通路</th><th>訂單編號</th><th>筆數</th><th>寫入時間(台北)</th><th>相隔</th><th>類型</th></tr>' + oh.dups.slice(0, 60).map(d => '<tr><td>' + escapeHtml(d.channel) + '</td><td>' + d.raws.map(escapeHtml).join(' / ') + '</td><td>' + d.count + '</td><td>' + d.times.map(fmtTs).map(escapeHtml).join('<br>') + '</td><td>' + fmtGap(d.spanMs) + '</td><td>' + (d.sameDay ? '同一天重複' : '不同天') + (d.raws.length > 1 ? '・寫法不同' : '') + '</td></tr>').join('') + '</table></div>');
     if(oh.dups.length > 60) h.push('<div class="dup-sub">只列出前 60 張,全部請按下面「下載 CSV」。</div>');
   }
   if(pr.dupGroups === 0) h.push('<div class="dup-ok">✓ 揀貨紀錄:<b>沒有明顯重複</b></div>');
   else{
     h.push('<div class="dup-bad">⚠ 揀貨紀錄:<b>' + pr.dupGroups + ' 組內容完全一樣</b>,多出 <b>' + pr.extraDocs + '</b> 筆(會讓出貨核對的數字重複計算)</div>');
-    h.push('<div class="dup-wrap"><table class="dup-tbl"><tr><th>日期</th><th>通路</th><th>訂單數</th><th>件數</th><th>筆數</th><th>類型</th></tr>' + pr.dups.slice(0, 40).map(d => '<tr><td>' + escapeHtml(d.date) + '</td><td>' + escapeHtml(d.channel) + '</td><td>' + d.totalOrders + '</td><td>' + d.totalItems + '</td><td>' + d.count + '</td><td>' + (d.hist ? '歷史匯入匯了不只一次' : '可能重複(內容完全一樣)') + '</td></tr>').join('') + '</table></div>');
+    h.push('<div class="dup-wrap"><table class="dup-tbl"><tr><th>日期</th><th>通路</th><th>訂單數</th><th>件數</th><th>筆數</th><th>寫入時間(台北)</th><th>類型</th></tr>' + pr.dups.slice(0, 40).map(d => '<tr><td>' + escapeHtml(d.date) + '</td><td>' + escapeHtml(d.channel) + '</td><td>' + d.totalOrders + '</td><td>' + d.totalItems + '</td><td>' + d.count + '</td><td>' + d.times.map(fmtTs).map(escapeHtml).join('<br>') + '</td><td>' + (d.hist ? '歷史匯入匯了不只一次' : '可能重複(內容完全一樣)') + '</td></tr>').join('') + '</table></div>');
   }
-  if(oh.dupOrders || pr.dupGroups) h.push('<div class="btn-row"><button class="ghost" onclick="downloadDupCsv()">下載 CSV(含資料庫文件編號,方便到後台對照)</button></div><div class="dup-sub">這個檢查<b>只讀取</b>,什麼都沒有刪。要清掉重複的,請先把 CSV 給負責開發的人確認。</div>');
+  if(rc.length === 0) h.push('<div class="dup-ok">✓ 對帳:每天每通路,揀貨紀錄的訂單數、訂單紀錄的筆數、不重複的訂單數,<b>三個都一致</b></div>');
+  else{
+    h.push('<div class="dup-bad">⚠ 對帳:有 <b>' + rc.length + '</b> 個「日期 + 通路」的數字對不上(正常情況三個數字應該一樣)</div>');
+    h.push('<div class="dup-wrap"><table class="dup-tbl"><tr><th>日期</th><th>通路</th><th>揀貨紀錄訂單數合計</th><th>訂單紀錄筆數</th><th>不重複訂單數</th><th>說明</th></tr>' + rc.slice(0, 40).map(d => '<tr><td>' + escapeHtml(d.date) + '</td><td>' + escapeHtml(d.channel) + '</td><td>' + d.pick + '</td><td>' + d.docs + '</td><td>' + d.distinct + '</td><td>' + escapeHtml(RC_TEXT[d.kind]) + '</td></tr>').join('') + '</table></div>');
+  }
+  if(oh.dupOrders || pr.dupGroups || rc.length) h.push('<div class="btn-row"><button class="ghost" onclick="downloadDupCsv()">下載 CSV(含寫入時間、對帳、資料庫文件編號)</button></div><div class="dup-sub">這個檢查<b>只讀取</b>,什麼都沒有刪。要清掉重複的,請先把 CSV 給負責開發的人確認。</div>');
   out.innerHTML = h.join('');
 }
 function downloadDupCsv(){
   const r = lastDupReport; if(!r) return;
   const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
-  const lines = [['類型', '通路', '訂單編號或內容', '筆數', '日期', '是否同一天', '編號寫法', '資料庫文件編號'].map(q).join(',')];
-  r.oh.dups.forEach(d => lines.push(['訂單紀錄', d.channel, d.raws.join(' / '), d.count, d.dates.join(' '), d.sameDay ? '是' : '否', d.raws.length > 1 ? '寫法不同' : '一樣', d.ids.join(' ')].map(q).join(',')));
-  r.pr.dups.forEach(d => lines.push(['揀貨紀錄', d.channel, (d.hist ? '歷史匯入 ' : '') + '訂單數' + d.totalOrders + ' 件數' + d.totalItems, d.count, d.date, '是', '', d.ids.join(' ')].map(q).join(',')));
+  const lines = [['類型', '通路', '訂單編號或內容', '筆數', '日期', '是否同一天', '編號寫法', '寫入時間(台北)', '相隔', '資料庫文件編號'].map(q).join(',')];
+  r.oh.dups.forEach(d => lines.push(['訂單紀錄', d.channel, d.raws.join(' / '), d.count, d.dates.join(' '), d.sameDay ? '是' : '否', d.raws.length > 1 ? '寫法不同' : '一樣', d.times.map(fmtTs).join(' | '), fmtGap(d.spanMs), d.ids.join(' ')].map(q).join(',')));
+  r.pr.dups.forEach(d => lines.push(['揀貨紀錄', d.channel, (d.hist ? '歷史匯入 ' : '') + '訂單數' + d.totalOrders + ' 件數' + d.totalItems, d.count, d.date, '是', '', d.times.map(fmtTs).join(' | '), '', d.ids.join(' ')].map(q).join(',')));
+  (r.rc || []).forEach(d => lines.push(['對帳', d.channel, '揀貨紀錄合計 ' + d.pick + ' / 訂單紀錄 ' + d.docs + ' / 不重複 ' + d.distinct, d.docs, d.date, '', '', '', '', RC_TEXT[d.kind]].map(q).join(',')));
   const blob = new Blob(['\ufeff' + lines.join('\r\n')], {type: 'text/csv;charset=utf-8'});
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'duplicates_' + ymd(new Date()).replace(/-/g, '') + '.csv';
   document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
@@ -2408,6 +2439,7 @@ async function importHistoricalRecords(){
 // 記在這台電腦的瀏覽器裡;「已確認完成揀貨」另外還可以到資料庫的訂單歷史查(換電腦也查得到)。
 const KERRY_EXPORT_KEY = 'jeidi_kerry_exported_v1';
 const CONFIRMED_KEY = 'jeidi_confirmed_orders_v1';
+const RERECORD_KEY = 'jeidi_rerecord_ok_v1';   // 匯入時被問「已確認過」、使用者選「仍然全部匯入」的訂單(例如真的要重新出貨):確認時允許再記錄一次(記錄完就失效)
 const LEDGER_KEEP_DAYS = 45;   // 記錄保留幾天(超過的自動清掉)
 function ledgerCutoff(){ const d = new Date(); d.setDate(d.getDate() - LEDGER_KEEP_DAYS); return ymd(d); }
 function loadLedger(key){
@@ -2431,6 +2463,13 @@ function ledgerGet(key, channel, orderId){
 }
 // 一次取出某個通路的整份記錄({訂單編號: 日期})。要查很多張訂單時用這個(只讀、解析一次),
 // 不要在迴圈裡一直呼叫 ledgerGet:每呼叫一次就會把整份記錄重新讀出來、解析一次,訂單多、記錄多的時候會很慢。
+function ledgerRemove(key, channel, orderIds){
+  if(!orderIds || orderIds.length === 0) return;
+  const o = loadLedger(key);
+  if(!o[channel]) return;
+  orderIds.forEach(id => { delete o[channel][id]; });
+  try{ localStorage.setItem(key, JSON.stringify(o)); }catch(e){}
+}
 function ledgerChannel(key, channel){
   const o = loadLedger(key);
   return o[channel] || {};
@@ -6203,6 +6242,21 @@ async function refreshPendingMapsAndRepaint(){
 function withTimeout(promise, ms){
   return Promise.race([promise, new Promise(resolve => setTimeout(() => resolve(null), ms))]);
 }
+// 只查資料庫(不看這台電腦的記錄):這幾張訂單,資料庫的訂單紀錄裡是不是已經有了(別台電腦剛剛確認的也查得到)
+async function findRecordedInHistory(channel, orderIds){
+  const found = {};
+  if(!orderIds || orderIds.length === 0) return found;
+  const cutoff = ledgerCutoff();
+  await waitForFirebase();
+  const {db, collection, query, where, getDocs} = window.__fb;
+  const chunks = [];
+  for(let i = 0; i < orderIds.length; i += 30) chunks.push(orderIds.slice(i, i + 30));
+  await Promise.all(chunks.map(async ch => {
+    const snap = await getDocs(query(collection(db, ORDER_HISTORY_COLLECTION), where('orderId', 'in', ch)));
+    snap.forEach(d => { const x = d.data(); if(x.channel === channel && (x.date || '') >= cutoff) found[x.orderId] = x.date; });
+  }));
+  return found;
+}
 async function findConfirmedOrderIds(channel, orderIds){
   const found = {};   // 訂單編號 → 當初確認的日期
   const led = ledgerChannel(CONFIRMED_KEY, channel);
@@ -6240,7 +6294,7 @@ async function filterAlreadyConfirmed(items){
     '這份檔案裡有 ' + dupIds.length + ' 張訂單之前已經「確認完成揀貨」過(' + sample + ';最近一次確認是 ' + dates[dates.length - 1] + ')。\n\n' +
     '按「確定」:略過這 ' + dupIds.length + ' 張,只處理新的 ' + newCount + ' 張(建議,避免重複出貨、重複計算件數)\n' +
     '按「取消」:仍然全部匯入(例如這些訂單其實要重新出貨)');
-  if(!skip) return {items: items, skipped: []};
+  if(!skip){ ledgerAdd(RERECORD_KEY, channel, dupIds); return {items: items, skipped: []}; }   // 使用者明確選了「仍然全部匯入」(例如真的要重新出貨),確認時就不要擋
   const skipSet = new Set(dupIds);
   return {items: items.filter(it => !skipSet.has(it.orderId)), skipped: dupIds};
 }
@@ -6889,10 +6943,35 @@ function recordDoneCards(doneCards){
   const channel = currentChannel;
   const done = doneCards.length;
   // 這裡只回報「這次新完成」的數量,不是整批的總數,避免同一批分好幾次確認時,總數被重複疊加
-  const saves = [
-    savePickRecord(channel, categoryCounts, done, totalItemCount, done, Object.values(skuTotals)),
-    saveOrderHistory(historyRecords)
-  ];
+  // 先(同步)整理好每張訂單的內容:等一下要去資料庫確認,到時候畫面上的資料已經變了
+  const perOrder = {};
+  doneCards.forEach(card => {
+    const its = pickOrderGroups[parseInt(card.id.replace('pick-card-',''), 10)] || [];
+    if(its.length > 0) perOrder[its[0].orderId] = {cat: its[0].shippingCategory || 'kerry', items: its.map(it => ({sku: it.sku, name: it.displayName || it.itemName, qty: it.qty}))};
+  });
+  const allowed = ledgerChannel(RERECORD_KEY, channel);
+  const info = {skipped: [], checked: false};
+  // 寫進資料庫之前,先去資料庫查一次:這幾張是不是已經有人(別台電腦、剛剛、之前)確認過了。有的就不重複記錄;
+  // 查不到(斷線、太慢)就照常記錄,不能因為查不到就漏記
+  const saved = (async () => {
+    const skip = new Set();
+    try{
+      const found = await withTimeout(findRecordedInHistory(channel, [...doneOrderIds]), 6000);
+      if(found){ Object.keys(found).forEach(id => { if(!allowed[id]) skip.add(id); }); info.checked = true; }
+    }catch(e){}
+    info.skipped = [...skip];
+    const keepIds = [...doneOrderIds].filter(id => !skip.has(id));
+    if(keepIds.length === 0) return true;
+    const cc = {}, st = {}; let ti = 0;
+    keepIds.forEach(id => {
+      const p = perOrder[id]; if(!p) return;
+      cc[p.cat] = (cc[p.cat] || 0) + 1;
+      p.items.forEach(it => { if(!it.sku) return; if(!st[it.sku]) st[it.sku] = {sku: it.sku, name: it.name, qty: 0}; st[it.sku].qty += it.qty; ti += it.qty; });
+    });
+    const r = await Promise.all([savePickRecord(channel, cc, keepIds.length, ti, keepIds.length, Object.values(st)), saveOrderHistory(historyRecords.filter(h => !skip.has(h.orderId)))]);
+    ledgerRemove(RERECORD_KEY, channel, keepIds);   // 這次允許的重新出貨,記錄完就用掉了
+    return r.every(ok => ok !== false);
+  })();
   ledgerAdd(CONFIRMED_KEY, channel, [...doneOrderIds]);   // 記住這些訂單已經確認過,之後又被匯入時才會被攔下來詢問
 
   // 已勾選確認完成的訂單,解除「揀貨未完成」的追蹤;還沒勾選的,記錄到「揀貨未完成」清單,方便跨天追蹤有沒有一直被漏掉
@@ -6902,8 +6981,8 @@ function recordDoneCards(doneCards){
     const oid = its[0].orderId;
     if(!doneOrderIds.has(oid)) markPendingPick(channel, oid, its[0].name);
   });
-  Promise.all(saves).then(() => { Object.keys(specialHistoryCache).forEach(k => { delete specialHistoryCache[k]; }); if(specialOrders.length) renderSpecialOrders(); }).catch(() => {});
-  return {doneOrderIds, saved: Promise.all(saves).then(r => r.every(ok => ok !== false))};
+  saved.then(() => { Object.keys(specialHistoryCache).forEach(k => { delete specialHistoryCache[k]; }); if(specialOrders.length) renderSpecialOrders(); }).catch(() => {});
+  return {doneOrderIds, saved, info};
 }
 
 function confirmPickProgress(){
@@ -6947,6 +7026,14 @@ function confirmPickProgress(){
       alert('⚠ 這次確認的 ' + done + ' 張訂單,記錄到出貨核對時失敗了(可能是網路或權限問題)。\n出貨核對頁的數字可能會少算,請重新整理後確認;若還是不對,請告訴開發的人。');
     }
     updatePage3PickProgress();
+  });
+  rec.saved.then(() => {
+    const sk = rec.info.skipped.length;
+    if(sk > 0){
+      note.textContent += sk === done ? ' ⚠ 這 ' + sk + ' 張訂單之前已經有人確認過了(可能是別台電腦剛剛確認的),所以沒有重複記錄到出貨核對,數字不會多算。' : ' ⚠ 其中 ' + sk + ' 張之前已經有人確認過了(可能是別台電腦剛剛確認的),沒有重複記錄,出貨核對的數字不會多算。';
+    }else if(!rec.info.checked){
+      note.textContent += '(這次沒辦法確認有沒有跟別台電腦重複記錄,已照常記錄。)';
+    }
   });
   updatePage3PickProgress();
   saveState();
