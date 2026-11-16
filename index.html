@@ -368,6 +368,15 @@
   .cp-row button.cp-btn:hover{background:#F1F4EC;}
   .cp-row button.cp-btn.copied{background:#DDEFD9;border-color:#7FA67A;color:#2E6B2E;}
 
+  .dup-sum{margin:8px 0;font-size:13px;color:var(--ink-soft);}
+  .dup-ok{margin:8px 0;padding:8px 12px;border-radius:8px;background:#E6F2E1;border:1px solid #A9CDA0;color:#2E5E2A;font-size:14px;}
+  .dup-bad{margin:8px 0;padding:8px 12px;border-radius:8px;background:#FBE4E4;border:1px solid #E3A1A1;color:#8A2A2A;font-size:14px;}
+  .dup-sub{margin:4px 0 8px;font-size:12.5px;color:var(--ink-soft);line-height:1.6;}
+  .dup-wrap{max-height:340px;overflow:auto;margin:6px 0;border:1px solid var(--line);border-radius:8px;}
+  .dup-tbl{border-collapse:collapse;width:100%;font-size:13px;}
+  .dup-tbl th{position:sticky;top:0;background:#F1F4EC;text-align:left;padding:5px 9px;border-bottom:1px solid var(--line);}
+  .dup-tbl td{padding:4px 9px;border-bottom:1px solid #EEE;word-break:break-all;}
+
   .update-banner{
     background:var(--warn);color:#fff;text-align:center;font-size:13.5px;font-weight:600;
     padding:10px 16px;border-radius:8px;margin-bottom:20px;cursor:pointer;
@@ -1697,12 +1706,23 @@
       </div>
       <div class="form-msg" id="historyImportMsg"></div>
     </div>
+
+    <div class="panel no-print" id="dupCheckPanel">
+      <h2>檢查資料有沒有重複</h2>
+      <div class="desc">只讀取、<b>不會改任何資料</b>。檢查「訂單紀錄」(每張確認完成揀貨的訂單會記一筆)和「揀貨紀錄」(每次按確認會記一筆)裡,有沒有同一張訂單被記了不只一次。</div>
+      <div class="btn-row">
+        <select id="dupRange"><option value="7">最近 7 天</option><option value="30" selected>最近 30 天</option><option value="90">最近 90 天</option><option value="all">全部(筆數很多時會比較久)</option></select>
+        <button class="primary" id="dupRunBtn" onclick="runDupCheck()">開始檢查</button>
+      </div>
+      <div class="form-msg" id="dupMsg"></div>
+      <div id="dupResult"></div>
+    </div>
   </div>
 
 </div>
 
 <script>
-const APP_VERSION = '20261010-35'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20261010-38'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -2238,6 +2258,87 @@ function exportReportExcel(){
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, '報表');
   XLSX.writeFile(wb, '報表_' + ymd(new Date()) + '.xlsx');
+}
+
+// ===== 檢查資料有沒有重複(只讀取、不會改任何資料;管理者在「報表」頁用)=====
+// 訂單紀錄:同一個通路、同一個訂單編號(# 號、大小寫、空白不同也算同一張)出現不只一筆 → 重複
+function analyzeOrderHistory(docs){
+  const groups = {};
+  docs.forEach(d => { const k = (d.channel || '') + '|' + normOrderKey(d.orderId); (groups[k] = groups[k] || []).push(d); });
+  const dups = [];
+  Object.keys(groups).forEach(k => {
+    const g = groups[k]; if(g.length < 2) return;
+    const dates = g.map(x => x.date || '').sort();
+    const raws = g.map(x => String(x.orderId == null ? '' : x.orderId)).filter((v, i, a) => a.indexOf(v) === i);
+    dups.push({channel: g[0].channel || '', orderId: g[0].orderId, name: g[0].name || '', count: g.length, dates, sameDay: dates.some((d, i) => i > 0 && d === dates[i - 1]), raws, ids: g.map(x => x.id)});
+  });
+  dups.sort((a, b) => (b.count - a.count) || String(b.dates[b.dates.length - 1]).localeCompare(String(a.dates[a.dates.length - 1])));
+  return {total: docs.length, distinct: Object.keys(groups).length, dupOrders: dups.length, extraDocs: dups.reduce((n, d) => n + d.count - 1, 0), sameDay: dups.filter(d => d.sameDay).length, variantDiff: dups.filter(d => d.raws.length > 1).length, dups};
+}
+// 揀貨紀錄:「匯入歷史紀錄」匯了兩次(同一天同通路同數字)一定重複;平常的確認,內容完全一樣而且一次確認 5 張以上才列為「可能重複」(只有 1、2 張的,常常剛好一樣,不算)
+function analyzePickRecords(docs){
+  const sig = d => [d.date || '', d.channel || '', d.totalOrders || 0, d.totalItems || 0, d.doneCount || 0, d.revenue || 0, JSON.stringify((d.items || []).map(i => [i.sku, i.qty]).sort())].join('|');
+  const groups = {};
+  docs.forEach(d => { if(d.isHistoricalImport || (d.totalOrders || 0) >= 5) (groups[(d.isHistoricalImport ? 'H' : 'N') + '|' + sig(d)] = groups[(d.isHistoricalImport ? 'H' : 'N') + '|' + sig(d)] || []).push(d); });
+  const dups = [];
+  Object.keys(groups).forEach(k => { const g = groups[k]; if(g.length > 1) dups.push({hist: k[0] === 'H', date: g[0].date || '', channel: g[0].channel || '', totalOrders: g[0].totalOrders || 0, totalItems: g[0].totalItems || 0, count: g.length, ids: g.map(x => x.id)}); });
+  dups.sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  return {total: docs.length, dupGroups: dups.length, extraDocs: dups.reduce((n, d) => n + d.count - 1, 0), dups};
+}
+let lastDupReport = null;
+async function runDupCheck(){
+  const btn = document.getElementById('dupRunBtn'), msg = document.getElementById('dupMsg'), out = document.getElementById('dupResult');
+  const range = document.getElementById('dupRange').value;
+  btn.disabled = true; msg.textContent = '讀取中…(只讀取,不會改任何資料)'; out.innerHTML = '';
+  try{
+    await waitForFirebase();
+    const {db, collection, query, where, getDocs} = window.__fb;
+    let cutoff = '';
+    if(range !== 'all'){ const d = new Date(); d.setDate(d.getDate() - parseInt(range, 10)); cutoff = ymd(d); }
+    const readAll = async name => {
+      const ref = collection(db, name), snap = await getDocs(cutoff ? query(ref, where('date', '>=', cutoff)) : ref), arr = [];
+      snap.forEach(d => arr.push(Object.assign({id: d.id}, d.data())));
+      return cutoff ? arr.filter(x => (x.date || '') >= cutoff) : arr;
+    };
+    const res = await Promise.all([readAll(ORDER_HISTORY_COLLECTION), readAll(PICK_RECORDS_COLLECTION)]);
+    lastDupReport = {range, cutoff, at: new Date(), oh: analyzeOrderHistory(res[0]), pr: analyzePickRecords(res[1])};
+    msg.textContent = '';
+    renderDupReport();
+  }catch(err){
+    msg.textContent = '檢查失敗:' + (err && err.message ? err.message : err) + '(可能是網路或權限問題,資料沒有被動到)';
+  }
+  btn.disabled = false;
+}
+function renderDupReport(){
+  const out = document.getElementById('dupResult'), r = lastDupReport;
+  if(!r){ out.innerHTML = ''; return; }
+  const oh = r.oh, pr = r.pr, h = [];
+  const scope = r.cutoff ? ('最近 ' + r.range + ' 天(' + r.cutoff + ' 之後)') : '全部';
+  h.push('<div class="dup-sum">範圍:' + scope + '。讀了 <b>' + oh.total + '</b> 筆訂單紀錄、<b>' + pr.total + '</b> 筆揀貨紀錄(讀取筆數會算進資料庫的用量)。</div>');
+  if(oh.dupOrders === 0) h.push('<div class="dup-ok">✓ 訂單紀錄:<b>沒有重複</b>(' + oh.distinct + ' 張訂單,每張只有一筆)</div>');
+  else{
+    h.push('<div class="dup-bad">⚠ 訂單紀錄:<b>' + oh.dupOrders + ' 張訂單重複</b>,多出 <b>' + oh.extraDocs + '</b> 筆(共 ' + oh.distinct + ' 張訂單)</div>');
+    h.push('<div class="dup-sub">其中「同一天寫了不只一次」<b>' + oh.sameDay + '</b> 張(通常是重複按、或兩台電腦同時確認同一批);「編號寫法不同(例如有沒有 #)、程式攔不到」<b>' + oh.variantDiff + '</b> 張。不同天又確認一次的,可能是真的重新出貨。</div>');
+    h.push('<div class="dup-wrap"><table class="dup-tbl"><tr><th>通路</th><th>訂單編號</th><th>筆數</th><th>確認日期</th><th>類型</th></tr>' + oh.dups.slice(0, 60).map(d => '<tr><td>' + escapeHtml(d.channel) + '</td><td>' + d.raws.map(escapeHtml).join(' / ') + '</td><td>' + d.count + '</td><td>' + d.dates.map(escapeHtml).join('、') + '</td><td>' + (d.sameDay ? '同一天重複' : '不同天') + (d.raws.length > 1 ? '・寫法不同' : '') + '</td></tr>').join('') + '</table></div>');
+    if(oh.dups.length > 60) h.push('<div class="dup-sub">只列出前 60 張,全部請按下面「下載 CSV」。</div>');
+  }
+  if(pr.dupGroups === 0) h.push('<div class="dup-ok">✓ 揀貨紀錄:<b>沒有明顯重複</b></div>');
+  else{
+    h.push('<div class="dup-bad">⚠ 揀貨紀錄:<b>' + pr.dupGroups + ' 組內容完全一樣</b>,多出 <b>' + pr.extraDocs + '</b> 筆(會讓出貨核對的數字重複計算)</div>');
+    h.push('<div class="dup-wrap"><table class="dup-tbl"><tr><th>日期</th><th>通路</th><th>訂單數</th><th>件數</th><th>筆數</th><th>類型</th></tr>' + pr.dups.slice(0, 40).map(d => '<tr><td>' + escapeHtml(d.date) + '</td><td>' + escapeHtml(d.channel) + '</td><td>' + d.totalOrders + '</td><td>' + d.totalItems + '</td><td>' + d.count + '</td><td>' + (d.hist ? '歷史匯入匯了不只一次' : '可能重複(內容完全一樣)') + '</td></tr>').join('') + '</table></div>');
+  }
+  if(oh.dupOrders || pr.dupGroups) h.push('<div class="btn-row"><button class="ghost" onclick="downloadDupCsv()">下載 CSV(含資料庫文件編號,方便到後台對照)</button></div><div class="dup-sub">這個檢查<b>只讀取</b>,什麼都沒有刪。要清掉重複的,請先把 CSV 給負責開發的人確認。</div>');
+  out.innerHTML = h.join('');
+}
+function downloadDupCsv(){
+  const r = lastDupReport; if(!r) return;
+  const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  const lines = [['類型', '通路', '訂單編號或內容', '筆數', '日期', '是否同一天', '編號寫法', '資料庫文件編號'].map(q).join(',')];
+  r.oh.dups.forEach(d => lines.push(['訂單紀錄', d.channel, d.raws.join(' / '), d.count, d.dates.join(' '), d.sameDay ? '是' : '否', d.raws.length > 1 ? '寫法不同' : '一樣', d.ids.join(' ')].map(q).join(',')));
+  r.pr.dups.forEach(d => lines.push(['揀貨紀錄', d.channel, (d.hist ? '歷史匯入 ' : '') + '訂單數' + d.totalOrders + ' 件數' + d.totalItems, d.count, d.date, '是', '', d.ids.join(' ')].map(q).join(',')));
+  const blob = new Blob(['\ufeff' + lines.join('\r\n')], {type: 'text/csv;charset=utf-8'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'duplicates_' + ymd(new Date()).replace(/-/g, '') + '.csv';
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
 }
 
 async function importHistoricalRecords(){
