@@ -380,6 +380,9 @@
   .cloud-panel .btn-row select{margin-right:6px;}
   #cloudSaveNote{margin-top:8px;}
 
+  .cl-backfill{margin-top:16px;padding-top:12px;border-top:1px dashed var(--line);}
+  .cl-backfill h3{font-size:14px;margin:0 0 4px;}
+
   .update-banner{
     background:var(--warn);color:#fff;text-align:center;font-size:13.5px;font-weight:600;
     padding:10px 16px;border-radius:8px;margin-bottom:20px;cursor:pointer;
@@ -1729,7 +1732,7 @@
 </div>
 
 <script>
-const APP_VERSION = '20261010-42'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20261010-44'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -2377,7 +2380,7 @@ function buildCloudPanel(prefix, title){
       '<button class="ghost" id="' + p + '-csv" onclick="downloadCloudCsv(\'' + prefix + '\')" disabled>下載 CSV</button>' +
     '</div>' +
     '<div class="form-msg" id="' + p + '-msg"></div>' +
-    '<div id="' + p + '-result"></div>' +
+    '<div id="' + p + '-result"></div>' + (prefix === 'rpt' ? backfillBlockHtml() : '') +
   '</div>';
 }
 function mountCloudPanels(){
@@ -2390,7 +2393,7 @@ function analyzeCloudOrders(docs){
   const by = keyFn => { const m = {}; live.forEach(d => { const k = keyFn(d); const r = m[k] = m[k] || {orders: 0, qty: 0, amount: 0}; r.orders++; r.qty += d.itemQty || 0; r.amount += d.orderTotal || 0; }); return m; };
   const sku = {};
   live.forEach(d => (d.lines || []).forEach(l => { if(l.gift) return; const k = l.sku || l.name || '(沒有 SKU)'; const r = sku[k] = sku[k] || {sku: l.sku || '', name: l.name || '', qty: 0, amount: 0}; r.qty += l.qty || 0; r.amount += l.subtotal || 0; }));
-  return {orders: live.length, cancelled: docs.length - live.length, qty: sum(live, d => d.itemQty || 0), amount: sum(live, d => d.orderTotal || 0), byChannel: by(d => d.channel), byDay: by(d => d.importDate || '?'), topSku: Object.values(sku).sort((a, b) => b.qty - a.qty).slice(0, 15)};
+  return {orders: live.length, backfilled: live.filter(d => d.backfilled).length, cancelled: docs.length - live.length, qty: sum(live, d => d.itemQty || 0), amount: sum(live, d => d.orderTotal || 0), byChannel: by(d => d.channel), byDay: by(d => d.importDate || '?'), topSku: Object.values(sku).sort((a, b) => b.qty - a.qty).slice(0, 15)};
 }
 async function loadCloudOrders(prefix){
   const p = prefix + '-cl', g = id => document.getElementById(p + '-' + id);
@@ -2419,6 +2422,7 @@ function renderCloudSummary(prefix){
   if(D.docs.length === 0){ box.innerHTML = '<div class="dup-sub">這個範圍沒有資料(可能這幾天還沒有人匯入,或還沒開始存雲端)。</div>'; return; }
   h.push('<div class="dup-ok">共 <b>' + a.orders + '</b> 張訂單、<b>' + a.qty + '</b> 件,品項小計 <b>' + money(a.amount) + '</b>' + (a.cancelled ? '(已取消 ' + a.cancelled + ' 張,不計入)' : '') + '</div>');
   h.push('<div class="dup-sub">「品項小計」是每個品項的單價 × 數量加起來,<b>沒有扣折扣、沒有含運費</b>,所以不等於實收金額。</div>');
+  if(a.backfilled) h.push('<div class="dup-sub">其中 <b>' + a.backfilled + '</b> 張是從「過去的訂單紀錄」補進來的:<b>沒有金額</b>(品項小計不含它們),「匯入日期」是當時確認出貨的那一天。</div>');
   const tbl = (head, rows) => '<div class="dup-wrap"><table class="dup-tbl"><tr>' + head.map(x => '<th>' + x + '</th>').join('') + '</tr>' + rows.map(r => '<tr>' + r.map(x => '<td>' + x + '</td>').join('') + '</tr>').join('') + '</table></div>';
   h.push(tbl(['通路', '訂單數', '件數', '品項小計'], Object.keys(a.byChannel).map(k => [escapeHtml(CLOUD_CH_LABEL[k] || k), a.byChannel[k].orders, a.byChannel[k].qty, money(a.byChannel[k].amount)])));
   h.push(tbl(['匯入日期', '訂單數', '件數', '品項小計'], Object.keys(a.byDay).sort().reverse().slice(0, 40).map(k => [escapeHtml(k), a.byDay[k].orders, a.byDay[k].qty, money(a.byDay[k].amount)])));
@@ -2429,15 +2433,86 @@ function renderCloudSummary(prefix){
 function downloadCloudCsv(prefix){
   const D = cloudData[prefix]; if(!D || D.docs.length === 0) return;
   const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
-  const lines = [['匯入日期', '通路', '訂單編號', '物流方式', '縣市', '商品SKU', '商品名稱', '數量', '單價', '小計', '系統補的贈品', '有客製文字', '已取消', '平台欄位(日期、付款、金額、折扣、運費…)'].map(q).join(',')];
+  const lines = [['匯入日期', '通路', '訂單編號', '物流方式', '縣市', '商品SKU', '商品名稱', '數量', '單價', '小計', '系統補的贈品', '有客製文字', '已取消', '來源', '平台欄位(日期、付款、金額、折扣、運費…)'].map(q).join(',')];
   D.docs.slice().sort((x, y) => String(y.importDate).localeCompare(String(x.importDate)) || String(x.orderId).localeCompare(String(y.orderId))).forEach(d => {
     const extra = Object.keys(d.extra || {}).map(k => k + '=' + d.extra[k]).join(' | ');
-    (d.lines || []).forEach(l => lines.push([d.importDate, CLOUD_CH_LABEL[d.channel] || d.channel, d.orderId, SHIP_CATEGORY_LABEL[d.shippingCategory] || d.shippingCategory || '', d.region || '', l.sku, l.name, l.qty, l.price, l.subtotal, l.gift ? '是' : '', d.hasCust ? '是' : '', d.cancelled ? '是' : '', extra].map(q).join(',')));
+    (d.lines || []).forEach(l => lines.push([d.importDate, CLOUD_CH_LABEL[d.channel] || d.channel, d.orderId, SHIP_CATEGORY_LABEL[d.shippingCategory] || d.shippingCategory || '', d.region || '', l.sku, l.name, l.qty, l.price, l.subtotal, l.gift ? '是' : '', d.hasCust ? '是' : '', d.cancelled ? '是' : '', d.backfilled ? '歷史補入(沒有金額)' : '匯入', extra].map(q).join(',')));
   });
   const blob = new Blob(['\ufeff' + lines.join('\r\n')], {type: 'text/csv;charset=utf-8'});
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'orders_' + ymd(new Date()).replace(/-/g, '') + '.csv';
   document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
 }
+// ===== 補入過去的資料:把「訂單紀錄」(以前確認完成揀貨過的訂單)補進每日訂單資料;沒有金額 =====
+function backfillBlockHtml(){
+  return '<div class="cl-backfill"><h3>補入過去的資料</h3>' +
+    '<div class="dup-sub">把以前「確認完成揀貨」過的訂單(訂單紀錄)補進這裡。<b>只補雲端還沒有的</b>,已經有的(正式匯入、有金額的)不會被蓋掉。補進來的<b>沒有金額</b>,「匯入日期」是當時確認出貨的那一天。同一張訂單有好幾筆紀錄的(例如重複確認),只補一份,留最早的那天。不補客人的姓名、電話、地址。</div>' +
+    '<div class="btn-row"><button class="ghost" id="rpt-bf-preview" onclick="previewBackfill()">先檢查可以補多少</button></div>' +
+    '<div class="form-msg" id="rpt-bf-msg"></div><div id="rpt-bf-result"></div></div>';
+}
+function buildBackfillDocs(histDocs, existingUids, email){
+  const byUid = {}; let bad = 0;
+  histDocs.forEach(h => {
+    const ch = h.channel, oid = String(h.orderId == null ? '' : h.orderId).trim(), date = String(h.date || ''), items = Array.isArray(h.items) ? h.items : [];
+    if(!oid || !CLOUD_CH_LABEL[ch] || !/^\d{4}-\d{2}-\d{2}$/.test(date) || items.length === 0){ bad++; return; }
+    const uid = ch + '__' + normOrderKey(oid).replace(/\//g, '_');
+    if(byUid[uid] && byUid[uid].importDate <= date) return;   // 同一張訂單有好幾筆紀錄:留最早的那天
+    const lines = items.map(i => ({sku: String(i.sku || ''), name: String(i.name || '').slice(0, 120), qty: Number(i.qty) || 0, price: 0, subtotal: 0, gift: !i.sku}));   // 沒有 SKU 的是系統補的贈品
+    byUid[uid] = {uid, orderId: oid, channel: ch, shippingCategory: h.shippingCategory || '', lines, itemQty: lines.filter(l => !l.gift).reduce((n, l) => n + l.qty, 0), orderTotal: 0, cancelled: false, region: cloudRegion(h.address), extra: {'來源': '歷史訂單紀錄補入(沒有金額)'}, importDate: date, importedBy: email, backfilled: true};
+  });
+  const all = Object.keys(byUid).map(k => byUid[k]), fresh = all.filter(d => !existingUids.has(d.uid));
+  return {total: all.length, fresh, existing: all.length - fresh.length, bad};
+}
+let backfillPlan = null;
+async function previewBackfill(){
+  const msg = document.getElementById('rpt-bf-msg'), out = document.getElementById('rpt-bf-result'), btn = document.getElementById('rpt-bf-preview');
+  if(currentUserRole !== 'admin'){ msg.textContent = '只有管理者可以補入資料。'; return; }
+  btn.disabled = true; msg.textContent = '讀取中…(只讀取,還沒有寫入任何東西)'; out.innerHTML = ''; backfillPlan = null;
+  try{
+    await waitForFirebase();
+    const {db, collection, getDocs} = window.__fb;
+    const res = await Promise.all([getDocs(collection(db, ORDER_HISTORY_COLLECTION)), getDocs(collection(db, CLOUD_ORDERS_COLLECTION))]);
+    const hist = [], ex = new Set();
+    res[0].forEach(d => hist.push(d.data())); res[1].forEach(d => { const x = d.data(); if(x && x.uid) ex.add(x.uid); });
+    const plan = buildBackfillDocs(hist, ex, currentUserEmail || '');
+    plan.readHist = hist.length; backfillPlan = plan; msg.textContent = '';
+    renderBackfillPlan();
+  }catch(err){
+    msg.textContent = '讀取失敗:' + (err && err.message ? err.message : err);
+  }
+  btn.disabled = false;
+}
+function renderBackfillPlan(){
+  const out = document.getElementById('rpt-bf-result'), p = backfillPlan;
+  if(!p){ out.innerHTML = ''; return; }
+  const by = {}, dates = p.fresh.map(d => d.importDate).sort();
+  p.fresh.forEach(d => { by[d.channel] = (by[d.channel] || 0) + 1; });
+  const h = ['<div class="dup-sum">讀了 <b>' + p.readHist + '</b> 筆訂單紀錄,合起來是 <b>' + p.total + '</b> 張不重複的訂單' + (p.bad ? '(另外 ' + p.bad + ' 筆資料不完整,略過)' : '') + '。雲端已經有 <b>' + p.existing + '</b> 張(略過)。</div>'];
+  if(p.fresh.length === 0) h.push('<div class="dup-ok">✓ 沒有需要補的,過去的訂單都已經在雲端了。</div>');
+  else{
+    h.push('<div class="dup-sum">可以補入 <b>' + p.fresh.length + '</b> 張(' + Object.keys(by).map(k => (CLOUD_CH_LABEL[k] || k) + ' ' + by[k]).join('、') + ');日期從 <b>' + escapeHtml(dates[0]) + '</b> 到 <b>' + escapeHtml(dates[dates.length - 1]) + '</b>。</div>');
+    h.push('<div class="btn-row"><button class="primary" id="rpt-bf-run" onclick="runBackfill()">確定補入 ' + p.fresh.length + ' 張</button></div><div class="dup-sub">補進去之後,只有管理者能在 Firebase 後台刪除。</div>');
+  }
+  out.innerHTML = h.join('');
+}
+async function runBackfill(){
+  const plan = backfillPlan, msg = document.getElementById('rpt-bf-msg'), out = document.getElementById('rpt-bf-result');
+  if(!plan || plan.fresh.length === 0 || currentUserRole !== 'admin') return;
+  if(!confirm('要把 ' + plan.fresh.length + ' 張過去的訂單補進雲端嗎?\n補進去之後,只有管理者能在 Firebase 後台刪除。')) return;
+  ['rpt-bf-preview', 'rpt-bf-run'].forEach(id => { const b = document.getElementById(id); if(b) b.disabled = true; });
+  let ok = 0, fail = 0;
+  try{
+    const {db, doc, setDoc, serverTimestamp} = window.__fb;
+    for(let i = 0; i < plan.fresh.length; i += 25){
+      await Promise.all(plan.fresh.slice(i, i + 25).map(d => setDoc(doc(db, CLOUD_ORDERS_COLLECTION, d.uid), Object.assign({}, d, {importedAt: serverTimestamp()})).then(() => { ok++; }, () => { fail++; })));
+      msg.textContent = '補入中… ' + Math.min(i + 25, plan.fresh.length) + ' / ' + plan.fresh.length;
+    }
+  }catch(e){ fail = plan.fresh.length - ok; }
+  msg.textContent = ''; backfillPlan = null;
+  out.innerHTML = '<div class="' + (fail ? 'dup-bad' : 'dup-ok') + '">已補入 <b>' + ok + '</b> 張' + (fail ? ',<b>' + fail + '</b> 張沒成功(網路或權限問題)。可以再按一次「先檢查可以補多少」,只會補還沒補進去的。' : '。') + '</div>' +
+    '<div class="dup-sub">要讓<b>試算表</b>也有這些資料,請到 Apps Script 編輯器,函式選 <b>syncAll</b> 按「執行」一次(之後每小時的自動同步只看最近 3 天)。</div>';
+  const pb = document.getElementById('rpt-bf-preview'); if(pb) pb.disabled = false;
+}
+
 mountCloudPanels();
 
 // ===== 檢查資料有沒有重複(只讀取、不會改任何資料;管理者在「報表」頁用)=====
