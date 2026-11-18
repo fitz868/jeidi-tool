@@ -1732,7 +1732,7 @@
 </div>
 
 <script>
-const APP_VERSION = '20261010-44'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20261010-45'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -2297,6 +2297,74 @@ function cloudExtra(headers, row){
   });
   return out;
 }
+// ===== 購買時間、訂單金額、優惠券/優惠碼(有就填,沒有就不用)=====
+// LINE、官網的欄位名稱是用真的匯出檔確認過的;蝦皮、PINKOI 沒有樣本檔,先用常見的名稱去找(找不到就空白)。
+const CLOUD_FIELD_NAMES = {
+  line: {time: ['訂單下單日期', '完成付款日'], amount: ['總付款金額'], coupon: ['訂單優惠券標題', '訂單優惠券主編號']},
+  shop: {time: ['Created at', 'Paid at'], amount: ['Total'], coupon: ['Discount Code']}
+};
+const CLOUD_FIELD_GENERIC = {
+  time: /(訂單|下單|購買|訂購|成立|創建|建立).{0,4}(日期|時間)|create[_ ]?(time|date|at)|order[_ ]?(date|time|creation)|created[_ ]?at/i,
+  amount: /(總付款|實付|實收|應付|訂單總|訂單金額|買家.{0,4}(支付|付款)|total[_ ]?(amount|price|paid)|grand[_ ]?total|order[_ ]?total|^total$)/i,
+  coupon: /(優惠券|優惠碼|折扣碼|折價券|voucher|coupon|promo(tion)?[_ ]?code|discount[_ ]?code)/i
+};
+const CLOUD_AMOUNT_EXCLUDE = /(商品|折抵|折扣|運費|shipping|discount|item|product|tax|稅)/i;   // 這些是品項金額、折扣或運費,不是實付金額
+const CLOUD_COUPON_EXCLUDE = /(金額|amount|折抵|負擔|比例|點數|ratio|rate)/i;   // 優惠券的金額、負擔比例不是「碼」
+function cloudClean(v){
+  if(v == null) return '';
+  const s = String(v).trim().replace(/^'+/, '').trim();
+  return (s === '' || /^(-+|—|–|無|n\/a|null|none|0000-00-00.*)$/i.test(s)) ? '' : s;   // 「'-」「-」這種代表沒有
+}
+function cloudNormTime(v){
+  const p = n => String(n).padStart(2, '0');
+  if(typeof v === 'number' && isFinite(v) && v > 20000 && v < 80000){   // Excel 的日期序號
+    const d = new Date(Math.round((v - 25569) * 86400000));
+    return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate()) + ' ' + p(d.getUTCHours()) + ':' + p(d.getUTCMinutes());
+  }
+  const s = cloudClean(v); if(!s) return '';
+  const m = s.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})(?:[ T]+(\d{1,2}):(\d{2})(?::\d{2}(?:\.\d+)?)?)?\s*(Z|[+-]\d{2}:?\d{2})?$/);
+  if(!m) return s.slice(0, 40);
+  if(m[4] == null) return m[1] + '-' + p(m[2]) + '-' + p(m[3]);
+  let ms = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+  if(m[6]){   // 有寫時區:換成台灣時間(+08:00)
+    const z = m[6] === 'Z' ? 0 : (m[6][0] === '-' ? -1 : 1) * (parseInt(m[6].slice(1, 3), 10) * 60 + parseInt(m[6].slice(-2), 10));
+    ms = ms - z * 60000 + 8 * 3600000;
+  }
+  const d = new Date(ms);
+  return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate()) + ' ' + p(d.getUTCHours()) + ':' + p(d.getUTCMinutes());
+}
+function cloudNum(v){
+  const s = cloudClean(v).replace(/[,\s$元]|NT/g, ''); if(s === '') return null;
+  const n = parseFloat(s); return isFinite(n) ? n : null;
+}
+function cloudPick(headers, row, names, generic, exclude){
+  const norm = x => String(x == null ? '' : x).trim().toLowerCase();
+  for(const name of names || []){
+    const i = headers.findIndex(h => norm(h) === norm(name));
+    if(i !== -1 && cloudClean(row[i]) !== '') return row[i];
+  }
+  if(generic){
+    for(let i = 0; i < headers.length; i++){
+      const h = String(headers[i] == null ? '' : headers[i]).trim();
+      if(!h || !generic.test(h) || (exclude && exclude.test(h)) || CLOUD_EXTRA_DENY.test(h)) continue;
+      if(cloudClean(row[i]) !== '') return row[i];
+    }
+  }
+  return '';
+}
+// 回傳 {purchaseTime, orderAmount, coupon}:有找到才放,沒有就不放(Firebase 不收 undefined)
+function cloudOrderFields(channel, headers, row){
+  const out = {};
+  if(!headers || !row || row.length !== headers.length) return out;   // 對不上(例如蝦皮多個檔案欄位不同)就不填
+  const N = CLOUD_FIELD_NAMES[channel] || {};
+  const t = cloudNormTime(cloudPick(headers, row, N.time, CLOUD_FIELD_GENERIC.time));
+  const a = cloudNum(cloudPick(headers, row, N.amount, CLOUD_FIELD_GENERIC.amount, CLOUD_AMOUNT_EXCLUDE));
+  const c = cloudClean(cloudPick(headers, row, N.coupon, CLOUD_FIELD_GENERIC.coupon, CLOUD_COUPON_EXCLUDE));
+  if(t) out.purchaseTime = t;
+  if(a != null) out.orderAmount = a;
+  if(c) out.coupon = c.slice(0, 80);
+  return out;
+}
 function buildCloudOrders(items, channel){
   const groups = {}, order = [];
   items.forEach(it => {
@@ -2310,7 +2378,7 @@ function buildCloudOrders(items, channel){
     const g = groups[id], first = g[0];
     const lines = g.map(it => ({sku: String(it.sku || ''), name: String(it.itemName || '').slice(0, 120), qty: Number(it.qty) || 0, price: Number(it.price) || 0, subtotal: Number(it.subtotal) || 0, gift: !!it.autoGift}));
     const real = lines.filter(l => !l.gift);
-    return {
+    const d = {
       uid: channel + '__' + normOrderKey(id).replace(/\//g, '_'),
       orderId: id, channel,
       shippingCategory: first.shippingCategory || '',
@@ -2324,6 +2392,8 @@ function buildCloudOrders(items, channel){
       importDate: today,
       importedBy: currentUserEmail || ''
     };   // importedAt(寫入時間)要等到真的寫入的那一刻才加(用資料庫的時間)
+    Object.assign(d, cloudOrderFields(channel, rawHeaders, first.rawRow));   // 購買時間、訂單金額(取每張訂單第一列)、優惠券/優惠碼:有就填
+    return d;
   });
 }
 function setCloudNote(html){
@@ -2372,7 +2442,7 @@ function buildCloudPanel(prefix, title){
   const p = prefix + '-cl';
   return '<div class="' + (prefix === 'boss' ? 'boss-card' : 'panel no-print') + ' cloud-panel">' +
     '<h2>' + title + '</h2>' +
-    '<div class="desc">每次匯入檔案時,系統會把檔案裡的訂單自動存到雲端(同一張訂單只會存一次)。這裡可以選範圍、看統計、下載 CSV 去分析。<b>裡面沒有客人的姓名、電話、地址</b>(只有縣市)。「日期」是<b>匯入的那一天</b>,平台的下單日期等欄位在 CSV 最後一欄。</div>' +
+    '<div class="desc">每次匯入檔案時,系統會把檔案裡的訂單自動存到雲端(同一張訂單只會存一次)。這裡可以選範圍、看統計、下載 CSV 去分析。<b>裡面沒有客人的姓名、電話、地址</b>(只有縣市)。「日期」是<b>匯入的那一天</b>;客人的<b>購買時間、訂單金額、優惠券/優惠碼</b>在 CSV 裡有獨立欄位(檔案裡有才有,沒有就是空白)。</div>' +
     '<div class="btn-row">' +
       '<select id="' + p + '-range"><option value="today">今天匯入的</option><option value="7">最近 7 天</option><option value="30" selected>最近 30 天</option><option value="90">最近 90 天</option><option value="all">全部</option></select> ' +
       '<select id="' + p + '-ch"><option value="all">全部通路</option>' + Object.keys(CLOUD_CH_LABEL).map(k => '<option value="' + k + '">' + CLOUD_CH_LABEL[k] + '</option>').join('') + '</select> ' +
@@ -2393,7 +2463,7 @@ function analyzeCloudOrders(docs){
   const by = keyFn => { const m = {}; live.forEach(d => { const k = keyFn(d); const r = m[k] = m[k] || {orders: 0, qty: 0, amount: 0}; r.orders++; r.qty += d.itemQty || 0; r.amount += d.orderTotal || 0; }); return m; };
   const sku = {};
   live.forEach(d => (d.lines || []).forEach(l => { if(l.gift) return; const k = l.sku || l.name || '(沒有 SKU)'; const r = sku[k] = sku[k] || {sku: l.sku || '', name: l.name || '', qty: 0, amount: 0}; r.qty += l.qty || 0; r.amount += l.subtotal || 0; }));
-  return {orders: live.length, backfilled: live.filter(d => d.backfilled).length, cancelled: docs.length - live.length, qty: sum(live, d => d.itemQty || 0), amount: sum(live, d => d.orderTotal || 0), byChannel: by(d => d.channel), byDay: by(d => d.importDate || '?'), topSku: Object.values(sku).sort((a, b) => b.qty - a.qty).slice(0, 15)};
+  return {orders: live.length, paidOrders: live.filter(d => d.orderAmount != null).length, paidAmount: sum(live.filter(d => d.orderAmount != null), d => d.orderAmount), backfilled: live.filter(d => d.backfilled).length, cancelled: docs.length - live.length, qty: sum(live, d => d.itemQty || 0), amount: sum(live, d => d.orderTotal || 0), byChannel: by(d => d.channel), byDay: by(d => d.importDate || '?'), topSku: Object.values(sku).sort((a, b) => b.qty - a.qty).slice(0, 15)};
 }
 async function loadCloudOrders(prefix){
   const p = prefix + '-cl', g = id => document.getElementById(p + '-' + id);
@@ -2422,6 +2492,7 @@ function renderCloudSummary(prefix){
   if(D.docs.length === 0){ box.innerHTML = '<div class="dup-sub">這個範圍沒有資料(可能這幾天還沒有人匯入,或還沒開始存雲端)。</div>'; return; }
   h.push('<div class="dup-ok">共 <b>' + a.orders + '</b> 張訂單、<b>' + a.qty + '</b> 件,品項小計 <b>' + money(a.amount) + '</b>' + (a.cancelled ? '(已取消 ' + a.cancelled + ' 張,不計入)' : '') + '</div>');
   h.push('<div class="dup-sub">「品項小計」是每個品項的單價 × 數量加起來,<b>沒有扣折扣、沒有含運費</b>,所以不等於實收金額。</div>');
+  if(a.paidOrders) h.push('<div class="dup-sub">有「實收金額」的 <b>' + a.paidOrders + '</b> 張訂單,實收合計 <b>' + money(a.paidAmount) + '</b>(客人實際付的金額,已扣折扣、含運費;檔案裡沒有這個欄位的訂單不在內)。</div>');
   if(a.backfilled) h.push('<div class="dup-sub">其中 <b>' + a.backfilled + '</b> 張是從「過去的訂單紀錄」補進來的:<b>沒有金額</b>(品項小計不含它們),「匯入日期」是當時確認出貨的那一天。</div>');
   const tbl = (head, rows) => '<div class="dup-wrap"><table class="dup-tbl"><tr>' + head.map(x => '<th>' + x + '</th>').join('') + '</tr>' + rows.map(r => '<tr>' + r.map(x => '<td>' + x + '</td>').join('') + '</tr>').join('') + '</table></div>';
   h.push(tbl(['通路', '訂單數', '件數', '品項小計'], Object.keys(a.byChannel).map(k => [escapeHtml(CLOUD_CH_LABEL[k] || k), a.byChannel[k].orders, a.byChannel[k].qty, money(a.byChannel[k].amount)])));
@@ -2433,10 +2504,10 @@ function renderCloudSummary(prefix){
 function downloadCloudCsv(prefix){
   const D = cloudData[prefix]; if(!D || D.docs.length === 0) return;
   const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
-  const lines = [['匯入日期', '通路', '訂單編號', '物流方式', '縣市', '商品SKU', '商品名稱', '數量', '單價', '小計', '系統補的贈品', '有客製文字', '已取消', '來源', '平台欄位(日期、付款、金額、折扣、運費…)'].map(q).join(',')];
+  const lines = [['匯入日期', '通路', '訂單編號', '購買時間', '訂單金額(每張訂單只在第一列)', '優惠券/優惠碼', '物流方式', '縣市', '商品SKU', '商品名稱', '數量', '單價', '小計', '系統補的贈品', '有客製文字', '已取消', '來源', '平台欄位(日期、付款、金額、折扣、運費…)'].map(q).join(',')];
   D.docs.slice().sort((x, y) => String(y.importDate).localeCompare(String(x.importDate)) || String(x.orderId).localeCompare(String(y.orderId))).forEach(d => {
     const extra = Object.keys(d.extra || {}).map(k => k + '=' + d.extra[k]).join(' | ');
-    (d.lines || []).forEach(l => lines.push([d.importDate, CLOUD_CH_LABEL[d.channel] || d.channel, d.orderId, SHIP_CATEGORY_LABEL[d.shippingCategory] || d.shippingCategory || '', d.region || '', l.sku, l.name, l.qty, l.price, l.subtotal, l.gift ? '是' : '', d.hasCust ? '是' : '', d.cancelled ? '是' : '', d.backfilled ? '歷史補入(沒有金額)' : '匯入', extra].map(q).join(',')));
+    (d.lines || []).forEach((l, li) => lines.push([d.importDate, CLOUD_CH_LABEL[d.channel] || d.channel, d.orderId, d.purchaseTime || '', (li === 0 && d.orderAmount != null) ? d.orderAmount : '', d.coupon || '', SHIP_CATEGORY_LABEL[d.shippingCategory] || d.shippingCategory || '', d.region || '', l.sku, l.name, l.qty, l.price, l.subtotal, l.gift ? '是' : '', d.hasCust ? '是' : '', d.cancelled ? '是' : '', d.backfilled ? '歷史補入(沒有金額)' : '匯入', extra].map(q).join(',')));
   });
   const blob = new Blob(['\ufeff' + lines.join('\r\n')], {type: 'text/csv;charset=utf-8'});
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'orders_' + ymd(new Date()).replace(/-/g, '') + '.csv';
