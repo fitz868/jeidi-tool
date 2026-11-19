@@ -383,6 +383,12 @@
   .cl-backfill{margin-top:16px;padding-top:12px;border-top:1px dashed var(--line);}
   .cl-backfill h3{font-size:14px;margin:0 0 4px;}
 
+  .pc-santa{margin:6px 0 2px;padding:6px 10px;border:2px solid #b3261e;border-radius:8px;font-weight:700;font-size:14px;color:#b3261e;}
+  .pick-card-santa{border-left:5px solid #b3261e;}
+  .santa-bar{margin:8px 0;padding:8px 12px;border:1px solid #b3261e;border-radius:8px;color:#b3261e;font-size:13px;}
+  .santa-bar button{margin-left:8px;font-size:12px;padding:2px 8px;}
+  #pickList.santa-only .pick-card:not(.pick-card-santa){display:none !important;}
+
   .update-banner{
     background:var(--warn);color:#fff;text-align:center;font-size:13.5px;font-weight:600;
     padding:10px 16px;border-radius:8px;margin-bottom:20px;cursor:pointer;
@@ -1732,7 +1738,7 @@
 </div>
 
 <script>
-const APP_VERSION = '20261010-47'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20261010-48'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -6169,6 +6175,7 @@ async function processFile(){
   mapsPromise.catch(()=>{});   // 如果中途使用者取消,這份資料沒用到,也不要跳出沒人處理的錯誤
 
   // 把這份檔案裡的訂單(整份,包含之前已經確認過的)存到雲端,讓老闆能下載去分析。不等它做完,失敗也不影響檢貨
+  stampBuyDates(items, currentChannel);   // 先把購買日記在每個品項上(聖誕老人卡的期限要用)
   saveImportedOrdersToCloud(items, currentChannel).catch(() => {});
 
   // 檢查有沒有「之前已經確認完成揀貨」的訂單又被匯入(例如平台的待出貨清單隔天還在),先詢問要不要略過
@@ -6986,6 +6993,53 @@ function extractOrderDate(orderId, channel){
   return '';
 }
 
+// ===== 聖誕老人卡:經典禮盒到 12/31 前,每個禮盒裡放一張聖誕老人卡 =====
+// 規則:品名(平台商品標題、或 SKU 表的名稱)同時有「經典」和「禮盒」的品項,一個禮盒一張卡。
+// 日期以客人的「購買日」為準(官網用檔案的 Created at、LINE 和蝦皮用訂單編號裡的日期);檔案裡沒有購買日的才用今天。要改日期或規則,改下面這一行。
+const SANTA_PROMO = {until: '2026-12-31', cardName: '聖誕老人卡', matchName: n => /經典/.test(n) && /禮盒/.test(n)};
+let santaOnly = false;
+function santaMatchItem(it){
+  if(!it || it.autoGift) return false;
+  const info = skuMap[it.sku];
+  return SANTA_PROMO.matchName([it.displayName, it.itemName, info ? info.name : ''].join(' '));
+}
+function santaBuyDateOf(its, oid){
+  const hit = its.find(x => x.buyDate); if(hit) return hit.buyDate;
+  const m = String(extractOrderDate(oid, currentChannel) || '').match(/^(\d{2})\/(\d{2})$/);   // LINE、蝦皮:訂單編號裡的月/日(年份用今年;如果比今天還晚,就當成去年)
+  if(m){ const now = new Date(), y = now.getFullYear(), d = y + '-' + m[1] + '-' + m[2]; return d > ymd(now) ? (y - 1) + '-' + m[1] + '-' + m[2] : d; }
+  return ymd(new Date());
+}
+// 這張訂單要放幾張聖誕老人卡(0 = 不用)
+function santaCardsFor(its, oid){
+  const n = its.reduce((a, it) => a + (santaMatchItem(it) ? (Number(it.qty) || 1) : 0), 0);
+  if(n === 0) return 0;
+  return santaBuyDateOf(its, oid) <= SANTA_PROMO.until ? n : 0;
+}
+// 匯入時,把每張訂單的購買日記在品項上(一起存進進度,重新整理也還在)
+function stampBuyDates(items, channel){
+  const seen = {};
+  items.forEach(it => {
+    const id = it.orderId; if(!id) return;
+    if(!(id in seen)){ const f = cloudOrderFields(channel, rawHeaders, it.rawRow); seen[id] = String(f.purchaseTime || '').slice(0, 10); }
+    if(/^\d{4}-\d{2}-\d{2}$/.test(seen[id])) it.buyDate = seen[id];
+  });
+}
+function applySantaFilter(){
+  const c = document.getElementById('pickList'); if(c) c.classList.toggle('santa-only', santaOnly);
+  const b = document.getElementById('santaOnlyBtn'); if(b) b.textContent = santaOnly ? '看全部' : '只看這些';
+}
+function toggleSantaOnly(){ santaOnly = !santaOnly; applySantaFilter(); }
+function renderSantaSummary(cardCounts){
+  const container = document.getElementById('pickList'); if(!container) return;
+  let bar = document.getElementById('santaSummary');
+  if(!bar){ bar = document.createElement('div'); bar.id = 'santaSummary'; bar.className = 'santa-bar no-print'; container.parentNode.insertBefore(bar, container); }
+  const orders = cardCounts.filter(n => n > 0).length, cards = cardCounts.reduce((a, n) => a + n, 0);
+  if(orders === 0){ bar.style.display = 'none'; santaOnly = false; applySantaFilter(); return; }
+  bar.style.display = '';
+  bar.innerHTML = '🎅 <b>到 ' + escapeHtml(SANTA_PROMO.until.slice(5).replace('-', '/')) + ' 前,經典禮盒要放' + SANTA_PROMO.cardName + '</b>:這批有 <b>' + orders + '</b> 張訂單、共 <b>' + cards + '</b> 張卡 <button class="ghost" id="santaOnlyBtn" onclick="toggleSantaOnly()">' + (santaOnly ? '看全部' : '只看這些') + '</button>';
+  applySantaFilter();
+}
+
 function renderPickList(){
   const container = document.getElementById('pickList');
   const orderIds = [];
@@ -7028,7 +7082,10 @@ function renderPickList(){
       ? '<div class="pc-alert">⚠ ' + notes.map(escapeHtml).join('<br>⚠ ') + '</div>'
       : '';
     const hasOverQty = its.some(it => it.qty >= 2);
+    const santaN = santaCardsFor(its, oid);
+    const santaBlock = santaN > 0 ? '<div class="pc-santa">🎅 禮盒內放' + SANTA_PROMO.cardName + ' ×' + santaN + '</div>' : '';
     let cardClass = 'pick-card';
+    if(santaN > 0) cardClass += ' pick-card-santa';
     if(notes.length > 0) cardClass += ' pick-card-alert';
     if(hasOverQty) cardClass += ' pick-card-highqty';
     const shipCat = its[0].shippingCategory;
@@ -7054,7 +7111,7 @@ function renderPickList(){
         '<div class="pc-headrow"><span class="pc-name">' + escapeHtml(name) + shipTag + '</span>' + orderBadge + '</div>' +
       '</div>' +
       '<div class="pc-divider"></div>' +
-      '<div class="pc-body">' + itemsHtml + custBlock + '</div>' +
+      '<div class="pc-body">' + itemsHtml + custBlock + santaBlock + '</div>' +
       (hasOverQty ? '<div class="pc-qty-note">⚠ 此單有數量2件以上的商品</div>' : '') +
       '</div>';
   }).join('');
@@ -7065,6 +7122,7 @@ function renderPickList(){
   if(searchInput) searchInput.value = '';
   renderSpecialOrders();   // (裡面會呼叫 applySpecialToCards)檢貨單重畫了,特殊訂單那一列的提示也要重畫
   renderLineBagNote();
+  renderSantaSummary(orderIds.map(oid => santaCardsFor(byOrder[oid], oid)));
   updateSfQuickLinkBanner();
   updatePickProgress();
 }
