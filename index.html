@@ -1732,7 +1732,7 @@
 </div>
 
 <script>
-const APP_VERSION = '20261010-45'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20261010-47'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -2270,6 +2270,63 @@ function exportReportExcel(){
   XLSX.writeFile(wb, '報表_' + ymd(new Date()) + '.xlsx');
 }
 
+// ===== 測試模式:所有「寫進雲端」的動作都擋下來(給自己測試用,不會弄髒資料)=====
+// 郵局測試版:預設就是測試模式。正式版:預設不是,只有管理者看得到開關,而且不會記住(重新整理就恢復,免得忘了關、害同事的確認出貨沒存到)。
+// 網址加 ?test=1 開啟、?test=0 關閉。開著的時候:不寫雲端、不檢查「已確認過」、不記錄「已匯出郵局」。讀取照常。
+const TEST_BUILD_FLAG = (typeof TEST_BUILD !== 'undefined') ? TEST_BUILD : false;
+let TEST_MODE = TEST_BUILD_FLAG;
+(function(){ const m = /[?&]test=(\d)/.exec(location.search); if(m) TEST_MODE = m[1] === '1'; })();
+const TEST_BLOCKED = {n: 0, by: {}};
+function isTestMode(){ return !!TEST_MODE && (TEST_BUILD_FLAG || (typeof currentUserRole !== 'undefined' && currentUserRole === 'admin')); }
+function testBlockName(ref){
+  if(!ref) return '?';
+  return ref._col || (ref.parent && ref.parent.id) || (ref.type === 'collection' ? ref.id : '') || '?';
+}
+function testBlock(kind, ref){ TEST_BLOCKED.n++; const k = testBlockName(ref); TEST_BLOCKED.by[k] = (TEST_BLOCKED.by[k] || 0) + 1; renderTestUi(); }
+function installTestGuard(){
+  const fb = window.__fb; if(!fb || fb.__testGuard) return; fb.__testGuard = true;
+  ['setDoc', 'addDoc', 'updateDoc', 'deleteDoc'].forEach(n => {
+    const f = fb[n]; if(typeof f !== 'function') return;
+    fb[n] = function(ref){ if(isTestMode()){ testBlock(n, ref); return Promise.resolve(n === 'addDoc' ? {id: 'test-' + Date.now() + '-' + TEST_BLOCKED.n} : undefined); } return f.apply(this, arguments); };
+  });
+  const wb = fb.writeBatch;
+  if(typeof wb === 'function') fb.writeBatch = function(){
+    const b = wb.apply(this, arguments), commit = b && b.commit && b.commit.bind(b);
+    if(commit) b.commit = function(){ if(isTestMode()){ testBlock('writeBatch', {_col: '(批次)'}); return Promise.resolve(); } return commit(); };
+    return b;
+  };
+}
+(function waitTestGuard(){ if(window.__fb) installTestGuard(); else setTimeout(waitTestGuard, 20); })();
+function setTestMode(on){
+  if(on === isTestMode()) return;
+  if(on && !confirm('開啟測試模式:這個分頁之後做的事,都不會寫進雲端(包含確認完成揀貨、存每日訂單、改狀態、留言),只是演習。' + (TEST_BUILD_FLAG ? '' : '重新整理頁面就會恢復。') + '\n要開啟嗎?')) return;
+  if(!on && !confirm('關閉測試模式:之後做的事會真的寫進雲端(包含確認完成揀貨和存每日訂單)。\n確定要關閉嗎?')) return;
+  TEST_MODE = on; renderTestUi();
+}
+function renderTestUi(){
+  const on = isTestMode(), canToggle = TEST_BUILD_FLAG || (typeof currentUserRole !== 'undefined' && currentUserRole === 'admin');
+  let bar = document.getElementById('testModeBar');
+  if(!bar){
+    bar = document.createElement('div'); bar.id = 'testModeBar'; bar.className = 'no-print';
+    bar.style.cssText = 'display:none;position:sticky;top:0;z-index:9999;background:#fff3cd;border-bottom:2px solid #e0a800;color:#533f03;padding:8px 12px;font-size:13px;line-height:1.6;';
+    document.body.insertBefore(bar, document.body.firstChild);
+  }
+  let btn = document.getElementById('testModeBtn');
+  if(!btn){
+    btn = document.createElement('button'); btn.id = 'testModeBtn'; btn.className = 'ghost no-print'; btn.textContent = '🧪 測試模式';
+    btn.style.cssText = 'display:none;position:fixed;left:8px;bottom:8px;z-index:9998;opacity:.75;font-size:12px;padding:4px 8px;';
+    btn.onclick = () => setTestMode(true); document.body.appendChild(btn);
+  }
+  if(on){
+    const parts = Object.keys(TEST_BLOCKED.by).map(k => k + ' ' + TEST_BLOCKED.by[k]).join('、');
+    bar.innerHTML = '🧪 <b>測試模式</b>:這個分頁做的事<b>都不會寫進雲端</b>(存每日訂單、確認完成揀貨、改狀態、留言都只是演習,不會留下紀錄),也不檢查「已確認過」、不記錄「已匯出郵局」。已擋下 <b>' + TEST_BLOCKED.n + '</b> 次寫入' + (parts ? '(' + escapeHtml(parts) + ')' : '') + '。 ' + (canToggle ? '<button class="ghost" id="testModeOffBtn" style="font-size:12px;padding:2px 8px;" onclick="setTestMode(false)">關閉測試模式</button>' : '') + (TEST_BUILD_FLAG ? '' : ' <span style="opacity:.8;">(重新整理這個頁面就會恢復正常)</span>');
+    bar.style.display = '';
+  }else bar.style.display = 'none';
+  btn.style.display = (!on && canToggle) ? '' : 'none';
+  const tb = document.getElementById('testBanner'); if(tb) tb.style.display = (TEST_BUILD_FLAG && !on) ? '' : 'none';   // 郵局測試版原本那句「這是真的資料庫」的提醒,只有關掉測試模式時才需要
+}
+setInterval(renderTestUi, 1000);   // 登入之後才知道是不是管理者,所以定時更新一下顯示
+
 // ===== 每天匯入的訂單存到雲端(老闆拿去分析;一個人匯入就好)=====
 // 每張訂單一份文件,編號固定是「通路__訂單編號」→ 同一張訂單重複匯入只會存一次,也不會改到已經存的資料。
 // 不存客人的姓名、電話、地址、備註(只留縣市);平台檔案裡的日期、付款、金額、折扣、運費欄位挑出來一起存。
@@ -2413,6 +2470,7 @@ async function findExistingCloudOrders(uids){
   return set;
 }
 async function saveImportedOrdersToCloud(items, channel){
+  if(isTestMode()){ setCloudNote('🧪 測試模式:這批訂單<b>沒有</b>存到雲端。'); return; }
   const docs = buildCloudOrders(items, channel);   // 先(同步)整理好;等一下 rawHeaders 可能會被下一次匯入蓋掉
   if(docs.length === 0){ setCloudNote(''); return; }
   setCloudNote('☁ 正在把 ' + docs.length + ' 張訂單存到雲端…');
@@ -2450,7 +2508,7 @@ function buildCloudPanel(prefix, title){
       '<button class="ghost" id="' + p + '-csv" onclick="downloadCloudCsv(\'' + prefix + '\')" disabled>下載 CSV</button>' +
     '</div>' +
     '<div class="form-msg" id="' + p + '-msg"></div>' +
-    '<div id="' + p + '-result"></div>' + (prefix === 'rpt' ? backfillBlockHtml() : '') +
+    '<div id="' + p + '-result"></div>' + (prefix === 'rpt' ? backfillBlockHtml() + histBlockHtml() : '') +
   '</div>';
 }
 function mountCloudPanels(){
@@ -2507,7 +2565,7 @@ function downloadCloudCsv(prefix){
   const lines = [['匯入日期', '通路', '訂單編號', '購買時間', '訂單金額(每張訂單只在第一列)', '優惠券/優惠碼', '物流方式', '縣市', '商品SKU', '商品名稱', '數量', '單價', '小計', '系統補的贈品', '有客製文字', '已取消', '來源', '平台欄位(日期、付款、金額、折扣、運費…)'].map(q).join(',')];
   D.docs.slice().sort((x, y) => String(y.importDate).localeCompare(String(x.importDate)) || String(x.orderId).localeCompare(String(y.orderId))).forEach(d => {
     const extra = Object.keys(d.extra || {}).map(k => k + '=' + d.extra[k]).join(' | ');
-    (d.lines || []).forEach((l, li) => lines.push([d.importDate, CLOUD_CH_LABEL[d.channel] || d.channel, d.orderId, d.purchaseTime || '', (li === 0 && d.orderAmount != null) ? d.orderAmount : '', d.coupon || '', SHIP_CATEGORY_LABEL[d.shippingCategory] || d.shippingCategory || '', d.region || '', l.sku, l.name, l.qty, l.price, l.subtotal, l.gift ? '是' : '', d.hasCust ? '是' : '', d.cancelled ? '是' : '', d.backfilled ? '歷史補入(沒有金額)' : '匯入', extra].map(q).join(',')));
+    (d.lines || []).forEach((l, li) => lines.push([d.importDate, CLOUD_CH_LABEL[d.channel] || d.channel, d.orderId, d.purchaseTime || '', (li === 0 && d.orderAmount != null) ? d.orderAmount : '', d.coupon || '', SHIP_CATEGORY_LABEL[d.shippingCategory] || d.shippingCategory || '', d.region || '', l.sku, l.name, l.qty, l.price, l.subtotal, l.gift ? '是' : '', d.hasCust ? '是' : '', d.cancelled ? '是' : '', d.backfilled ? '歷史補入(沒有金額)' : (d.fromFile ? '平台檔案補入' : '匯入'), extra].map(q).join(',')));
   });
   const blob = new Blob(['\ufeff' + lines.join('\r\n')], {type: 'text/csv;charset=utf-8'});
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'orders_' + ymd(new Date()).replace(/-/g, '') + '.csv';
@@ -2568,6 +2626,7 @@ function renderBackfillPlan(){
 async function runBackfill(){
   const plan = backfillPlan, msg = document.getElementById('rpt-bf-msg'), out = document.getElementById('rpt-bf-result');
   if(!plan || plan.fresh.length === 0 || currentUserRole !== 'admin') return;
+  if(isTestMode()){ msg.textContent = '測試模式中:不會寫入雲端。請先關閉測試模式。'; return; }
   if(!confirm('要把 ' + plan.fresh.length + ' 張過去的訂單補進雲端嗎?\n補進去之後,只有管理者能在 Firebase 後台刪除。')) return;
   ['rpt-bf-preview', 'rpt-bf-run'].forEach(id => { const b = document.getElementById(id); if(b) b.disabled = true; });
   let ok = 0, fail = 0;
@@ -2582,6 +2641,117 @@ async function runBackfill(){
   out.innerHTML = '<div class="' + (fail ? 'dup-bad' : 'dup-ok') + '">已補入 <b>' + ok + '</b> 張' + (fail ? ',<b>' + fail + '</b> 張沒成功(網路或權限問題)。可以再按一次「先檢查可以補多少」,只會補還沒補進去的。' : '。') + '</div>' +
     '<div class="dup-sub">要讓<b>試算表</b>也有這些資料,請到 Apps Script 編輯器,函式選 <b>syncAll</b> 按「執行」一次(之後每小時的自動同步只看最近 3 天)。</div>';
   const pb = document.getElementById('rpt-bf-preview'); if(pb) pb.disabled = false;
+}
+
+// ===== 用平台匯出檔補資料:補上購買時間、訂單金額、優惠券/優惠碼(LINE、官網;管理者用)=====
+const HIST_MAX_WRITES = 5000;   // 一次最多處理幾筆(Firebase 免費方案一天寫入有上限;分批做,補過的下次會自動略過)
+const HIST_FIELDS = ['purchaseTime', 'orderAmount', 'coupon'];
+function histBlockHtml(){
+  return '<div class="cl-backfill"><h3>用平台匯出檔補資料(購買時間、訂單金額、優惠券/優惠碼)</h3>' +
+    '<div class="dup-sub">以前存的訂單沒有這三樣,只有平台的匯出檔裡有。選 LINE 或官網的訂單匯出檔(<b>可以是一整年的、可以一次選好幾個</b>),系統依訂單編號對回去:<b>雲端已經有的訂單,只補上缺的這三樣</b>(不會改任何已經有的值);雲端沒有的訂單會新增(日期是客人的購買日,不是今天)。LINE 檔案裡「已取消、已退貨」的訂單會標成取消。不存客人的姓名、電話、地址。</div>' +
+    '<div class="btn-row"><select id="rpt-hf-ch"><option value="line">LINE 的訂單匯出檔(.xlsx)</option><option value="shop">官網的訂單匯出檔(.csv)</option></select> <input type="file" id="rpt-hf-file" accept=".xlsx,.xls,.csv" multiple> <button class="ghost" id="rpt-hf-preview" onclick="previewHist()">先檢查</button></div>' +
+    '<div class="form-msg" id="rpt-hf-msg"></div><div id="rpt-hf-result"></div></div>';
+}
+let histState = null;   // {docs, errs, channel, files, existing}
+// 讀檔:直接用平常匯入的那兩個讀檔函式(SKU、數量、價格、客製、取消的判斷跟平常匯入完全一樣);讀的時候暫時接管「目前檔案、原始欄位、錯誤顯示」,讀完還原,不影響平常的匯入畫面
+async function parseHistFiles(files, channel){
+  const byUid = {}, order = [], errs = [], keepFile = currentFile, keepErr = showError, keepHeaders = rawHeaders;
+  showError = function(lines){ errs.push(Array.isArray(lines) ? lines.join(' ') : String(lines)); };
+  try{
+    for(const f of files){
+      currentFile = f;
+      const items = channel === 'shop' ? await readShopItems() : await readLineItems();
+      if(!items){ errs.push('(' + f.name + ' 讀不了)'); continue; }
+      buildCloudOrders(items, channel).forEach(d => {
+        const pd = String(d.purchaseTime || '').slice(0, 10);
+        if(/^\d{4}-\d{2}-\d{2}$/.test(pd)) d.importDate = pd;   // 日期用客人的購買日;檔案裡沒有購買時間才用今天
+        d.fromFile = true;
+        d.extra = Object.assign({'來源': '平台檔案補入(歷史)'}, d.extra || {});
+        if(channel === 'line'){ d.shippingCategory = ''; if(/已取消|已退貨/.test(String(d.extra['訂單狀態'] || ''))) d.cancelled = true; }   // LINE 程式會一律填「黑貓」,歷史訂單不一定是,所以留空
+        const cur = byUid[d.uid];
+        if(!cur){ byUid[d.uid] = d; order.push(d.uid); }
+        else HIST_FIELDS.forEach(k => { if(!(k in cur) && k in d) cur[k] = d[k]; });   // 同一張訂單出現在好幾個檔案:合併
+      });
+    }
+  }finally{ currentFile = keepFile; showError = keepErr; rawHeaders = keepHeaders; }
+  return {docs: order.map(u => byUid[u]), errs};
+}
+// 只讀「這份檔案裡有的訂單」在雲端的樣子(不是整個集合,省讀取次數)
+async function readCloudOrdersByUid(uids){
+  const map = new Map(), chunks = [], {db, collection, query, where, getDocs} = window.__fb;
+  for(let i = 0; i < uids.length; i += 30) chunks.push(uids.slice(i, i + 30));
+  for(let i = 0; i < chunks.length; i += 8){
+    await Promise.all(chunks.slice(i, i + 8).map(async ch => { const snap = await getDocs(query(collection(db, CLOUD_ORDERS_COLLECTION), where('uid', 'in', ch))); snap.forEach(d => { const x = d.data(); if(x && x.uid) map.set(x.uid, x); }); }));
+  }
+  return map;
+}
+// 雲端已經有的:只補「缺的」三樣;已經有值的一律不動
+function histDiff(docs, existing){
+  const create = [], patch = []; let complete = 0, conflict = 0;
+  docs.forEach(d => {
+    const e = existing.get(d.uid);
+    if(!e){ create.push(d); return; }
+    const fields = {}; let conf = false;
+    HIST_FIELDS.forEach(k => { if(k in d){ if(!(k in e)) fields[k] = d[k]; else if(e[k] !== d[k]) conf = true; } });
+    if(Object.keys(fields).length) patch.push({uid: d.uid, fields}); else complete++;
+    if(conf) conflict++;
+  });
+  return {create, patch, complete, conflict};
+}
+function histOps(S){
+  const df = histDiff(S.docs, S.existing), ops = df.patch.map(p => ({type: 'patch', uid: p.uid, fields: p.fields})).concat(df.create.map(d => ({type: 'create', d})));
+  const run = ops.slice(0, HIST_MAX_WRITES);
+  return {df, ops: run, nCreate: run.filter(o => o.type === 'create').length, nPatch: run.filter(o => o.type === 'patch').length, total: ops.length};
+}
+async function previewHist(){
+  const msg = document.getElementById('rpt-hf-msg'), out = document.getElementById('rpt-hf-result'), btn = document.getElementById('rpt-hf-preview');
+  if(currentUserRole !== 'admin'){ msg.textContent = '只有管理者可以補資料。'; return; }
+  const files = Array.from(document.getElementById('rpt-hf-file').files || []), ch = document.getElementById('rpt-hf-ch').value;
+  if(files.length === 0){ msg.textContent = '請先選要補的檔案。'; return; }
+  btn.disabled = true; out.innerHTML = ''; histState = null; msg.textContent = '讀檔中…(只讀取,還沒有寫入任何東西)';
+  try{
+    const r = await parseHistFiles(files, ch);
+    if(r.docs.length === 0){ msg.textContent = '讀不到訂單。' + (r.errs.length ? ' ' + r.errs.join(' ') : '') + ' 請確認通路選對了,而且是平台匯出的原始檔。'; btn.disabled = false; return; }
+    msg.textContent = '比對雲端…'; await waitForFirebase();
+    const existing = await readCloudOrdersByUid(r.docs.map(d => d.uid));
+    histState = {docs: r.docs, errs: r.errs, channel: ch, files: files.length, existing}; msg.textContent = ''; renderHistPlan();
+  }catch(err){
+    msg.textContent = '失敗:' + (err && err.message ? err.message : err);
+  }
+  btn.disabled = false;
+}
+function renderHistPlan(extraHtml){
+  const out = document.getElementById('rpt-hf-result'), S = histState;
+  if(!S){ out.innerHTML = extraHtml || ''; return; }
+  const P = histOps(S), df = P.df, dates = df.create.map(d => d.importDate).sort(), canc = df.create.filter(d => d.cancelled).length, cp = S.docs.filter(d => d.coupon).length, h = [];
+  if(extraHtml) h.push(extraHtml);
+  h.push('<div class="dup-sum">讀了 <b>' + S.files + '</b> 個檔案(' + escapeHtml(CLOUD_CH_LABEL[S.channel] || S.channel) + '),共 <b>' + S.docs.length + '</b> 張訂單,其中 <b>' + cp + '</b> 張有用優惠券' + (S.errs.length ? '(有問題:' + escapeHtml(S.errs.join(' ')) + ')' : '') + '。</div>');
+  h.push('<div class="dup-sum">雲端已經有 <b>' + (df.patch.length + df.complete) + '</b> 張:<b>' + df.patch.length + '</b> 張缺資料、可以補上;<b>' + df.complete + '</b> 張已經完整(略過)' + (df.conflict ? ';另有 ' + df.conflict + ' 張雲端原本的值跟檔案不一樣,<b>不會改</b>' : '') + '。雲端沒有的 <b>' + df.create.length + '</b> 張會新增' + (df.create.length ? '(日期從 <b>' + escapeHtml(dates[0]) + '</b> 到 <b>' + escapeHtml(dates[dates.length - 1]) + '</b>;其中取消或退貨 ' + canc + ' 張)' : '') + '。</div>');
+  if(P.total === 0) h.push('<div class="dup-ok">✓ 沒有需要補的了。</div>');
+  else h.push('<div class="btn-row"><button class="primary" id="rpt-hf-run" onclick="runHist()">確定:新增 ' + P.nCreate + ' 張、補上資料 ' + P.nPatch + ' 張</button></div><div class="dup-sub">' + (P.total > HIST_MAX_WRITES ? '這次最多處理 ' + HIST_MAX_WRITES + ' 筆(Firebase 免費方案一天的寫入有上限),還剩 <b>' + (P.total - HIST_MAX_WRITES) + '</b> 筆,做完再按一次就會接著做。' : '') + '補進去之後,只有管理者能在 Firebase 後台刪除。</div>');
+  out.innerHTML = h.join('');
+}
+async function runHist(){
+  const S = histState, msg = document.getElementById('rpt-hf-msg');
+  if(!S || currentUserRole !== 'admin') return;
+  if(isTestMode()){ msg.textContent = '測試模式中:不會寫入雲端。請先關閉測試模式。'; return; }
+  const P = histOps(S); if(P.ops.length === 0) return;
+  if(!confirm('要處理 ' + P.ops.length + ' 張訂單嗎?(新增 ' + P.nCreate + ' 張、補上資料 ' + P.nPatch + ' 張)\n補進去之後,只有管理者能在 Firebase 後台刪除。')) return;
+  ['rpt-hf-preview', 'rpt-hf-run'].forEach(id => { const b = document.getElementById(id); if(b) b.disabled = true; });
+  let okC = 0, okP = 0, failC = 0, failP = 0;
+  try{
+    const {db, doc, setDoc, updateDoc, serverTimestamp} = window.__fb;
+    for(let i = 0; i < P.ops.length; i += 25){
+      await Promise.all(P.ops.slice(i, i + 25).map(o => o.type === 'create'
+        ? setDoc(doc(db, CLOUD_ORDERS_COLLECTION, o.d.uid), Object.assign({}, o.d, {importedAt: serverTimestamp()})).then(() => { okC++; S.existing.set(o.d.uid, o.d); }, () => { failC++; })
+        : updateDoc(doc(db, CLOUD_ORDERS_COLLECTION, o.uid), o.fields).then(() => { okP++; S.existing.set(o.uid, Object.assign({}, S.existing.get(o.uid), o.fields)); }, () => { failP++; })));
+      msg.textContent = '處理中… ' + Math.min(i + 25, P.ops.length) + ' / ' + P.ops.length;
+    }
+  }catch(e){}
+  msg.textContent = '';
+  const bad = failC + failP;
+  renderHistPlan('<div class="' + (bad ? 'dup-bad' : 'dup-ok') + '">已新增 <b>' + okC + '</b> 張、補上資料 <b>' + okP + '</b> 張' + (bad ? ',<b>' + bad + '</b> 張沒成功(網路或權限問題;補欄位要先發布新版的資料庫規則)' : '') + '。</div><div class="dup-sub">要讓<b>試算表</b>也更新,請到 Apps Script 編輯器,函式選 <b>rebuildAll</b> 按「執行」一次。</div>');
+  const pb = document.getElementById('rpt-hf-preview'); if(pb) pb.disabled = false;
 }
 
 mountCloudPanels();
@@ -2707,6 +2877,7 @@ async function importHistoricalRecords(){
     return;
   }
 
+  if(isTestMode()){ msgEl.textContent = '測試模式中:不會寫入雲端,所以不能匯入歷史紀錄。請先關閉測試模式。'; return; }
   let records;
   try{
     const text = await file.text();
@@ -2776,7 +2947,7 @@ function loadLedger(key){
   return o;
 }
 function ledgerAdd(key, channel, orderIds){
-  if(!orderIds || orderIds.length === 0) return;
+  if(!orderIds || orderIds.length === 0 || isTestMode()) return;   // 測試模式不記錄(不然正式匯入時會被當成「已確認過」)
   const o = loadLedger(key);
   o[channel] = o[channel] || {};
   const today = ymd(new Date());
@@ -2790,7 +2961,7 @@ function ledgerGet(key, channel, orderId){
 // 一次取出某個通路的整份記錄({訂單編號: 日期})。要查很多張訂單時用這個(只讀、解析一次),
 // 不要在迴圈裡一直呼叫 ledgerGet:每呼叫一次就會把整份記錄重新讀出來、解析一次,訂單多、記錄多的時候會很慢。
 function ledgerRemove(key, channel, orderIds){
-  if(!orderIds || orderIds.length === 0) return;
+  if(!orderIds || orderIds.length === 0 || isTestMode()) return;
   const o = loadLedger(key);
   if(!o[channel]) return;
   orderIds.forEach(id => { delete o[channel][id]; });
@@ -6575,6 +6746,7 @@ function withTimeout(promise, ms){
 // 只查資料庫(不看這台電腦的記錄):這幾張訂單,資料庫的訂單紀錄裡是不是已經有了(別台電腦剛剛確認的也查得到)
 async function findRecordedInHistory(channel, orderIds){
   const found = {};
+  if(isTestMode()) return found;   // 測試模式:不查,也不會寫
   if(!orderIds || orderIds.length === 0) return found;
   const cutoff = ledgerCutoff();
   await waitForFirebase();
@@ -6613,6 +6785,7 @@ async function findConfirmedOrderIds(channel, orderIds){
 let lastDupSkip = null;   // 最近一次匯入略過了哪些「已確認過」的訂單
 async function filterAlreadyConfirmed(items){
   const channel = currentChannel;
+  if(isTestMode()) return {items: items, skipped: []};   // 測試模式:不檢查「已確認過」(才能拿今天同事已經確認過的真訂單來測)
   const ids = [...new Set(items.map(it => it.orderId).filter(Boolean))];
   const found = await findConfirmedOrderIds(channel, ids);
   const dupIds = ids.filter(id => found[id]);

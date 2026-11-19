@@ -367,6 +367,37 @@
   }
   .pick-card .pc-item.pc-item-multi .pc-scent-tag{box-shadow:0 0 0 1.5px rgba(0,0,0,.3);}   /* 黃底上的黃色香味色塊,邊界才看得清楚 */
 
+  /* 補寄:每一項資料一顆複製鈕 */
+  .cp-group{margin:6px 0;padding:6px 10px;background:#F6F3EA;border-radius:8px;max-width:480px;}   /* 限制寬度:複製鈕才會貼近文字,又對齊成一直排 */
+  .cp-group.cp-warn{background:#FFF1D6;border:1px solid #E6B35A;}
+  .cp-title{font-size:12px;font-weight:700;color:var(--sage-dark);margin-bottom:3px;}
+  .cp-group.cp-warn .cp-title{color:#7A4A00;}
+  .cp-row{display:flex;align-items:center;gap:8px;margin:2px 0;font-size:14px;}
+  .cp-label{flex:0 0 46px;color:var(--ink-soft);font-size:12.5px;}
+  .cp-val{flex:1;min-width:0;word-break:break-all;color:var(--ink);}
+  .cp-val.cp-empty{color:var(--ink-soft);font-size:12.5px;}
+  .cp-row button.cp-btn, .resend-item .cp-row button.cp-btn{flex:0 0 auto;margin:0;padding:2px 11px;font-size:12px;font-weight:600;background:#fff;border:1px solid var(--line);border-radius:7px;cursor:pointer;color:var(--ink);}
+  .cp-row button.cp-btn:hover{background:#F1F4EC;}
+  .cp-row button.cp-btn.copied{background:#DDEFD9;border-color:#7FA67A;color:#2E6B2E;}
+
+  .dup-sum{margin:8px 0;font-size:13px;color:var(--ink-soft);}
+  .dup-ok{margin:8px 0;padding:8px 12px;border-radius:8px;background:#E6F2E1;border:1px solid #A9CDA0;color:#2E5E2A;font-size:14px;}
+  .dup-bad{margin:8px 0;padding:8px 12px;border-radius:8px;background:#FBE4E4;border:1px solid #E3A1A1;color:#8A2A2A;font-size:14px;}
+  .dup-sub{margin:4px 0 8px;font-size:12.5px;color:var(--ink-soft);line-height:1.6;}
+  .dup-wrap{max-height:340px;overflow:auto;margin:6px 0;border:1px solid var(--line);border-radius:8px;}
+  .dup-tbl{border-collapse:collapse;width:100%;font-size:13px;}
+  .dup-tbl th{position:sticky;top:0;background:#F1F4EC;text-align:left;padding:5px 9px;border-bottom:1px solid var(--line);}
+  .dup-tbl td{padding:4px 9px;border-bottom:1px solid #EEE;word-break:break-all;}
+
+  .cloud-panel .btn-row select{margin-right:6px;}
+  #cloudSaveNote{margin-top:8px;}
+
+  .cl-backfill{margin-top:16px;padding-top:12px;border-top:1px dashed var(--line);}
+  .cl-backfill h3{font-size:14px;margin:0 0 4px;}
+
+  .wt-details{margin:8px 0;font-size:13px;}
+  .wt-details summary{cursor:pointer;color:var(--ink-soft);}
+
   .update-banner{
     background:var(--warn);color:#fff;text-align:center;font-size:13.5px;font-weight:600;
     padding:10px 16px;border-radius:8px;margin-bottom:20px;cursor:pointer;
@@ -1309,6 +1340,7 @@
     <div class="line-bag-note no-print" id="lineBagNote" style="display:none;"></div>
     <div class="gift-note no-print" id="shopGiftNote" style="display:none;"></div>
     <div class="gift-note no-print" id="dupImportNote" style="display:none;"></div>
+<div class="gift-note no-print" id="cloudSaveNote" style="display:none;"></div>
 
     <div class="carrier-default no-print" id="carrierDefaultBox">
       <span class="cd-label">宅配預設用哪家寄:</span>
@@ -1326,6 +1358,7 @@
         <button class="ghost" id="postDownloadBtn" onclick="downloadPostXlsx()">下載</button>
       </div>
       <div class="gift-note no-print" id="postExportNote" style="display:none;"></div>
+      <details class="wt-details no-print" id="wtDetails"><summary>目前使用的重量表(內建;SKU 表「重量」欄有填的會優先用)</summary><div id="wtTable"></div></details>
     </div>
 
     <div class="download-list" id="kerryDownloadItem">
@@ -1677,6 +1710,7 @@
       <div id="bossPendingList"></div>
       <div class="boss-list-head"><h3>已處理 <span class="pickup-count" id="bossDoneCount"></span></h3><button class="ghost" id="bossReadAllBtn" style="display:none;" onclick="bossMarkAllRead()">全部標示為已讀</button></div>
       <div id="bossDoneList"></div>
+      <div id="cloudPanelBoss"></div>
     </div>
   </div>
 
@@ -1722,13 +1756,26 @@
       </div>
       <div class="form-msg" id="historyImportMsg"></div>
     </div>
+
+    <div id="cloudPanelReport"></div>
+
+    <div class="panel no-print" id="dupCheckPanel">
+      <h2>檢查資料有沒有重複</h2>
+      <div class="desc">只讀取、<b>不會改任何資料</b>。檢查「訂單紀錄」(每張確認完成揀貨的訂單會記一筆)和「揀貨紀錄」(每次按確認會記一筆)裡,有沒有同一張訂單被記了不只一次。</div>
+      <div class="btn-row">
+        <select id="dupRange"><option value="7">最近 7 天</option><option value="30" selected>最近 30 天</option><option value="90">最近 90 天</option><option value="all">全部(筆數很多時會比較久)</option></select>
+        <button class="primary" id="dupRunBtn" onclick="runDupCheck()">開始檢查</button>
+      </div>
+      <div class="form-msg" id="dupMsg"></div>
+      <div id="dupResult"></div>
+    </div>
   </div>
 
 </div>
 
 <script>
 const TEST_BUILD = true;   // 測試版(post-test.html)只有這一行是 true,其他完全一樣;測好要換成正式版時,把它改成 false 放回 index.html 即可
-const APP_VERSION = '20261010-33'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20261010-50'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -2266,6 +2313,604 @@ function exportReportExcel(){
   XLSX.writeFile(wb, '報表_' + ymd(new Date()) + '.xlsx');
 }
 
+// ===== 測試模式:所有「寫進雲端」的動作都擋下來(給自己測試用,不會弄髒資料)=====
+// 郵局測試版:預設就是測試模式。正式版:預設不是,只有管理者看得到開關,而且不會記住(重新整理就恢復,免得忘了關、害同事的確認出貨沒存到)。
+// 網址加 ?test=1 開啟、?test=0 關閉。開著的時候:不寫雲端、不檢查「已確認過」、不記錄「已匯出郵局」。讀取照常。
+const TEST_BUILD_FLAG = (typeof TEST_BUILD !== 'undefined') ? TEST_BUILD : false;
+let TEST_MODE = TEST_BUILD_FLAG;
+(function(){ const m = /[?&]test=(\d)/.exec(location.search); if(m) TEST_MODE = m[1] === '1'; })();
+const TEST_BLOCKED = {n: 0, by: {}};
+function isTestMode(){ return !!TEST_MODE && (TEST_BUILD_FLAG || (typeof currentUserRole !== 'undefined' && currentUserRole === 'admin')); }
+function testBlockName(ref){
+  if(!ref) return '?';
+  return ref._col || (ref.parent && ref.parent.id) || (ref.type === 'collection' ? ref.id : '') || '?';
+}
+function testBlock(kind, ref){ TEST_BLOCKED.n++; const k = testBlockName(ref); TEST_BLOCKED.by[k] = (TEST_BLOCKED.by[k] || 0) + 1; renderTestUi(); }
+function installTestGuard(){
+  const fb = window.__fb; if(!fb || fb.__testGuard) return; fb.__testGuard = true;
+  ['setDoc', 'addDoc', 'updateDoc', 'deleteDoc'].forEach(n => {
+    const f = fb[n]; if(typeof f !== 'function') return;
+    fb[n] = function(ref){ if(isTestMode()){ testBlock(n, ref); return Promise.resolve(n === 'addDoc' ? {id: 'test-' + Date.now() + '-' + TEST_BLOCKED.n} : undefined); } return f.apply(this, arguments); };
+  });
+  const wb = fb.writeBatch;
+  if(typeof wb === 'function') fb.writeBatch = function(){
+    const b = wb.apply(this, arguments), commit = b && b.commit && b.commit.bind(b);
+    if(commit) b.commit = function(){ if(isTestMode()){ testBlock('writeBatch', {_col: '(批次)'}); return Promise.resolve(); } return commit(); };
+    return b;
+  };
+}
+(function waitTestGuard(){ if(window.__fb) installTestGuard(); else setTimeout(waitTestGuard, 20); })();
+function setTestMode(on){
+  if(on === isTestMode()) return;
+  if(on && !confirm('開啟測試模式:這個分頁之後做的事,都不會寫進雲端(包含確認完成揀貨、存每日訂單、改狀態、留言),只是演習。' + (TEST_BUILD_FLAG ? '' : '重新整理頁面就會恢復。') + '\n要開啟嗎?')) return;
+  if(!on && !confirm('關閉測試模式:之後做的事會真的寫進雲端(包含確認完成揀貨和存每日訂單)。\n確定要關閉嗎?')) return;
+  TEST_MODE = on; renderTestUi();
+}
+function renderTestUi(){
+  const on = isTestMode(), canToggle = TEST_BUILD_FLAG || (typeof currentUserRole !== 'undefined' && currentUserRole === 'admin');
+  let bar = document.getElementById('testModeBar');
+  if(!bar){
+    bar = document.createElement('div'); bar.id = 'testModeBar'; bar.className = 'no-print';
+    bar.style.cssText = 'display:none;position:sticky;top:0;z-index:9999;background:#fff3cd;border-bottom:2px solid #e0a800;color:#533f03;padding:8px 12px;font-size:13px;line-height:1.6;';
+    document.body.insertBefore(bar, document.body.firstChild);
+  }
+  let btn = document.getElementById('testModeBtn');
+  if(!btn){
+    btn = document.createElement('button'); btn.id = 'testModeBtn'; btn.className = 'ghost no-print'; btn.textContent = '🧪 測試模式';
+    btn.style.cssText = 'display:none;position:fixed;left:8px;bottom:8px;z-index:9998;opacity:.75;font-size:12px;padding:4px 8px;';
+    btn.onclick = () => setTestMode(true); document.body.appendChild(btn);
+  }
+  if(on){
+    const parts = Object.keys(TEST_BLOCKED.by).map(k => k + ' ' + TEST_BLOCKED.by[k]).join('、');
+    bar.innerHTML = '🧪 <b>測試模式</b>:這個分頁做的事<b>都不會寫進雲端</b>(存每日訂單、確認完成揀貨、改狀態、留言都只是演習,不會留下紀錄),也不檢查「已確認過」、不記錄「已匯出郵局」。已擋下 <b>' + TEST_BLOCKED.n + '</b> 次寫入' + (parts ? '(' + escapeHtml(parts) + ')' : '') + '。 ' + (canToggle ? '<button class="ghost" id="testModeOffBtn" style="font-size:12px;padding:2px 8px;" onclick="setTestMode(false)">關閉測試模式</button>' : '') + (TEST_BUILD_FLAG ? '' : ' <span style="opacity:.8;">(重新整理這個頁面就會恢復正常)</span>');
+    bar.style.display = '';
+  }else bar.style.display = 'none';
+  btn.style.display = (!on && canToggle) ? '' : 'none';
+  const tb = document.getElementById('testBanner'); if(tb) tb.style.display = (TEST_BUILD_FLAG && !on) ? '' : 'none';   // 郵局測試版原本那句「這是真的資料庫」的提醒,只有關掉測試模式時才需要
+}
+setInterval(renderTestUi, 1000);   // 登入之後才知道是不是管理者,所以定時更新一下顯示
+
+// ===== 每天匯入的訂單存到雲端(老闆拿去分析;一個人匯入就好)=====
+// 每張訂單一份文件,編號固定是「通路__訂單編號」→ 同一張訂單重複匯入只會存一次,也不會改到已經存的資料。
+// 不存客人的姓名、電話、地址、備註(只留縣市);平台檔案裡的日期、付款、金額、折扣、運費欄位挑出來一起存。
+const CLOUD_ORDERS_COLLECTION = 'daily_orders';
+const CLOUD_CH_LABEL = {line: 'LINE', shop: '官網', shopee: '蝦皮', pinkoi: 'PINKOI'};
+const CLOUD_EXTRA_ALLOW = /日期|時間|date|time|created|paid|付款|金額|總計|合計|小計|折扣|優惠|折價|coupon|discount|運費|shipping|payment|total|price|subtotal|fee|稅|tax|幣|currency|狀態|status/i;
+const CLOUD_EXTRA_DENY = /name|姓名|名稱|address|地址|phone|電話|手機|mail|信箱|收件|買家|客戶|備註|note|remark|留言|刻印|統編|帳號|身分|生日|\bid\b/i;
+const CLOUD_CITIES = ['台北市', '新北市', '桃園市', '台中市', '台南市', '高雄市', '基隆市', '新竹市', '新竹縣', '苗栗縣', '彰化縣', '南投縣', '雲林縣', '嘉義市', '嘉義縣', '屏東縣', '宜蘭縣', '花蓮縣', '台東縣', '澎湖縣', '金門縣', '連江縣'];
+function cloudRegion(addr){
+  const t = String(addr || '').replace(/臺/g, '台');
+  for(const c of CLOUD_CITIES){ if(t.indexOf(c) !== -1) return c; }
+  return '';
+}
+// 只留日期、付款、金額、折扣、運費這類欄位(而且欄位名稱不能像姓名、電話、地址、備註);欄位數量和長度都有上限
+function cloudExtra(headers, row){
+  const out = {};
+  if(!headers || !row || row.length !== headers.length) return out;   // 對不上(例如蝦皮多個檔案的欄位不同)就不存,免得標錯欄位
+  let n = 0;
+  headers.forEach((h, i) => {
+    const key = String(h == null ? '' : h).trim();
+    if(!key || n >= 15 || !CLOUD_EXTRA_ALLOW.test(key) || CLOUD_EXTRA_DENY.test(key)) return;
+    const v = String(row[i] == null ? '' : row[i]).trim();
+    if(!v) return;
+    out[key.replace(/[.\/~*\[\]`]/g, '_').slice(0, 40)] = v.slice(0, 80); n++;
+  });
+  return out;
+}
+// ===== 購買時間、訂單金額、優惠券/優惠碼(有就填,沒有就不用)=====
+// LINE、官網的欄位名稱是用真的匯出檔確認過的;蝦皮、PINKOI 沒有樣本檔,先用常見的名稱去找(找不到就空白)。
+const CLOUD_FIELD_NAMES = {
+  line: {time: ['訂單下單日期', '完成付款日'], amount: ['總付款金額'], coupon: ['訂單優惠券標題', '訂單優惠券主編號']},
+  shop: {time: ['Created at', 'Paid at'], amount: ['Total'], coupon: ['Discount Code']}
+};
+const CLOUD_FIELD_GENERIC = {
+  time: /(訂單|下單|購買|訂購|成立|創建|建立).{0,4}(日期|時間)|create[_ ]?(time|date|at)|order[_ ]?(date|time|creation)|created[_ ]?at/i,
+  amount: /(總付款|實付|實收|應付|訂單總|訂單金額|買家.{0,4}(支付|付款)|total[_ ]?(amount|price|paid)|grand[_ ]?total|order[_ ]?total|^total$)/i,
+  coupon: /(優惠券|優惠碼|折扣碼|折價券|voucher|coupon|promo(tion)?[_ ]?code|discount[_ ]?code)/i
+};
+const CLOUD_AMOUNT_EXCLUDE = /(商品|折抵|折扣|運費|shipping|discount|item|product|tax|稅)/i;   // 這些是品項金額、折扣或運費,不是實付金額
+const CLOUD_COUPON_EXCLUDE = /(金額|amount|折抵|負擔|比例|點數|ratio|rate)/i;   // 優惠券的金額、負擔比例不是「碼」
+function cloudClean(v){
+  if(v == null) return '';
+  const s = String(v).trim().replace(/^'+/, '').trim();
+  return (s === '' || /^(-+|—|–|無|n\/a|null|none|0000-00-00.*)$/i.test(s)) ? '' : s;   // 「'-」「-」這種代表沒有
+}
+function cloudNormTime(v){
+  const p = n => String(n).padStart(2, '0');
+  if(typeof v === 'number' && isFinite(v) && v > 20000 && v < 80000){   // Excel 的日期序號
+    const d = new Date(Math.round((v - 25569) * 86400000));
+    return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate()) + ' ' + p(d.getUTCHours()) + ':' + p(d.getUTCMinutes());
+  }
+  const s = cloudClean(v); if(!s) return '';
+  const m = s.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})(?:[ T]+(\d{1,2}):(\d{2})(?::\d{2}(?:\.\d+)?)?)?\s*(Z|[+-]\d{2}:?\d{2})?$/);
+  if(!m) return s.slice(0, 40);
+  if(m[4] == null) return m[1] + '-' + p(m[2]) + '-' + p(m[3]);
+  let ms = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+  if(m[6]){   // 有寫時區:換成台灣時間(+08:00)
+    const z = m[6] === 'Z' ? 0 : (m[6][0] === '-' ? -1 : 1) * (parseInt(m[6].slice(1, 3), 10) * 60 + parseInt(m[6].slice(-2), 10));
+    ms = ms - z * 60000 + 8 * 3600000;
+  }
+  const d = new Date(ms);
+  return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate()) + ' ' + p(d.getUTCHours()) + ':' + p(d.getUTCMinutes());
+}
+function cloudNum(v){
+  const s = cloudClean(v).replace(/[,\s$元]|NT/g, ''); if(s === '') return null;
+  const n = parseFloat(s); return isFinite(n) ? n : null;
+}
+function cloudPick(headers, row, names, generic, exclude){
+  const norm = x => String(x == null ? '' : x).trim().toLowerCase();
+  for(const name of names || []){
+    const i = headers.findIndex(h => norm(h) === norm(name));
+    if(i !== -1 && cloudClean(row[i]) !== '') return row[i];
+  }
+  if(generic){
+    for(let i = 0; i < headers.length; i++){
+      const h = String(headers[i] == null ? '' : headers[i]).trim();
+      if(!h || !generic.test(h) || (exclude && exclude.test(h)) || CLOUD_EXTRA_DENY.test(h)) continue;
+      if(cloudClean(row[i]) !== '') return row[i];
+    }
+  }
+  return '';
+}
+// 回傳 {purchaseTime, orderAmount, coupon}:有找到才放,沒有就不放(Firebase 不收 undefined)
+function cloudOrderFields(channel, headers, row){
+  const out = {};
+  if(!headers || !row || row.length !== headers.length) return out;   // 對不上(例如蝦皮多個檔案欄位不同)就不填
+  const N = CLOUD_FIELD_NAMES[channel] || {};
+  const t = cloudNormTime(cloudPick(headers, row, N.time, CLOUD_FIELD_GENERIC.time));
+  const a = cloudNum(cloudPick(headers, row, N.amount, CLOUD_FIELD_GENERIC.amount, CLOUD_AMOUNT_EXCLUDE));
+  const c = cloudClean(cloudPick(headers, row, N.coupon, CLOUD_FIELD_GENERIC.coupon, CLOUD_COUPON_EXCLUDE));
+  if(t) out.purchaseTime = t;
+  if(a != null) out.orderAmount = a;
+  if(c) out.coupon = c.slice(0, 80);
+  return out;
+}
+function buildCloudOrders(items, channel){
+  const groups = {}, order = [];
+  items.forEach(it => {
+    const id = String(it.orderId == null ? '' : it.orderId).trim();
+    if(!id) return;
+    if(!groups[id]){ groups[id] = []; order.push(id); }
+    groups[id].push(it);
+  });
+  const today = ymd(new Date());
+  return order.map(id => {
+    const g = groups[id], first = g[0];
+    const lines = g.map(it => ({sku: String(it.sku || ''), name: String(it.itemName || '').slice(0, 120), qty: Number(it.qty) || 0, price: Number(it.price) || 0, subtotal: Number(it.subtotal) || 0, gift: !!it.autoGift}));
+    const real = lines.filter(l => !l.gift);
+    const d = {
+      uid: channel + '__' + normOrderKey(id).replace(/\//g, '_'),
+      orderId: id, channel,
+      shippingCategory: first.shippingCategory || '',
+      lines,
+      itemQty: real.reduce((n, l) => n + l.qty, 0),
+      orderTotal: real.reduce((n, l) => n + l.subtotal, 0),
+      hasCust: g.some(x => x.hasCust),
+      cancelled: g.some(x => x.cancelled),
+      region: cloudRegion(first.address),
+      extra: cloudExtra(rawHeaders, first.rawRow),
+      importDate: today,
+      importedBy: currentUserEmail || ''
+    };   // importedAt(寫入時間)要等到真的寫入的那一刻才加(用資料庫的時間)
+    Object.assign(d, cloudOrderFields(channel, rawHeaders, first.rawRow));   // 購買時間、訂單金額(取每張訂單第一列)、優惠券/優惠碼:有就填
+    return d;
+  });
+}
+function setCloudNote(html){
+  const el = document.getElementById('cloudSaveNote');
+  if(!el) return;
+  el.innerHTML = html; el.style.display = html ? '' : 'none';
+}
+async function findExistingCloudOrders(uids){
+  const set = new Set();
+  const {db, collection, query, where, getDocs} = window.__fb;
+  const chunks = [];
+  for(let i = 0; i < uids.length; i += 30) chunks.push(uids.slice(i, i + 30));
+  await Promise.all(chunks.map(async ch => {
+    const snap = await getDocs(query(collection(db, CLOUD_ORDERS_COLLECTION), where('uid', 'in', ch)));
+    snap.forEach(d => { const x = d.data(); if(x && x.uid) set.add(x.uid); });
+  }));
+  return set;
+}
+async function saveImportedOrdersToCloud(items, channel){
+  if(isTestMode()){ setCloudNote('🧪 測試模式:這批訂單<b>沒有</b>存到雲端。'); return; }
+  const docs = buildCloudOrders(items, channel);   // 先(同步)整理好;等一下 rawHeaders 可能會被下一次匯入蓋掉
+  if(docs.length === 0){ setCloudNote(''); return; }
+  setCloudNote('☁ 正在把 ' + docs.length + ' 張訂單存到雲端…');
+  let existing = null;   // 老闆、管理者讀得到資料,可以先查哪些已經存過;一般員工讀不到(只能寫),就直接寫,已經存過的會被資料庫擋掉
+  try{ await waitForFirebase(); existing = await withTimeout(findExistingCloudOrders(docs.map(d => d.uid)), 8000); }catch(e){ existing = null; }
+  const todo = existing ? docs.filter(d => !existing.has(d.uid)) : docs;
+  let ok = 0, fail = 0;
+  try{
+    const {db, doc, setDoc, serverTimestamp} = window.__fb;
+    for(let i = 0; i < todo.length; i += 25){
+      await Promise.all(todo.slice(i, i + 25).map(d => setDoc(doc(db, CLOUD_ORDERS_COLLECTION, d.uid), Object.assign({}, d, {importedAt: serverTimestamp()})).then(() => { ok++; }, () => { fail++; })));
+    }
+  }catch(e){ fail = todo.length - ok; }
+  const had = existing ? docs.length - todo.length : 0;
+  if(existing){
+    setCloudNote('☁ 已把 <b>' + ok + '</b> 張新訂單存到雲端' + (had ? '(另外 ' + had + ' 張之前已經存過)' : '') + (fail ? ' ⚠ 有 ' + fail + ' 張沒存成功(網路或權限問題,<b>不影響檢貨</b>),請告訴開發的人。' : '。'));
+  }else if(ok > 0){
+    setCloudNote('☁ 已送出 <b>' + ok + '</b> 張新訂單到雲端(已經存過的會自動略過)。');
+  }else if(fail > 0){
+    setCloudNote('☁ 沒有新的訂單被存進去(可能都已經存過了;如果每次都這樣,請告訴開發的人)。<b>不影響檢貨</b>。');
+  }
+}
+
+// ── 讀取、統計、下載(老闆畫面、管理者報表共用)──
+const cloudData = {};
+function buildCloudPanel(prefix, title){
+  const p = prefix + '-cl';
+  return '<div class="' + (prefix === 'boss' ? 'boss-card' : 'panel no-print') + ' cloud-panel">' +
+    '<h2>' + title + '</h2>' +
+    '<div class="desc">每次匯入檔案時,系統會把檔案裡的訂單自動存到雲端(同一張訂單只會存一次)。這裡可以選範圍、看統計、下載 CSV 去分析。<b>裡面沒有客人的姓名、電話、地址</b>(只有縣市)。「日期」是<b>匯入的那一天</b>;客人的<b>購買時間、訂單金額、優惠券/優惠碼</b>在 CSV 裡有獨立欄位(檔案裡有才有,沒有就是空白)。</div>' +
+    '<div class="btn-row">' +
+      '<select id="' + p + '-range"><option value="today">今天匯入的</option><option value="7">最近 7 天</option><option value="30" selected>最近 30 天</option><option value="90">最近 90 天</option><option value="all">全部</option></select> ' +
+      '<select id="' + p + '-ch"><option value="all">全部通路</option>' + Object.keys(CLOUD_CH_LABEL).map(k => '<option value="' + k + '">' + CLOUD_CH_LABEL[k] + '</option>').join('') + '</select> ' +
+      '<button class="primary" id="' + p + '-load" onclick="loadCloudOrders(\'' + prefix + '\')">載入</button> ' +
+      '<button class="ghost" id="' + p + '-csv" onclick="downloadCloudCsv(\'' + prefix + '\')" disabled>下載 CSV</button>' +
+    '</div>' +
+    '<div class="form-msg" id="' + p + '-msg"></div>' +
+    '<div id="' + p + '-result"></div>' + (prefix === 'rpt' ? backfillBlockHtml() + histBlockHtml() : '') +
+  '</div>';
+}
+function mountCloudPanels(){
+  const b = document.getElementById('cloudPanelBoss'), r = document.getElementById('cloudPanelReport');
+  if(b) b.innerHTML = buildCloudPanel('boss', '📊 每日訂單資料(雲端)');
+  if(r) r.innerHTML = buildCloudPanel('rpt', '每日訂單資料(雲端)');
+}
+function analyzeCloudOrders(docs){
+  const live = docs.filter(d => !d.cancelled), sum = (arr, f) => arr.reduce((n, x) => n + f(x), 0);
+  const by = keyFn => { const m = {}; live.forEach(d => { const k = keyFn(d); const r = m[k] = m[k] || {orders: 0, qty: 0, amount: 0}; r.orders++; r.qty += d.itemQty || 0; r.amount += d.orderTotal || 0; }); return m; };
+  const sku = {};
+  live.forEach(d => (d.lines || []).forEach(l => { if(l.gift) return; const k = l.sku || l.name || '(沒有 SKU)'; const r = sku[k] = sku[k] || {sku: l.sku || '', name: l.name || '', qty: 0, amount: 0}; r.qty += l.qty || 0; r.amount += l.subtotal || 0; }));
+  return {orders: live.length, paidOrders: live.filter(d => d.orderAmount != null).length, paidAmount: sum(live.filter(d => d.orderAmount != null), d => d.orderAmount), backfilled: live.filter(d => d.backfilled).length, cancelled: docs.length - live.length, qty: sum(live, d => d.itemQty || 0), amount: sum(live, d => d.orderTotal || 0), byChannel: by(d => d.channel), byDay: by(d => d.importDate || '?'), topSku: Object.values(sku).sort((a, b) => b.qty - a.qty).slice(0, 15)};
+}
+async function loadCloudOrders(prefix){
+  const p = prefix + '-cl', g = id => document.getElementById(p + '-' + id);
+  g('load').disabled = true; g('msg').textContent = '讀取中…(只讀取,不會改任何資料)'; g('result').innerHTML = ''; g('csv').disabled = true;
+  try{
+    await waitForFirebase();
+    const {db, collection, query, where, getDocs} = window.__fb;
+    const rng = g('range').value; let cutoff = '';
+    if(rng !== 'all'){ const d = new Date(); d.setDate(d.getDate() - (rng === 'today' ? 0 : parseInt(rng, 10))); cutoff = ymd(d); }
+    const ref = collection(db, CLOUD_ORDERS_COLLECTION), snap = await getDocs(cutoff ? query(ref, where('importDate', '>=', cutoff)) : ref);
+    let docs = []; snap.forEach(d => docs.push(d.data()));
+    if(cutoff) docs = docs.filter(x => (x.importDate || '') >= cutoff);
+    if(g('ch').value !== 'all') docs = docs.filter(x => x.channel === g('ch').value);
+    cloudData[prefix] = {docs, cutoff, range: rng, at: new Date()};
+    g('msg').textContent = ''; renderCloudSummary(prefix);
+  }catch(err){
+    g('msg').textContent = '讀取失敗:' + (err && err.message ? err.message : err) + '(可能是網路或權限問題;只有老闆和管理者讀得到這份資料)';
+  }
+  g('load').disabled = false;
+}
+function renderCloudSummary(prefix){
+  const p = prefix + '-cl', box = document.getElementById(p + '-result'), D = cloudData[prefix];
+  if(!D){ box.innerHTML = ''; return; }
+  const a = analyzeCloudOrders(D.docs), money = n => '$' + Math.round(n).toLocaleString('en-US'), h = [];
+  document.getElementById(p + '-csv').disabled = D.docs.length === 0;
+  if(D.docs.length === 0){ box.innerHTML = '<div class="dup-sub">這個範圍沒有資料(可能這幾天還沒有人匯入,或還沒開始存雲端)。</div>'; return; }
+  h.push('<div class="dup-ok">共 <b>' + a.orders + '</b> 張訂單、<b>' + a.qty + '</b> 件,品項小計 <b>' + money(a.amount) + '</b>' + (a.cancelled ? '(已取消 ' + a.cancelled + ' 張,不計入)' : '') + '</div>');
+  h.push('<div class="dup-sub">「品項小計」是每個品項的單價 × 數量加起來,<b>沒有扣折扣、沒有含運費</b>,所以不等於實收金額。</div>');
+  if(a.paidOrders) h.push('<div class="dup-sub">有「實收金額」的 <b>' + a.paidOrders + '</b> 張訂單,實收合計 <b>' + money(a.paidAmount) + '</b>(客人實際付的金額,已扣折扣、含運費;檔案裡沒有這個欄位的訂單不在內)。</div>');
+  if(a.backfilled) h.push('<div class="dup-sub">其中 <b>' + a.backfilled + '</b> 張是從「過去的訂單紀錄」補進來的:<b>沒有金額</b>(品項小計不含它們),「匯入日期」是當時確認出貨的那一天。</div>');
+  const tbl = (head, rows) => '<div class="dup-wrap"><table class="dup-tbl"><tr>' + head.map(x => '<th>' + x + '</th>').join('') + '</tr>' + rows.map(r => '<tr>' + r.map(x => '<td>' + x + '</td>').join('') + '</tr>').join('') + '</table></div>';
+  h.push(tbl(['通路', '訂單數', '件數', '品項小計'], Object.keys(a.byChannel).map(k => [escapeHtml(CLOUD_CH_LABEL[k] || k), a.byChannel[k].orders, a.byChannel[k].qty, money(a.byChannel[k].amount)])));
+  h.push(tbl(['匯入日期', '訂單數', '件數', '品項小計'], Object.keys(a.byDay).sort().reverse().slice(0, 40).map(k => [escapeHtml(k), a.byDay[k].orders, a.byDay[k].qty, money(a.byDay[k].amount)])));
+  h.push('<div class="dup-sub"><b>賣最多的商品(前 15 名)</b></div>');
+  h.push(tbl(['SKU', '品名', '件數', '品項小計'], a.topSku.map(r => [escapeHtml(r.sku), escapeHtml(r.name), r.qty, money(r.amount)])));
+  box.innerHTML = h.join('');
+}
+function downloadCloudCsv(prefix){
+  const D = cloudData[prefix]; if(!D || D.docs.length === 0) return;
+  const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  const lines = [['匯入日期', '通路', '訂單編號', '購買時間', '訂單金額(每張訂單只在第一列)', '優惠券/優惠碼', '物流方式', '縣市', '商品SKU', '商品名稱', '數量', '單價', '小計', '系統補的贈品', '有客製文字', '已取消', '來源', '平台欄位(日期、付款、金額、折扣、運費…)'].map(q).join(',')];
+  D.docs.slice().sort((x, y) => String(y.importDate).localeCompare(String(x.importDate)) || String(x.orderId).localeCompare(String(y.orderId))).forEach(d => {
+    const extra = Object.keys(d.extra || {}).map(k => k + '=' + d.extra[k]).join(' | ');
+    (d.lines || []).forEach((l, li) => lines.push([d.importDate, CLOUD_CH_LABEL[d.channel] || d.channel, d.orderId, d.purchaseTime || '', (li === 0 && d.orderAmount != null) ? d.orderAmount : '', d.coupon || '', SHIP_CATEGORY_LABEL[d.shippingCategory] || d.shippingCategory || '', d.region || '', l.sku, l.name, l.qty, l.price, l.subtotal, l.gift ? '是' : '', d.hasCust ? '是' : '', d.cancelled ? '是' : '', d.backfilled ? '歷史補入(沒有金額)' : (d.fromFile ? '平台檔案補入' : '匯入'), extra].map(q).join(',')));
+  });
+  const blob = new Blob(['\ufeff' + lines.join('\r\n')], {type: 'text/csv;charset=utf-8'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'orders_' + ymd(new Date()).replace(/-/g, '') + '.csv';
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+// ===== 補入過去的資料:把「訂單紀錄」(以前確認完成揀貨過的訂單)補進每日訂單資料;沒有金額 =====
+function backfillBlockHtml(){
+  return '<div class="cl-backfill"><h3>補入過去的資料</h3>' +
+    '<div class="dup-sub">把以前「確認完成揀貨」過的訂單(訂單紀錄)補進這裡。<b>只補雲端還沒有的</b>,已經有的(正式匯入、有金額的)不會被蓋掉。補進來的<b>沒有金額</b>,「匯入日期」是當時確認出貨的那一天。同一張訂單有好幾筆紀錄的(例如重複確認),只補一份,留最早的那天。不補客人的姓名、電話、地址。</div>' +
+    '<div class="btn-row"><button class="ghost" id="rpt-bf-preview" onclick="previewBackfill()">先檢查可以補多少</button></div>' +
+    '<div class="form-msg" id="rpt-bf-msg"></div><div id="rpt-bf-result"></div></div>';
+}
+function buildBackfillDocs(histDocs, existingUids, email){
+  const byUid = {}; let bad = 0;
+  histDocs.forEach(h => {
+    const ch = h.channel, oid = String(h.orderId == null ? '' : h.orderId).trim(), date = String(h.date || ''), items = Array.isArray(h.items) ? h.items : [];
+    if(!oid || !CLOUD_CH_LABEL[ch] || !/^\d{4}-\d{2}-\d{2}$/.test(date) || items.length === 0){ bad++; return; }
+    const uid = ch + '__' + normOrderKey(oid).replace(/\//g, '_');
+    if(byUid[uid] && byUid[uid].importDate <= date) return;   // 同一張訂單有好幾筆紀錄:留最早的那天
+    const lines = items.map(i => ({sku: String(i.sku || ''), name: String(i.name || '').slice(0, 120), qty: Number(i.qty) || 0, price: 0, subtotal: 0, gift: !i.sku}));   // 沒有 SKU 的是系統補的贈品
+    byUid[uid] = {uid, orderId: oid, channel: ch, shippingCategory: h.shippingCategory || '', lines, itemQty: lines.filter(l => !l.gift).reduce((n, l) => n + l.qty, 0), orderTotal: 0, cancelled: false, region: cloudRegion(h.address), extra: {'來源': '歷史訂單紀錄補入(沒有金額)'}, importDate: date, importedBy: email, backfilled: true};
+  });
+  const all = Object.keys(byUid).map(k => byUid[k]), fresh = all.filter(d => !existingUids.has(d.uid));
+  return {total: all.length, fresh, existing: all.length - fresh.length, bad};
+}
+let backfillPlan = null;
+async function previewBackfill(){
+  const msg = document.getElementById('rpt-bf-msg'), out = document.getElementById('rpt-bf-result'), btn = document.getElementById('rpt-bf-preview');
+  if(currentUserRole !== 'admin'){ msg.textContent = '只有管理者可以補入資料。'; return; }
+  btn.disabled = true; msg.textContent = '讀取中…(只讀取,還沒有寫入任何東西)'; out.innerHTML = ''; backfillPlan = null;
+  try{
+    await waitForFirebase();
+    const {db, collection, getDocs} = window.__fb;
+    const res = await Promise.all([getDocs(collection(db, ORDER_HISTORY_COLLECTION)), getDocs(collection(db, CLOUD_ORDERS_COLLECTION))]);
+    const hist = [], ex = new Set();
+    res[0].forEach(d => hist.push(d.data())); res[1].forEach(d => { const x = d.data(); if(x && x.uid) ex.add(x.uid); });
+    const plan = buildBackfillDocs(hist, ex, currentUserEmail || '');
+    plan.readHist = hist.length; backfillPlan = plan; msg.textContent = '';
+    renderBackfillPlan();
+  }catch(err){
+    msg.textContent = '讀取失敗:' + (err && err.message ? err.message : err);
+  }
+  btn.disabled = false;
+}
+function renderBackfillPlan(){
+  const out = document.getElementById('rpt-bf-result'), p = backfillPlan;
+  if(!p){ out.innerHTML = ''; return; }
+  const by = {}, dates = p.fresh.map(d => d.importDate).sort();
+  p.fresh.forEach(d => { by[d.channel] = (by[d.channel] || 0) + 1; });
+  const h = ['<div class="dup-sum">讀了 <b>' + p.readHist + '</b> 筆訂單紀錄,合起來是 <b>' + p.total + '</b> 張不重複的訂單' + (p.bad ? '(另外 ' + p.bad + ' 筆資料不完整,略過)' : '') + '。雲端已經有 <b>' + p.existing + '</b> 張(略過)。</div>'];
+  if(p.fresh.length === 0) h.push('<div class="dup-ok">✓ 沒有需要補的,過去的訂單都已經在雲端了。</div>');
+  else{
+    h.push('<div class="dup-sum">可以補入 <b>' + p.fresh.length + '</b> 張(' + Object.keys(by).map(k => (CLOUD_CH_LABEL[k] || k) + ' ' + by[k]).join('、') + ');日期從 <b>' + escapeHtml(dates[0]) + '</b> 到 <b>' + escapeHtml(dates[dates.length - 1]) + '</b>。</div>');
+    h.push('<div class="btn-row"><button class="primary" id="rpt-bf-run" onclick="runBackfill()">確定補入 ' + p.fresh.length + ' 張</button></div><div class="dup-sub">補進去之後,只有管理者能在 Firebase 後台刪除。</div>');
+  }
+  out.innerHTML = h.join('');
+}
+async function runBackfill(){
+  const plan = backfillPlan, msg = document.getElementById('rpt-bf-msg'), out = document.getElementById('rpt-bf-result');
+  if(!plan || plan.fresh.length === 0 || currentUserRole !== 'admin') return;
+  if(isTestMode()){ msg.textContent = '測試模式中:不會寫入雲端。請先關閉測試模式。'; return; }
+  if(!confirm('要把 ' + plan.fresh.length + ' 張過去的訂單補進雲端嗎?\n補進去之後,只有管理者能在 Firebase 後台刪除。')) return;
+  ['rpt-bf-preview', 'rpt-bf-run'].forEach(id => { const b = document.getElementById(id); if(b) b.disabled = true; });
+  let ok = 0, fail = 0;
+  try{
+    const {db, doc, setDoc, serverTimestamp} = window.__fb;
+    for(let i = 0; i < plan.fresh.length; i += 25){
+      await Promise.all(plan.fresh.slice(i, i + 25).map(d => setDoc(doc(db, CLOUD_ORDERS_COLLECTION, d.uid), Object.assign({}, d, {importedAt: serverTimestamp()})).then(() => { ok++; }, () => { fail++; })));
+      msg.textContent = '補入中… ' + Math.min(i + 25, plan.fresh.length) + ' / ' + plan.fresh.length;
+    }
+  }catch(e){ fail = plan.fresh.length - ok; }
+  msg.textContent = ''; backfillPlan = null;
+  out.innerHTML = '<div class="' + (fail ? 'dup-bad' : 'dup-ok') + '">已補入 <b>' + ok + '</b> 張' + (fail ? ',<b>' + fail + '</b> 張沒成功(網路或權限問題)。可以再按一次「先檢查可以補多少」,只會補還沒補進去的。' : '。') + '</div>' +
+    '<div class="dup-sub">要讓<b>試算表</b>也有這些資料,請到 Apps Script 編輯器,函式選 <b>syncAll</b> 按「執行」一次(之後每小時的自動同步只看最近 3 天)。</div>';
+  const pb = document.getElementById('rpt-bf-preview'); if(pb) pb.disabled = false;
+}
+
+// ===== 用平台匯出檔補資料:補上購買時間、訂單金額、優惠券/優惠碼(LINE、官網;管理者用)=====
+const HIST_MAX_WRITES = 5000;   // 一次最多處理幾筆(Firebase 免費方案一天寫入有上限;分批做,補過的下次會自動略過)
+const HIST_FIELDS = ['purchaseTime', 'orderAmount', 'coupon'];
+function histBlockHtml(){
+  return '<div class="cl-backfill"><h3>用平台匯出檔補資料(購買時間、訂單金額、優惠券/優惠碼)</h3>' +
+    '<div class="dup-sub">以前存的訂單沒有這三樣,只有平台的匯出檔裡有。選 LINE 或官網的訂單匯出檔(<b>可以是一整年的、可以一次選好幾個</b>),系統依訂單編號對回去:<b>雲端已經有的訂單,只補上缺的這三樣</b>(不會改任何已經有的值);雲端沒有的訂單會新增(日期是客人的購買日,不是今天)。LINE 檔案裡「已取消、已退貨」的訂單會標成取消。不存客人的姓名、電話、地址。</div>' +
+    '<div class="btn-row"><select id="rpt-hf-ch"><option value="line">LINE 的訂單匯出檔(.xlsx)</option><option value="shop">官網的訂單匯出檔(.csv)</option></select> <input type="file" id="rpt-hf-file" accept=".xlsx,.xls,.csv" multiple> <button class="ghost" id="rpt-hf-preview" onclick="previewHist()">先檢查</button></div>' +
+    '<div class="form-msg" id="rpt-hf-msg"></div><div id="rpt-hf-result"></div></div>';
+}
+let histState = null;   // {docs, errs, channel, files, existing}
+// 讀檔:直接用平常匯入的那兩個讀檔函式(SKU、數量、價格、客製、取消的判斷跟平常匯入完全一樣);讀的時候暫時接管「目前檔案、原始欄位、錯誤顯示」,讀完還原,不影響平常的匯入畫面
+async function parseHistFiles(files, channel){
+  const byUid = {}, order = [], errs = [], keepFile = currentFile, keepErr = showError, keepHeaders = rawHeaders;
+  showError = function(lines){ errs.push(Array.isArray(lines) ? lines.join(' ') : String(lines)); };
+  try{
+    for(const f of files){
+      currentFile = f;
+      const items = channel === 'shop' ? await readShopItems() : await readLineItems();
+      if(!items){ errs.push('(' + f.name + ' 讀不了)'); continue; }
+      buildCloudOrders(items, channel).forEach(d => {
+        const pd = String(d.purchaseTime || '').slice(0, 10);
+        if(/^\d{4}-\d{2}-\d{2}$/.test(pd)) d.importDate = pd;   // 日期用客人的購買日;檔案裡沒有購買時間才用今天
+        d.fromFile = true;
+        d.extra = Object.assign({'來源': '平台檔案補入(歷史)'}, d.extra || {});
+        if(channel === 'line'){ d.shippingCategory = ''; if(/已取消|已退貨/.test(String(d.extra['訂單狀態'] || ''))) d.cancelled = true; }   // LINE 程式會一律填「黑貓」,歷史訂單不一定是,所以留空
+        const cur = byUid[d.uid];
+        if(!cur){ byUid[d.uid] = d; order.push(d.uid); }
+        else HIST_FIELDS.forEach(k => { if(!(k in cur) && k in d) cur[k] = d[k]; });   // 同一張訂單出現在好幾個檔案:合併
+      });
+    }
+  }finally{ currentFile = keepFile; showError = keepErr; rawHeaders = keepHeaders; }
+  return {docs: order.map(u => byUid[u]), errs};
+}
+// 只讀「這份檔案裡有的訂單」在雲端的樣子(不是整個集合,省讀取次數)
+async function readCloudOrdersByUid(uids){
+  const map = new Map(), chunks = [], {db, collection, query, where, getDocs} = window.__fb;
+  for(let i = 0; i < uids.length; i += 30) chunks.push(uids.slice(i, i + 30));
+  for(let i = 0; i < chunks.length; i += 8){
+    await Promise.all(chunks.slice(i, i + 8).map(async ch => { const snap = await getDocs(query(collection(db, CLOUD_ORDERS_COLLECTION), where('uid', 'in', ch))); snap.forEach(d => { const x = d.data(); if(x && x.uid) map.set(x.uid, x); }); }));
+  }
+  return map;
+}
+// 雲端已經有的:只補「缺的」三樣;已經有值的一律不動
+function histDiff(docs, existing){
+  const create = [], patch = []; let complete = 0, conflict = 0;
+  docs.forEach(d => {
+    const e = existing.get(d.uid);
+    if(!e){ create.push(d); return; }
+    const fields = {}; let conf = false;
+    HIST_FIELDS.forEach(k => { if(k in d){ if(!(k in e)) fields[k] = d[k]; else if(e[k] !== d[k]) conf = true; } });
+    if(Object.keys(fields).length) patch.push({uid: d.uid, fields}); else complete++;
+    if(conf) conflict++;
+  });
+  return {create, patch, complete, conflict};
+}
+function histOps(S){
+  const df = histDiff(S.docs, S.existing), ops = df.patch.map(p => ({type: 'patch', uid: p.uid, fields: p.fields})).concat(df.create.map(d => ({type: 'create', d})));
+  const run = ops.slice(0, HIST_MAX_WRITES);
+  return {df, ops: run, nCreate: run.filter(o => o.type === 'create').length, nPatch: run.filter(o => o.type === 'patch').length, total: ops.length};
+}
+async function previewHist(){
+  const msg = document.getElementById('rpt-hf-msg'), out = document.getElementById('rpt-hf-result'), btn = document.getElementById('rpt-hf-preview');
+  if(currentUserRole !== 'admin'){ msg.textContent = '只有管理者可以補資料。'; return; }
+  const files = Array.from(document.getElementById('rpt-hf-file').files || []), ch = document.getElementById('rpt-hf-ch').value;
+  if(files.length === 0){ msg.textContent = '請先選要補的檔案。'; return; }
+  btn.disabled = true; out.innerHTML = ''; histState = null; msg.textContent = '讀檔中…(只讀取,還沒有寫入任何東西)';
+  try{
+    const r = await parseHistFiles(files, ch);
+    if(r.docs.length === 0){ msg.textContent = '讀不到訂單。' + (r.errs.length ? ' ' + r.errs.join(' ') : '') + ' 請確認通路選對了,而且是平台匯出的原始檔。'; btn.disabled = false; return; }
+    msg.textContent = '比對雲端…'; await waitForFirebase();
+    const existing = await readCloudOrdersByUid(r.docs.map(d => d.uid));
+    histState = {docs: r.docs, errs: r.errs, channel: ch, files: files.length, existing}; msg.textContent = ''; renderHistPlan();
+  }catch(err){
+    msg.textContent = '失敗:' + (err && err.message ? err.message : err);
+  }
+  btn.disabled = false;
+}
+function renderHistPlan(extraHtml){
+  const out = document.getElementById('rpt-hf-result'), S = histState;
+  if(!S){ out.innerHTML = extraHtml || ''; return; }
+  const P = histOps(S), df = P.df, dates = df.create.map(d => d.importDate).sort(), canc = df.create.filter(d => d.cancelled).length, cp = S.docs.filter(d => d.coupon).length, h = [];
+  if(extraHtml) h.push(extraHtml);
+  h.push('<div class="dup-sum">讀了 <b>' + S.files + '</b> 個檔案(' + escapeHtml(CLOUD_CH_LABEL[S.channel] || S.channel) + '),共 <b>' + S.docs.length + '</b> 張訂單,其中 <b>' + cp + '</b> 張有用優惠券' + (S.errs.length ? '(有問題:' + escapeHtml(S.errs.join(' ')) + ')' : '') + '。</div>');
+  h.push('<div class="dup-sum">雲端已經有 <b>' + (df.patch.length + df.complete) + '</b> 張:<b>' + df.patch.length + '</b> 張缺資料、可以補上;<b>' + df.complete + '</b> 張已經完整(略過)' + (df.conflict ? ';另有 ' + df.conflict + ' 張雲端原本的值跟檔案不一樣,<b>不會改</b>' : '') + '。雲端沒有的 <b>' + df.create.length + '</b> 張會新增' + (df.create.length ? '(日期從 <b>' + escapeHtml(dates[0]) + '</b> 到 <b>' + escapeHtml(dates[dates.length - 1]) + '</b>;其中取消或退貨 ' + canc + ' 張)' : '') + '。</div>');
+  if(P.total === 0) h.push('<div class="dup-ok">✓ 沒有需要補的了。</div>');
+  else h.push('<div class="btn-row"><button class="primary" id="rpt-hf-run" onclick="runHist()">確定:新增 ' + P.nCreate + ' 張、補上資料 ' + P.nPatch + ' 張</button></div><div class="dup-sub">' + (P.total > HIST_MAX_WRITES ? '這次最多處理 ' + HIST_MAX_WRITES + ' 筆(Firebase 免費方案一天的寫入有上限),還剩 <b>' + (P.total - HIST_MAX_WRITES) + '</b> 筆,做完再按一次就會接著做。' : '') + '補進去之後,只有管理者能在 Firebase 後台刪除。</div>');
+  out.innerHTML = h.join('');
+}
+async function runHist(){
+  const S = histState, msg = document.getElementById('rpt-hf-msg');
+  if(!S || currentUserRole !== 'admin') return;
+  if(isTestMode()){ msg.textContent = '測試模式中:不會寫入雲端。請先關閉測試模式。'; return; }
+  const P = histOps(S); if(P.ops.length === 0) return;
+  if(!confirm('要處理 ' + P.ops.length + ' 張訂單嗎?(新增 ' + P.nCreate + ' 張、補上資料 ' + P.nPatch + ' 張)\n補進去之後,只有管理者能在 Firebase 後台刪除。')) return;
+  ['rpt-hf-preview', 'rpt-hf-run'].forEach(id => { const b = document.getElementById(id); if(b) b.disabled = true; });
+  let okC = 0, okP = 0, failC = 0, failP = 0;
+  try{
+    const {db, doc, setDoc, updateDoc, serverTimestamp} = window.__fb;
+    for(let i = 0; i < P.ops.length; i += 25){
+      await Promise.all(P.ops.slice(i, i + 25).map(o => o.type === 'create'
+        ? setDoc(doc(db, CLOUD_ORDERS_COLLECTION, o.d.uid), Object.assign({}, o.d, {importedAt: serverTimestamp()})).then(() => { okC++; S.existing.set(o.d.uid, o.d); }, () => { failC++; })
+        : updateDoc(doc(db, CLOUD_ORDERS_COLLECTION, o.uid), o.fields).then(() => { okP++; S.existing.set(o.uid, Object.assign({}, S.existing.get(o.uid), o.fields)); }, () => { failP++; })));
+      msg.textContent = '處理中… ' + Math.min(i + 25, P.ops.length) + ' / ' + P.ops.length;
+    }
+  }catch(e){}
+  msg.textContent = '';
+  const bad = failC + failP;
+  renderHistPlan('<div class="' + (bad ? 'dup-bad' : 'dup-ok') + '">已新增 <b>' + okC + '</b> 張、補上資料 <b>' + okP + '</b> 張' + (bad ? ',<b>' + bad + '</b> 張沒成功(網路或權限問題;補欄位要先發布新版的資料庫規則)' : '') + '。</div><div class="dup-sub">要讓<b>試算表</b>也更新,請到 Apps Script 編輯器,函式選 <b>rebuildAll</b> 按「執行」一次。</div>');
+  const pb = document.getElementById('rpt-hf-preview'); if(pb) pb.disabled = false;
+}
+
+mountCloudPanels();
+
+// ===== 檢查資料有沒有重複(只讀取、不會改任何資料;管理者在「報表」頁用)=====
+// 訂單紀錄:同一個通路、同一個訂單編號(# 號、大小寫、空白不同也算同一張)出現不只一筆 → 重複
+function tsMs(d){ const t = d && d.confirmedAt; if(!t) return null; if(t.seconds != null) return t.seconds * 1000; if(typeof t.toMillis === 'function') return t.toMillis(); return null; }
+function fmtTs(ms){ return ms == null ? '?' : new Date(ms).toLocaleString('zh-TW', {timeZone: 'Asia/Taipei', hour12: false, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit'}); }
+function fmtGap(ms){ if(ms == null) return '?'; const m = ms / 60000; return m < 1 ? '不到 1 分鐘' : m < 60 ? Math.round(m) + ' 分鐘' : m < 1440 ? (m / 60).toFixed(1) + ' 小時' : (m / 1440).toFixed(1) + ' 天'; }
+function gapKind(ms){ return ms == null ? 'unk' : ms < 60000 ? 'quick' : ms < 3600000 ? 'mid' : 'long'; }
+function analyzeOrderHistory(docs){
+  const groups = {};
+  docs.forEach(d => { const k = (d.channel || '') + '|' + normOrderKey(d.orderId); (groups[k] = groups[k] || []).push(d); });
+  const dups = [];
+  Object.keys(groups).forEach(k => {
+    const g = groups[k]; if(g.length < 2) return;
+    const dates = g.map(x => x.date || '').sort();
+    const raws = g.map(x => String(x.orderId == null ? '' : x.orderId)).filter((v, i, a) => a.indexOf(v) === i);
+    const times = g.map(tsMs).filter(v => v != null).sort((a, b) => a - b);
+    const spanMs = times.length > 1 ? times[times.length - 1] - times[0] : null;
+    dups.push({channel: g[0].channel || '', orderId: g[0].orderId, name: g[0].name || '', count: g.length, dates, sameDay: dates.some((d, i) => i > 0 && d === dates[i - 1]), raws, ids: g.map(x => x.id), times, spanMs, gap: gapKind(spanMs)});
+  });
+  dups.sort((a, b) => (b.count - a.count) || String(b.dates[b.dates.length - 1]).localeCompare(String(a.dates[a.dates.length - 1])));
+  const gapCount = k => dups.filter(d => d.gap === k).length;
+  return {total: docs.length, distinct: Object.keys(groups).length, dupOrders: dups.length, extraDocs: dups.reduce((n, d) => n + d.count - 1, 0), sameDay: dups.filter(d => d.sameDay).length, variantDiff: dups.filter(d => d.raws.length > 1).length, gapQuick: gapCount('quick'), gapMid: gapCount('mid'), gapLong: gapCount('long'), gapUnknown: gapCount('unk'), dups};
+}
+// 每天每通路對帳:揀貨紀錄的訂單數合計、訂單紀錄的筆數、不重複的訂單數,三個應該一樣;不一樣就列出來,並說明是哪一種
+function reconcileDaily(histDocs, pickDocs){
+  const NORMAL = ['line', 'shop', 'shopee', 'pinkoi'], rows = {};
+  const row = (date, ch) => { const k = date + '|' + ch; return rows[k] = rows[k] || {date, channel: ch, pick: 0, docs: 0, ids: {}}; };
+  pickDocs.forEach(d => { if(d.isHistoricalImport || NORMAL.indexOf(d.channel) < 0) return; row(d.date || '', d.channel).pick += (d.totalOrders || 0); });
+  histDocs.forEach(d => { if(NORMAL.indexOf(d.channel) < 0) return; const r = row(d.date || '', d.channel); r.docs++; r.ids[normOrderKey(d.orderId)] = 1; });
+  const out = [];
+  Object.keys(rows).forEach(k => {
+    const r = rows[k], distinct = Object.keys(r.ids).length;
+    if(r.docs === 0 || (r.pick === r.docs && r.docs === distinct)) return;
+    const kind = (r.pick === r.docs && r.docs > distinct) ? 'both' : (r.pick === distinct && r.docs > distinct) ? 'historyOnly' : (r.pick > distinct && r.docs > distinct) ? 'pickMore' : r.pick < distinct ? 'pickLess' : 'other';
+    out.push({date: r.date, channel: r.channel, pick: r.pick, docs: r.docs, distinct, kind});
+  });
+  out.sort((a, b) => b.date.localeCompare(a.date) || a.channel.localeCompare(b.channel));
+  return out;
+}
+const RC_TEXT = {both: '揀貨紀錄也一起重複了(出貨核對的數字偏多)', historyOnly: '只有訂單紀錄重複,出貨核對的數字是對的', pickMore: '揀貨紀錄多算了一些(出貨核對的數字偏多)', pickLess: '揀貨紀錄比實際的訂單數少(可能有紀錄沒寫成功)', other: '對不上,原因待查'};
+// 揀貨紀錄:「匯入歷史紀錄」匯了兩次(同一天同通路同數字)一定重複;平常的確認,內容完全一樣而且一次確認 5 張以上才列為「可能重複」(只有 1、2 張的,常常剛好一樣,不算)
+function analyzePickRecords(docs){
+  const sig = d => [d.date || '', d.channel || '', d.totalOrders || 0, d.totalItems || 0, d.doneCount || 0, d.revenue || 0, JSON.stringify((d.items || []).map(i => [i.sku, i.qty]).sort())].join('|');
+  const groups = {};
+  docs.forEach(d => { if(d.isHistoricalImport || (d.totalOrders || 0) >= 5) (groups[(d.isHistoricalImport ? 'H' : 'N') + '|' + sig(d)] = groups[(d.isHistoricalImport ? 'H' : 'N') + '|' + sig(d)] || []).push(d); });
+  const dups = [];
+  Object.keys(groups).forEach(k => { const g = groups[k]; if(g.length > 1) dups.push({hist: k[0] === 'H', date: g[0].date || '', channel: g[0].channel || '', totalOrders: g[0].totalOrders || 0, totalItems: g[0].totalItems || 0, count: g.length, ids: g.map(x => x.id), times: g.map(tsMs).filter(v => v != null).sort((a, b) => a - b)}); });
+  dups.sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  return {total: docs.length, dupGroups: dups.length, extraDocs: dups.reduce((n, d) => n + d.count - 1, 0), dups};
+}
+let lastDupReport = null;
+async function runDupCheck(){
+  const btn = document.getElementById('dupRunBtn'), msg = document.getElementById('dupMsg'), out = document.getElementById('dupResult');
+  const range = document.getElementById('dupRange').value;
+  btn.disabled = true; msg.textContent = '讀取中…(只讀取,不會改任何資料)'; out.innerHTML = '';
+  try{
+    await waitForFirebase();
+    const {db, collection, query, where, getDocs} = window.__fb;
+    let cutoff = '';
+    if(range !== 'all'){ const d = new Date(); d.setDate(d.getDate() - parseInt(range, 10)); cutoff = ymd(d); }
+    const readAll = async name => {
+      const ref = collection(db, name), snap = await getDocs(cutoff ? query(ref, where('date', '>=', cutoff)) : ref), arr = [];
+      snap.forEach(d => arr.push(Object.assign({id: d.id}, d.data())));
+      return cutoff ? arr.filter(x => (x.date || '') >= cutoff) : arr;
+    };
+    const res = await Promise.all([readAll(ORDER_HISTORY_COLLECTION), readAll(PICK_RECORDS_COLLECTION)]);
+    lastDupReport = {range, cutoff, at: new Date(), oh: analyzeOrderHistory(res[0]), pr: analyzePickRecords(res[1]), rc: reconcileDaily(res[0], res[1])};
+    msg.textContent = '';
+    renderDupReport();
+  }catch(err){
+    msg.textContent = '檢查失敗:' + (err && err.message ? err.message : err) + '(可能是網路或權限問題,資料沒有被動到)';
+  }
+  btn.disabled = false;
+}
+function renderDupReport(){
+  const out = document.getElementById('dupResult'), r = lastDupReport;
+  if(!r){ out.innerHTML = ''; return; }
+  const oh = r.oh, pr = r.pr, rc = r.rc || [], h = [];
+  const scope = r.cutoff ? ('最近 ' + r.range + ' 天(' + r.cutoff + ' 之後)') : '全部';
+  h.push('<div class="dup-sum">範圍:' + scope + '。讀了 <b>' + oh.total + '</b> 筆訂單紀錄、<b>' + pr.total + '</b> 筆揀貨紀錄(讀取筆數會算進資料庫的用量)。</div>');
+  if(oh.dupOrders === 0) h.push('<div class="dup-ok">✓ 訂單紀錄:<b>沒有重複</b>(' + oh.distinct + ' 張訂單,每張只有一筆)</div>');
+  else{
+    h.push('<div class="dup-bad">⚠ 訂單紀錄:<b>' + oh.dupOrders + ' 張訂單重複</b>,多出 <b>' + oh.extraDocs + '</b> 筆(共 ' + oh.distinct + ' 張訂單)</div>');
+    h.push('<div class="dup-sub">其中「同一天寫了不只一次」<b>' + oh.sameDay + '</b> 張;「編號寫法不同(例如有沒有 #)、程式攔不到」<b>' + oh.variantDiff + '</b> 張。不同天又確認一次的,可能是真的重新出貨。</div>');
+    h.push('<div class="dup-sub"><b>寫入時間的間隔</b>(看是怎麼發生的):不到 1 分鐘內寫了多份 <b>' + oh.gapQuick + '</b> 張(像是同一個動作寫了多份,或兩台電腦同時確認);相隔 1 分鐘~1 小時 <b>' + oh.gapMid + '</b> 張(像是兩次不同的確認);超過 1 小時 <b>' + oh.gapLong + '</b> 張(像是隔了一陣子又確認一次)' + (oh.gapUnknown ? ';沒有寫入時間 ' + oh.gapUnknown + ' 張' : '') + '。</div>');
+    h.push('<div class="dup-wrap"><table class="dup-tbl"><tr><th>通路</th><th>訂單編號</th><th>筆數</th><th>寫入時間(台北)</th><th>相隔</th><th>類型</th></tr>' + oh.dups.slice(0, 60).map(d => '<tr><td>' + escapeHtml(d.channel) + '</td><td>' + d.raws.map(escapeHtml).join(' / ') + '</td><td>' + d.count + '</td><td>' + d.times.map(fmtTs).map(escapeHtml).join('<br>') + '</td><td>' + fmtGap(d.spanMs) + '</td><td>' + (d.sameDay ? '同一天重複' : '不同天') + (d.raws.length > 1 ? '・寫法不同' : '') + '</td></tr>').join('') + '</table></div>');
+    if(oh.dups.length > 60) h.push('<div class="dup-sub">只列出前 60 張,全部請按下面「下載 CSV」。</div>');
+  }
+  if(pr.dupGroups === 0) h.push('<div class="dup-ok">✓ 揀貨紀錄:<b>沒有明顯重複</b></div>');
+  else{
+    h.push('<div class="dup-bad">⚠ 揀貨紀錄:<b>' + pr.dupGroups + ' 組內容完全一樣</b>,多出 <b>' + pr.extraDocs + '</b> 筆(會讓出貨核對的數字重複計算)</div>');
+    h.push('<div class="dup-wrap"><table class="dup-tbl"><tr><th>日期</th><th>通路</th><th>訂單數</th><th>件數</th><th>筆數</th><th>寫入時間(台北)</th><th>類型</th></tr>' + pr.dups.slice(0, 40).map(d => '<tr><td>' + escapeHtml(d.date) + '</td><td>' + escapeHtml(d.channel) + '</td><td>' + d.totalOrders + '</td><td>' + d.totalItems + '</td><td>' + d.count + '</td><td>' + d.times.map(fmtTs).map(escapeHtml).join('<br>') + '</td><td>' + (d.hist ? '歷史匯入匯了不只一次' : '可能重複(內容完全一樣)') + '</td></tr>').join('') + '</table></div>');
+  }
+  if(rc.length === 0) h.push('<div class="dup-ok">✓ 對帳:每天每通路,揀貨紀錄的訂單數、訂單紀錄的筆數、不重複的訂單數,<b>三個都一致</b></div>');
+  else{
+    h.push('<div class="dup-bad">⚠ 對帳:有 <b>' + rc.length + '</b> 個「日期 + 通路」的數字對不上(正常情況三個數字應該一樣)</div>');
+    h.push('<div class="dup-wrap"><table class="dup-tbl"><tr><th>日期</th><th>通路</th><th>揀貨紀錄訂單數合計</th><th>訂單紀錄筆數</th><th>不重複訂單數</th><th>說明</th></tr>' + rc.slice(0, 40).map(d => '<tr><td>' + escapeHtml(d.date) + '</td><td>' + escapeHtml(d.channel) + '</td><td>' + d.pick + '</td><td>' + d.docs + '</td><td>' + d.distinct + '</td><td>' + escapeHtml(RC_TEXT[d.kind]) + '</td></tr>').join('') + '</table></div>');
+  }
+  if(oh.dupOrders || pr.dupGroups || rc.length) h.push('<div class="btn-row"><button class="ghost" onclick="downloadDupCsv()">下載 CSV(含寫入時間、對帳、資料庫文件編號)</button></div><div class="dup-sub">這個檢查<b>只讀取</b>,什麼都沒有刪。要清掉重複的,請先把 CSV 給負責開發的人確認。</div>');
+  out.innerHTML = h.join('');
+}
+function downloadDupCsv(){
+  const r = lastDupReport; if(!r) return;
+  const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  const lines = [['類型', '通路', '訂單編號或內容', '筆數', '日期', '是否同一天', '編號寫法', '寫入時間(台北)', '相隔', '資料庫文件編號'].map(q).join(',')];
+  r.oh.dups.forEach(d => lines.push(['訂單紀錄', d.channel, d.raws.join(' / '), d.count, d.dates.join(' '), d.sameDay ? '是' : '否', d.raws.length > 1 ? '寫法不同' : '一樣', d.times.map(fmtTs).join(' | '), fmtGap(d.spanMs), d.ids.join(' ')].map(q).join(',')));
+  r.pr.dups.forEach(d => lines.push(['揀貨紀錄', d.channel, (d.hist ? '歷史匯入 ' : '') + '訂單數' + d.totalOrders + ' 件數' + d.totalItems, d.count, d.date, '是', '', d.times.map(fmtTs).join(' | '), '', d.ids.join(' ')].map(q).join(',')));
+  (r.rc || []).forEach(d => lines.push(['對帳', d.channel, '揀貨紀錄合計 ' + d.pick + ' / 訂單紀錄 ' + d.docs + ' / 不重複 ' + d.distinct, d.docs, d.date, '', '', '', '', RC_TEXT[d.kind]].map(q).join(',')));
+  const blob = new Blob(['\ufeff' + lines.join('\r\n')], {type: 'text/csv;charset=utf-8'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'duplicates_' + ymd(new Date()).replace(/-/g, '') + '.csv';
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+
 async function importHistoricalRecords(){
   const fileInput = document.getElementById('historyImportFile');
   const msgEl = document.getElementById('historyImportMsg');
@@ -2275,6 +2920,7 @@ async function importHistoricalRecords(){
     return;
   }
 
+  if(isTestMode()){ msgEl.textContent = '測試模式中:不會寫入雲端,所以不能匯入歷史紀錄。請先關閉測試模式。'; return; }
   let records;
   try{
     const text = await file.text();
@@ -2333,6 +2979,7 @@ async function importHistoricalRecords(){
 // 記在這台電腦的瀏覽器裡;「已確認完成揀貨」另外還可以到資料庫的訂單歷史查(換電腦也查得到)。
 const KERRY_EXPORT_KEY = 'jeidi_kerry_exported_v1';
 const CONFIRMED_KEY = 'jeidi_confirmed_orders_v1';
+const RERECORD_KEY = 'jeidi_rerecord_ok_v1';   // 匯入時被問「已確認過」、使用者選「仍然全部匯入」的訂單(例如真的要重新出貨):確認時允許再記錄一次(記錄完就失效)
 const LEDGER_KEEP_DAYS = 45;   // 記錄保留幾天(超過的自動清掉)
 function ledgerCutoff(){ const d = new Date(); d.setDate(d.getDate() - LEDGER_KEEP_DAYS); return ymd(d); }
 function loadLedger(key){
@@ -2343,7 +2990,7 @@ function loadLedger(key){
   return o;
 }
 function ledgerAdd(key, channel, orderIds){
-  if(!orderIds || orderIds.length === 0) return;
+  if(!orderIds || orderIds.length === 0 || isTestMode()) return;   // 測試模式不記錄(不然正式匯入時會被當成「已確認過」)
   const o = loadLedger(key);
   o[channel] = o[channel] || {};
   const today = ymd(new Date());
@@ -2356,6 +3003,13 @@ function ledgerGet(key, channel, orderId){
 }
 // 一次取出某個通路的整份記錄({訂單編號: 日期})。要查很多張訂單時用這個(只讀、解析一次),
 // 不要在迴圈裡一直呼叫 ledgerGet:每呼叫一次就會把整份記錄重新讀出來、解析一次,訂單多、記錄多的時候會很慢。
+function ledgerRemove(key, channel, orderIds){
+  if(!orderIds || orderIds.length === 0 || isTestMode()) return;
+  const o = loadLedger(key);
+  if(!o[channel]) return;
+  orderIds.forEach(id => { delete o[channel][id]; });
+  try{ localStorage.setItem(key, JSON.stringify(o)); }catch(e){}
+}
 function ledgerChannel(key, channel){
   const o = loadLedger(key);
   return o[channel] || {};
@@ -2499,6 +3153,30 @@ async function loadResendRecords(){
   }
 }
 
+// ===== 補寄:每一項資料都有「複製」鈕(填 7-11、全家、黑貓的出貨單時,一項一項貼過去)=====
+const RESEND_SEVEN_RECIPIENT_EMAIL = 'fitz@jeidi.com.tw';   // 7-11 出貨單的「收件人 EMAIL」固定填這個(不填客人的)
+function cpRowHtml(label, value){
+  const v = String(value == null ? '' : value).trim();
+  if(!v) return '<div class="cp-row"><span class="cp-label">' + label + '</span><span class="cp-val cp-empty">(沒有填)</span></div>';
+  return '<div class="cp-row"><span class="cp-label">' + label + '</span><span class="cp-val">' + escapeHtml(v) + '</span>' +
+    '<button type="button" class="cp-btn" data-copy="' + escapeHtml(v) + '" onclick="copyFieldBtn(this)">複製</button></div>';
+}
+function senderCopyHtml(){   // 寄件人資訊:姓名、電話、EMAIL 各有一顆複製鈕
+  return '<div class="cp-group"><div class="cp-title">寄件人資訊(填單時參考)</div>' +
+    cpRowHtml('姓名', RESEND_SENDER_INFO.name) + cpRowHtml('電話', RESEND_SENDER_INFO.phone) + cpRowHtml('EMAIL', RESEND_SENDER_INFO.email) + '</div>';
+}
+function sevenEmailHtml(){   // 7-11 配送:提醒收件人 EMAIL 要填哪一個
+  return '<div class="cp-group cp-warn"><div class="cp-title">⚠ 7-11 配送:收件人 EMAIL 請填這個(不是客人的)</div>' + cpRowHtml('EMAIL', RESEND_SEVEN_RECIPIENT_EMAIL) + '</div>';
+}
+async function copyFieldBtn(btn){
+  const ok = await copyTextToClipboard(btn.dataset.copy || '');
+  if(!btn.dataset.label) btn.dataset.label = btn.textContent;
+  btn.textContent = ok ? '已複製 ✓' : '複製失敗';
+  btn.classList.toggle('copied', ok);
+  clearTimeout(btn._t);
+  btn._t = setTimeout(() => { btn.textContent = btn.dataset.label; btn.classList.remove('copied'); }, 1800);
+}
+
 function renderResendListInto(box, records){
   if(!box) return;
   // 清單會因為別人新增/修改而整個重畫:先記下這邊已經打了、但還沒儲存的單號(和游標),畫完再放回去
@@ -2518,11 +3196,12 @@ function renderResendListInto(box, records){
         <span class="resend-channel">${escapeHtml(r.channel||'')}</span>
         <span class="resend-order">${escapeHtml(r.orderNumber||'')}</span>
       </div>
-      <div class="resend-line">${escapeHtml(r.name||'')}　${escapeHtml(r.phone||'')}</div>
-      <div class="resend-line">${escapeHtml(SHIP_CATEGORY_LABEL[r.category]||r.category||'')}${r.address ? '｜' : ''}${escapeHtml(r.address||'')}</div>
+      <div class="cp-group"><div class="cp-title">收件人</div>${cpRowHtml('姓名', r.name)}${cpRowHtml('電話', r.phone)}${cpRowHtml('地址', r.address)}</div>
+      <div class="resend-line">物流:${escapeHtml(SHIP_CATEGORY_LABEL[r.category]||r.category||'')}</div>
       <div class="resend-line">內容:${escapeHtml(r.contents||'')}</div>
       ${linkHtml}
-      <div class="rql-sender">寄件人資訊(填單時參考):${RESEND_SENDER_INFO.name}・${RESEND_SENDER_INFO.phone}・${RESEND_SENDER_INFO.email}</div>
+      ${r.category === 'seven' ? sevenEmailHtml() : ''}
+      ${senderCopyHtml()}
       <div class="resend-tracking-row">
         <input type="text" class="resend-tracking-input" placeholder="補寄單號(寄出後填這裡)" value="${escapeHtml(r.trackingNumber||'')}" oninput="updateResendReplyPreview(this)">
         <button class="ghost" onclick="saveResendTracking(this, '${r.id}')">儲存單號</button>
@@ -2823,7 +3502,7 @@ function renderResendQuickLinks(){
   box.innerHTML = '<div class="resend-quick-links">' +
     '<div class="rql-title">📮 寄件資訊</div>' +
     linkHtml +
-    '<div class="rql-sender">寄件人資訊(填單時參考):' + RESEND_SENDER_INFO.name + '・' + RESEND_SENDER_INFO.phone + '・' + RESEND_SENDER_INFO.email + '</div>' +
+    (cat === 'seven' ? sevenEmailHtml() : '') + senderCopyHtml() +
     '</div>';
 }
 
@@ -3088,6 +3767,7 @@ async function loadSkuMap(){
       };
     });
     skuMap = map;
+    invalidateWeightCache();
     skuLoadError = null;
   }catch(err){
     skuLoadError = err.message;
@@ -5459,6 +6139,7 @@ function parseShopRows(dataRows, headers){
       subtotal: price * qty,
       sku: sku,
       rawRow: r,
+      cancelled: !!ctx.promo.cancelled,
       shippingCategory: ctx.shippingCategory
     });
   });
@@ -5538,6 +6219,9 @@ async function processFile(){
   // 檔案讀好了:馬上開始下載後面要用的表(商品表、備註、顏色、待出貨、待揀貨),不要等防重複檢查、不要等使用者回答詢問
   const mapsPromise = loadImportMaps(currentChannel);
   mapsPromise.catch(()=>{});   // 如果中途使用者取消,這份資料沒用到,也不要跳出沒人處理的錯誤
+
+  // 把這份檔案裡的訂單(整份,包含之前已經確認過的)存到雲端,讓老闆能下載去分析。不等它做完,失敗也不影響檢貨
+  saveImportedOrdersToCloud(items, currentChannel).catch(() => {});
 
   // 檢查有沒有「之前已經確認完成揀貨」的訂單又被匯入(例如平台的待出貨清單隔天還在),先詢問要不要略過
   lastDupSkip = null;
@@ -6078,6 +6762,7 @@ function applySkuInfoToItems(items){
   });
 }
 function repaintPickListWithMaps(){
+  invalidateWeightCache();
   if(!parsedItems || parsedItems.length === 0) return;
   applySkuInfoToItems(parsedItems);
   const states = captureCardStates(); // 已勾選、稍後檢貨的狀態先記起來,重畫完還原
@@ -6112,6 +6797,22 @@ async function refreshPendingMapsAndRepaint(){
 function withTimeout(promise, ms){
   return Promise.race([promise, new Promise(resolve => setTimeout(() => resolve(null), ms))]);
 }
+// 只查資料庫(不看這台電腦的記錄):這幾張訂單,資料庫的訂單紀錄裡是不是已經有了(別台電腦剛剛確認的也查得到)
+async function findRecordedInHistory(channel, orderIds){
+  const found = {};
+  if(isTestMode()) return found;   // 測試模式:不查,也不會寫
+  if(!orderIds || orderIds.length === 0) return found;
+  const cutoff = ledgerCutoff();
+  await waitForFirebase();
+  const {db, collection, query, where, getDocs} = window.__fb;
+  const chunks = [];
+  for(let i = 0; i < orderIds.length; i += 30) chunks.push(orderIds.slice(i, i + 30));
+  await Promise.all(chunks.map(async ch => {
+    const snap = await getDocs(query(collection(db, ORDER_HISTORY_COLLECTION), where('orderId', 'in', ch)));
+    snap.forEach(d => { const x = d.data(); if(x.channel === channel && (x.date || '') >= cutoff) found[x.orderId] = x.date; });
+  }));
+  return found;
+}
 async function findConfirmedOrderIds(channel, orderIds){
   const found = {};   // 訂單編號 → 當初確認的日期
   const led = ledgerChannel(CONFIRMED_KEY, channel);
@@ -6138,6 +6839,7 @@ async function findConfirmedOrderIds(channel, orderIds){
 let lastDupSkip = null;   // 最近一次匯入略過了哪些「已確認過」的訂單
 async function filterAlreadyConfirmed(items){
   const channel = currentChannel;
+  if(isTestMode()) return {items: items, skipped: []};   // 測試模式:不檢查「已確認過」(才能拿今天同事已經確認過的真訂單來測)
   const ids = [...new Set(items.map(it => it.orderId).filter(Boolean))];
   const found = await findConfirmedOrderIds(channel, ids);
   const dupIds = ids.filter(id => found[id]);
@@ -6149,7 +6851,7 @@ async function filterAlreadyConfirmed(items){
     '這份檔案裡有 ' + dupIds.length + ' 張訂單之前已經「確認完成揀貨」過(' + sample + ';最近一次確認是 ' + dates[dates.length - 1] + ')。\n\n' +
     '按「確定」:略過這 ' + dupIds.length + ' 張,只處理新的 ' + newCount + ' 張(建議,避免重複出貨、重複計算件數)\n' +
     '按「取消」:仍然全部匯入(例如這些訂單其實要重新出貨)');
-  if(!skip) return {items: items, skipped: []};
+  if(!skip){ ledgerAdd(RERECORD_KEY, channel, dupIds); return {items: items, skipped: []}; }   // 使用者明確選了「仍然全部匯入」(例如真的要重新出貨),確認時就不要擋
   const skipSet = new Set(dupIds);
   return {items: items.filter(it => !skipSet.has(it.orderId)), skipped: dupIds};
 }
@@ -6434,7 +7136,7 @@ function updateSfQuickLinkBanner(){
   banner.innerHTML = '<div class="resend-quick-links">' +
     '<div class="rql-title">📮 這批有順豐的訂單</div>' +
     '<a href="' + portal.url + '" target="_blank" rel="noopener">前往' + portal.label + '</a>' +
-    '<div class="rql-sender">寄件人資訊(填單時參考):' + RESEND_SENDER_INFO.name + '・' + RESEND_SENDER_INFO.phone + '・' + RESEND_SENDER_INFO.email + '</div>' +
+    senderCopyHtml() +
     '</div>';
 }
 
@@ -6799,10 +7501,35 @@ function recordDoneCards(doneCards){
   const channel = currentChannel;
   const done = doneCards.length;
   // 這裡只回報「這次新完成」的數量,不是整批的總數,避免同一批分好幾次確認時,總數被重複疊加
-  const saves = [
-    savePickRecord(channel, categoryCounts, done, totalItemCount, done, Object.values(skuTotals)),
-    saveOrderHistory(historyRecords)
-  ];
+  // 先(同步)整理好每張訂單的內容:等一下要去資料庫確認,到時候畫面上的資料已經變了
+  const perOrder = {};
+  doneCards.forEach(card => {
+    const its = pickOrderGroups[parseInt(card.id.replace('pick-card-',''), 10)] || [];
+    if(its.length > 0) perOrder[its[0].orderId] = {cat: its[0].shippingCategory || 'kerry', items: its.map(it => ({sku: it.sku, name: it.displayName || it.itemName, qty: it.qty}))};
+  });
+  const allowed = ledgerChannel(RERECORD_KEY, channel);
+  const info = {skipped: [], checked: false};
+  // 寫進資料庫之前,先去資料庫查一次:這幾張是不是已經有人(別台電腦、剛剛、之前)確認過了。有的就不重複記錄;
+  // 查不到(斷線、太慢)就照常記錄,不能因為查不到就漏記
+  const saved = (async () => {
+    const skip = new Set();
+    try{
+      const found = await withTimeout(findRecordedInHistory(channel, [...doneOrderIds]), 6000);
+      if(found){ Object.keys(found).forEach(id => { if(!allowed[id]) skip.add(id); }); info.checked = true; }
+    }catch(e){}
+    info.skipped = [...skip];
+    const keepIds = [...doneOrderIds].filter(id => !skip.has(id));
+    if(keepIds.length === 0) return true;
+    const cc = {}, st = {}; let ti = 0;
+    keepIds.forEach(id => {
+      const p = perOrder[id]; if(!p) return;
+      cc[p.cat] = (cc[p.cat] || 0) + 1;
+      p.items.forEach(it => { if(!it.sku) return; if(!st[it.sku]) st[it.sku] = {sku: it.sku, name: it.name, qty: 0}; st[it.sku].qty += it.qty; ti += it.qty; });
+    });
+    const r = await Promise.all([savePickRecord(channel, cc, keepIds.length, ti, keepIds.length, Object.values(st)), saveOrderHistory(historyRecords.filter(h => !skip.has(h.orderId)))]);
+    ledgerRemove(RERECORD_KEY, channel, keepIds);   // 這次允許的重新出貨,記錄完就用掉了
+    return r.every(ok => ok !== false);
+  })();
   ledgerAdd(CONFIRMED_KEY, channel, [...doneOrderIds]);   // 記住這些訂單已經確認過,之後又被匯入時才會被攔下來詢問
 
   // 已勾選確認完成的訂單,解除「揀貨未完成」的追蹤;還沒勾選的,記錄到「揀貨未完成」清單,方便跨天追蹤有沒有一直被漏掉
@@ -6812,8 +7539,8 @@ function recordDoneCards(doneCards){
     const oid = its[0].orderId;
     if(!doneOrderIds.has(oid)) markPendingPick(channel, oid, its[0].name);
   });
-  Promise.all(saves).then(() => { Object.keys(specialHistoryCache).forEach(k => { delete specialHistoryCache[k]; }); if(specialOrders.length) renderSpecialOrders(); }).catch(() => {});
-  return {doneOrderIds, saved: Promise.all(saves).then(r => r.every(ok => ok !== false))};
+  saved.then(() => { Object.keys(specialHistoryCache).forEach(k => { delete specialHistoryCache[k]; }); if(specialOrders.length) renderSpecialOrders(); }).catch(() => {});
+  return {doneOrderIds, saved, info};
 }
 
 function confirmPickProgress(){
@@ -6857,6 +7584,14 @@ function confirmPickProgress(){
       alert('⚠ 這次確認的 ' + done + ' 張訂單,記錄到出貨核對時失敗了(可能是網路或權限問題)。\n出貨核對頁的數字可能會少算,請重新整理後確認;若還是不對,請告訴開發的人。');
     }
     updatePage3PickProgress();
+  });
+  rec.saved.then(() => {
+    const sk = rec.info.skipped.length;
+    if(sk > 0){
+      note.textContent += sk === done ? ' ⚠ 這 ' + sk + ' 張訂單之前已經有人確認過了(可能是別台電腦剛剛確認的),所以沒有重複記錄到出貨核對,數字不會多算。' : ' ⚠ 其中 ' + sk + ' 張之前已經有人確認過了(可能是別台電腦剛剛確認的),沒有重複記錄,出貨核對的數字不會多算。';
+    }else if(!rec.info.checked){
+      note.textContent += '(這次沒辦法確認有沒有跟別台電腦重複記錄,已照常記錄。)';
+    }
   });
   updatePage3PickProgress();
   saveState();
@@ -6965,7 +7700,7 @@ function renderResult(){
 }
 
 function escapeHtml(s){
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 // ===== Big5 編碼(瀏覽器只能「讀」Big5,寫不出來,所以反向掃描建立對照表自己組位元組)=====
@@ -7047,39 +7782,130 @@ function parseWeightG(v, isKg){
   if(!isFinite(n) || n <= 0) return null;
   return isKg ? n * 1000 : n;
 }
-// 這個 SKU 的重量:有填就用自己的(禮盒、組合那一列請填整個組合的重量);沒填但有組合成分,就用成分加總;任何一個不知道就是 null
-function skuWeightG(sku, depth){
-  const info = skuMap[sku];
-  if(!info) return null;
-  if(info.weightG != null) return info.weightG;
-  if(!info.combo || (depth || 0) >= 3) return null;
-  let sum = 0, n = 0;
-  for(const c of parseCombo(info.combo, sku)){
-    if(NO_PAPER_BAG_CHANNELS.includes(currentChannel) && isPaperBagSku(c.sku)) continue;   // LINE 不附紙袋,不算紙袋的重量
-    const w = skuWeightG(c.sku, (depth || 0) + 1);
-    if(w == null) return null;
-    sum += w * c.qty; n++;
-  }
-  return n ? sum : null;
+// ===== 重量:自動配對(只要量「商品種類」,其他自動加總)=====
+// 規則(依序):
+//  1) 這個 SKU 在 SKU 表「重量(g)」欄自己有填 → 用它(特殊禮盒、或想蓋掉自動結果時用);
+//  2) 組合類(套裝/禮盒/組合/禮品袋,約 1,700 個)→ 從「商品名稱」拆出裡面有什麼(小蠟、大蠟、居噴、禮品袋…),各自查重量後加總;
+//  3) 成系列的單品 → 用「同品項類型」的重量(同類型只要填一個代表 SKU,其他香味自動沿用;填了好幾個不同的就取最重的);
+//  4) 還是沒有 → 缺重量,並說出缺的是「哪一項」。
+// 名稱裡的關鍵字 → 組成(用「品項類型」或固定的 SKU 代號表示)。順序很重要:長的、具體的放前面。
+// 內建重量(公克):您量好的。SKU 表「重量」欄有填的,一律以 SKU 表為準(會蓋掉這裡);沒填才用這裡。
+// 成系列的單品、卡片:同「品項類型」共用一個重量;其他(紙袋、禮品袋、燭蓋、霧面燭台、空盒、寄出外包裝…):用 SKU 代號。
+const WT_DEFAULT_TYPE = {'居家噴霧': 151.5, '蠟燭(小)': 158, '蠟燭(大)': 396.5, '擴香瓶組合(黑棒)': 282.5, '香氛袋/亞麻袋': 50, '隨身噴霧': 26, '卡片': 4, '精油': 44.5, '香氛袋補充包': 32.5, '擴香補充液': 250, '空間噴霧': 193, '茶燭': 14, '空間噴霧補充袋': 154, '蠟燭': 440};
+const WT_DEFAULT_SKU = {'paperbag-M': 66, 'BagFW': 37, 'WT_BOX_3CNDL': 225, 'WT_BOX_CLASSIC': 123, 'WT_BOX_CAKE': 60, 'WT_BOX_BUTTER': 60, 'WT_BOX_CROC': 60, 'CSL': 94, 'Candlestick': 97, 'WT_BOX_FLOWER': 440, 'WT_SET_6CNDL': 977, 'WT_PACK': 90};
+const WT_TYPE_LABEL = {'蠟燭': '金賭爛 250ml 蠟燭', '卡片': '卡片(任一張)'};
+const WT_NOT_SOLD = ['護手霜', '洗手乳', '擴香瓶(基礎,沒有單賣)', '擴香瓶組合(木棒)'];   // 不再販售:沒有重量;如果還有這些的訂單,會被擋住提醒
+const WT_KEYWORDS = [
+  ['花落花開禮盒', [['WT_BOX_FLOWER', 1], ['蠟燭(小)', 4]]], ['六入小蠟燭禮盒', [['WT_SET_6CNDL', 1]]], ['六入小蠟燭', [['WT_SET_6CNDL', 1]]],
+  ['三大蠟燭禮盒', [['WT_BOX_3CNDL', 1], ['蠟燭(大)', 3]]], ['三大蠟禮盒', [['WT_BOX_3CNDL', 1], ['蠟燭(大)', 3]]], ['經典香氛禮盒', [['WT_BOX_CLASSIC', 1]]],
+  ['蛋糕人禮盒', [['WT_BOX_CAKE', 1]]], ['奶油捲禮盒', [['WT_BOX_BUTTER', 1]]], ['鱷魚人禮盒', [['WT_BOX_CROC', 1]]],
+  ['空間噴霧補充袋', [['空間噴霧補充袋', 1]]], ['空間噴霧', [['空間噴霧', 1]]], ['擴香補充液', [['擴香補充液', 1]]],
+  ['小蠟燭', [['蠟燭(小)', 1]]], ['大蠟燭', [['蠟燭(大)', 1]]], ['小蠟', [['蠟燭(小)', 1]]], ['大蠟', [['蠟燭(大)', 1]]],
+  ['擴香瓶', [['擴香瓶組合(黑棒)', 1]]], ['擴香', [['擴香瓶組合(黑棒)', 1]]],
+  ['居家噴霧', [['居家噴霧', 1]]], ['居噴', [['居家噴霧', 1]]], ['隨行噴霧', [['隨身噴霧', 1]]], ['隨身噴霧', [['隨身噴霧', 1]]], ['隨噴', [['隨身噴霧', 1]]],
+  ['香氛袋', [['香氛袋/亞麻袋', 1]]], ['亞麻袋', [['香氛袋/亞麻袋', 1]]], ['木屑補充包', [['香氛袋補充包', 1]]], ['香補包', [['香氛袋補充包', 1]]],
+  ['護手霜', [['護手霜', 1]]], ['洗手露', [['洗手乳', 1]]], ['洗手乳', [['洗手乳', 1]]], ['茶燭', [['茶燭', 1]]], ['精油', [['精油', 1]]],
+  ['磨石子燭蓋', [['CSL', 1]]], ['禮品袋', [['BagFW', 1]]], ['小提袋', [['paperbag-S', 1]]]
+];
+const WT_CARD_ALIASES = ['熊卡', '砸派卡', '樹懶卡'];   // 舊的卡片簡稱
+const WT_KEY_LABEL = {'WT_BOX_3CNDL': '三大蠟燭禮盒空盒', 'WT_BOX_CLASSIC': '經典香氛禮盒空盒', 'WT_BOX_CAKE': '蛋糕人禮盒空盒', 'WT_BOX_BUTTER': '奶油捲禮盒空盒', 'WT_BOX_CROC': '鱷魚人禮盒空盒', 'WT_BOX_FLOWER': '花落花開禮盒空盒', 'WT_SET_6CNDL': '六入小蠟燭(滿盒,含蠟燭)', 'Candlestick': '霧面燭台', 'WT_PACK': '寄出外包裝', 'BagFW': '禮品袋', 'paperbag-S': '小提袋', 'paperbag-M': '大紙袋', 'CSL': '磨石子燭蓋'};
+function weightKeyLabel(k){ return WT_KEY_LABEL[k] || k; }
+// 卡片的名稱直接從 SKU 表讀(品項類型是「卡片」的那幾列),以後新增卡片不用改程式
+let weightKwCache = null;
+function weightKeywords(){
+  if(weightKwCache && weightKwCache.for === skuMap) return weightKwCache.kw;
+  const cards = [];
+  Object.keys(skuMap).forEach(k => { const i = skuMap[k]; if(i && i.type === '卡片' && i.name){ const n = i.name.normalize('NFKC').trim(); if(n && !cards.includes(n)) cards.push(n); } });
+  cards.sort((a, b) => b.length - a.length);
+  const kw = cards.map(n => [n, [['卡片', 1]]]).concat(WT_CARD_ALIASES.filter(n => !cards.includes(n)).map(n => [n, [['卡片', 1]]]), WT_KEYWORDS);
+  weightKwCache = {for: skuMap, kw}; return kw;
 }
-// 系統自動補上的贈品小蠟燭(客人可以任選):用「小蠟燭裡最重的那一個」算,寧可多算一點
+// 把商品名稱拆成 [{key, qty}];拆不出來(有看不懂的字,例如一次性的特殊禮盒)就回傳 null
+function weightDecompose(name){
+  let t = String(name || '').normalize('NFKC').replace(/[GSR]\d+/g, ' ').replace(/\d+\s*ml/gi, ' ');
+  const parts = {}; let any = false;
+  weightKeywords().forEach(([kw, comp]) => {
+    const n = t.split(kw).length - 1;
+    if(n > 0){ comp.forEach(([k, q]) => { parts[k] = (parts[k] || 0) + q * n; }); any = true; t = t.split(kw).join(' '); }
+  });
+  t = t.split('滿額贈').join(' ');
+  if(!any || t.replace(/[\sXx×+&_\-\/、,()\d]+/g, '') !== '') return null;
+  return Object.keys(parts).map(k => ({key: k, qty: parts[k]}));
+}
+function isCompositeInfo(info){ return ['套裝', '禮盒', '組合'].includes(info.category) || (info.category === '' && info.type === '組合'); }
+function isTypeWeightRow(info){ return /系列$/.test(info.category || '') || info.type === '卡片'; }   // 成系列的單品、卡片:同品項類型可以共用一個重量(「其他」這種混著各種東西的不行)
+let weightCache = null;
+function invalidateWeightCache(){ weightCache = null; weightKwCache = null; }
+function typeWeights(){
+  if(weightCache && weightCache.for === skuMap) return weightCache.tw;
+  const tw = {};
+  Object.keys(skuMap).forEach(k => { const i = skuMap[k]; if(isTypeWeightRow(i) && i.type && i.weightG != null) tw[i.type] = Math.max(tw[i.type] || 0, i.weightG); });
+  Object.keys(WT_DEFAULT_TYPE).forEach(t => { if(tw[t] == null) tw[t] = WT_DEFAULT_TYPE[t]; });   // SKU 表沒填的類型,用內建的
+  weightCache = {for: skuMap, tw}; return tw;
+}
+function weightOfKey(key){
+  const tw = typeWeights(); if(tw[key] != null) return tw[key];
+  const i = skuMap[key]; if(i && i.weightG != null) return i.weightG;
+  return WT_DEFAULT_SKU[key] != null ? WT_DEFAULT_SKU[key] : null;   // SKU 表沒填的,用內建的
+}
+// 組合成分是不是「包含自己」(例如擴香補充液 = 補充液自己 + 漏斗)。注意 parseCombo 會把自己濾掉,所以要看原始字串;
+// 包含自己的,不能用「成分加總」(會漏掉自己那一份,變成只有漏斗的重量),只能用同類型的重量。
+function comboHasSelf(info, sku){ return String(info.combo || '').split(',').some(p => p.trim().replace(/\s*x\s*\d+$/i, '').trim() === sku); }
+// 這個 SKU 的重量(公克)與缺哪些項目:回傳 {g, missing:[項目名稱…]}
+function skuWeightInfo(sku){
+  const info = skuMap[sku];
+  if(!info) return {g: null, missing: [sku]};
+  if(info.weightG != null) return {g: info.weightG, missing: []};
+  if(WT_DEFAULT_SKU[sku] != null && !isCompositeInfo(info)) return {g: WT_DEFAULT_SKU[sku], missing: []};   // 單獨賣的紙袋、禮品袋、燭蓋、霧面燭台:用內建的
+  if(isCompositeInfo(info)){
+    const dec = weightDecompose(info.name);
+    if(!dec) return {g: null, missing: [(info.name || sku) + '(' + sku + ',特殊禮盒,要整盒的重量)']};   // 名稱可能重複,所以連 SKU 代號一起寫,才找得到要填哪一列
+    let g = 0; const miss = [];
+    const add = (key, q) => {
+      if(NO_PAPER_BAG_CHANNELS.includes(currentChannel) && isPaperBagSku(key)) return;   // LINE 不附紙袋,不算紙袋的重量
+      const w = weightOfKey(key);
+      if(w == null) miss.push(weightKeyLabel(key)); else g += w * q;
+    };
+    dec.forEach(p => add(p.key, p.qty));
+    parseCombo(info.combo, sku).forEach(c => { if(c.sku !== sku) add(c.sku, c.qty); });   // 組合成分裡寫的附贈品(禮盒的大紙袋)
+    return miss.length ? {g: null, missing: miss.filter((x, i) => miss.indexOf(x) === i)} : {g, missing: []};
+  }
+  if(isTypeWeightRow(info)){ const tw = typeWeights()[info.type]; if(tw != null) return {g: tw, missing: []}; }
+  if(info.combo && !isCompositeInfo(info) && !comboHasSelf(info, sku)){   // 沒有同類型的重量,但有組合成分(而且不是「自己包含自己」)→ 成分加總
+    const comps = parseCombo(info.combo, sku);
+    if(comps.length){
+      let g = 0; const miss = [];
+      comps.forEach(c => {
+        if(NO_PAPER_BAG_CHANNELS.includes(currentChannel) && isPaperBagSku(c.sku)) return;
+        const w = skuWeightInfo(c.sku); if(w.g == null) miss.push(...w.missing); else g += w.g * c.qty;
+      });
+      if(!miss.length) return {g, missing: []};
+    }
+  }
+  return {g: null, missing: [isTypeWeightRow(info) && info.type ? info.type : (info.name ? info.name + '(' + sku + ')' : sku)]};
+}
+function skuWeightG(sku){ return skuWeightInfo(sku).g; }
+// 系統自動補上的贈品小蠟燭(客人可以任選):用「蠟燭(小)」的重量;沒有的話,用小蠟燭裡最重的那一個
 function giftWeightG(){
+  const t = typeWeights()['蠟燭(小)']; if(t != null) return t;
   let m = null;
   Object.keys(skuMap).forEach(k => { if(/^Cndl.*_S$/i.test(k) && skuMap[k].weightG != null) m = Math.max(m || 0, skuMap[k].weightG); });
   return m;
 }
-function itemWeightG(it){
-  if(it.autoGift){ const g = giftWeightG(); return g == null ? null : g * (it.qty || 1); }
-  const w = skuWeightG(it.sku, 0);
-  return w == null ? null : w * (it.qty || 1);
+function itemWeightInfo(it){
+  if(it.autoGift){ const g = giftWeightG(); return g == null ? {g: null, missing: ['蠟燭(小)(系統補上的贈品)']} : {g: g * (it.qty || 1), missing: []}; }
+  const w = skuWeightInfo(it.sku);
+  return w.g == null ? w : {g: w.g * (it.qty || 1), missing: []};
 }
+function itemWeightG(it){ return itemWeightInfo(it).g; }
 function orderWeightInfo(its){
   let grams = 0; const missing = [];
   its.forEach(it => {
-    const w = itemWeightG(it);
-    if(w == null){ const key = it.autoGift ? '(贈品小蠟燭)' : (it.sku || it.itemName || '?'); if(!missing.includes(key)) missing.push(key); }
-    else grams += w;
+    const w = itemWeightInfo(it);
+    if(w.g == null){ w.missing.forEach(m => { if(!missing.includes(m)) missing.push(m); }); }
+    else grams += w.g;
   });
+  const pk = weightOfKey('WT_PACK'); if(pk != null) grams += pk;   // 寄出用的外包裝(選填,每個包裹加一次)
   return {grams, missing};
 }
 
@@ -7094,7 +7920,7 @@ function shipTagHtml(its, idx){
   if(c === 'post'){
     const w = orderWeightInfo(its);
     wt = w.missing.length
-      ? '<span class="pc-weight missing" title="缺重量的 SKU:' + escapeHtml(w.missing.join('、')) + '">⚠ 缺重量</span>'
+      ? '<span class="pc-weight missing" title="缺重量的項目:' + escapeHtml(w.missing.join('、')) + '">⚠ 缺重量</span>'
       : '<span class="pc-weight">約 ' + Math.round(w.grams) + ' g</span>';
   }
   return '<span class="pc-ship-wrap"><span class="pc-ship-tag pc-ship-' + c + '">' + CH[currentChannel] + '・' + CARRIER_LABEL[c] + '</span>' + wt + '</span>';
@@ -7117,7 +7943,18 @@ function refreshCarrierUI(){
   updateIslandPanel();
 }
 // 匯出區的說明:這批有幾張走郵局、幾張走黑貓、幾張缺重量
+function renderWeightTable(){
+  const box = document.getElementById('wtTable'); if(!box) return;
+  const tw = typeWeights(), sheetType = {}, esc = escapeHtml;
+  Object.keys(skuMap).forEach(k => { const i = skuMap[k]; if(i && isTypeWeightRow(i) && i.type && i.weightG != null) sheetType[i.type] = true; });
+  const rows = [];
+  Object.keys(WT_DEFAULT_TYPE).forEach(t => rows.push([WT_TYPE_LABEL[t] || t, tw[t], sheetType[t] ? 'SKU 表(蓋掉內建的 ' + WT_DEFAULT_TYPE[t] + ' g)' : '內建']));
+  Object.keys(WT_DEFAULT_SKU).forEach(k => { const i = skuMap[k], sheet = !!(i && i.weightG != null); rows.push([weightKeyLabel(k), sheet ? i.weightG : WT_DEFAULT_SKU[k], sheet ? 'SKU 表(蓋掉內建的 ' + WT_DEFAULT_SKU[k] + ' g)' : '內建']); });
+  box.innerHTML = '<div class="dup-wrap"><table class="dup-tbl"><tr><th>項目</th><th>重量(g)</th><th>來源</th></tr>' + rows.map(r => '<tr><td>' + esc(r[0]) + '</td><td>' + r[1] + '</td><td>' + esc(r[2]) + '</td></tr>').join('') + '</table></div>' +
+    '<div class="dup-sub">沒有重量(不再販售,如果還有這些商品的訂單會被擋住提醒):' + esc(WT_NOT_SOLD.join('、')) + '。小提袋:還在確認。</div>';
+}
 function renderCarrierSummary(){
+  renderWeightTable();
   const byOrder = {};
   parsedItems.forEach(it => { if(it.orderId && isHomeDeliveryItem(it)) (byOrder[it.orderId] = byOrder[it.orderId] || []).push(it); });
   let post = 0, kerry = 0, noWeight = 0;
@@ -7149,6 +7986,7 @@ let postTemplateBytes = null;
 if(TEST_BUILD){   // 測試版:標題加【測試】,頁面最上面顯示提醒,避免跟同事用的正式網頁搞混
   document.title = '【測試】' + document.title;
   ['testBanner', 'testBadgeAuth'].forEach(id => { const e = document.getElementById(id); if(e) e.style.display = ''; });
+  renderTestUi();
 }
 function xmlAttr(tag, name){ const m = new RegExp('(?:^|[\\s<])' + name + '="([^"]*)"').exec(tag); return m ? m[1] : null; }
 function xmlUnescape(t){ return String(t).replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#(\d+);/g, (m, n) => String.fromCharCode(+n)).replace(/&amp;/g, '&'); }
@@ -7322,7 +8160,7 @@ async function downloadPostXlsx(){
   });
   if(badRecipient.length || noWeightOrders.length){
     let h = '<div style="color:var(--warn);"><b>⚠ 還不能匯出郵局檔,請先處理:</b></div>';
-    if(noWeightOrders.length) h += '<div style="margin-top:6px;"><b>缺重量</b>(影響 ' + noWeightOrders.length + ' 張訂單):請到 SKU 表,在這些 SKU 後面補「重量(g)」,存檔後把這個網頁重新整理一次,再按下載。<br>缺重量的 SKU:' + escapeHtml(noWeightSkus.slice(0, 40).join('、')) + (noWeightSkus.length > 40 ? '…(共 ' + noWeightSkus.length + ' 個)' : '') + '</div>';
+    if(noWeightOrders.length) h += '<div style="margin-top:6px;"><b>缺重量</b>(影響 ' + noWeightOrders.length + ' 張訂單):請到 SKU 表的「重量(g)」欄補上這些項目的重量(同類型的只要填一個代表 SKU,其他會自動沿用;特殊禮盒要填整盒的重量),存檔後把這個網頁重新整理一次,再按下載。<br>缺重量的項目:' + escapeHtml(noWeightSkus.slice(0, 40).join('、')) + (noWeightSkus.length > 40 ? '…(共 ' + noWeightSkus.length + ' 個)' : '') + '</div>';
     if(badRecipient.length) h += '<div style="margin-top:6px;"><b>收件資料不完整</b>:' + escapeHtml(badRecipient.slice(0, 20).join('、')) + (badRecipient.length > 20 ? '…' : '') + '</div>';
     showNote(h, true);
     alert('還不能匯出郵局檔:' + (noWeightOrders.length ? '有 ' + noWeightOrders.length + ' 張訂單缺重量。' : '') + (badRecipient.length ? '有 ' + badRecipient.length + ' 張訂單收件資料不完整。' : '') + '\n詳細在下載按鈕下面的說明。');
