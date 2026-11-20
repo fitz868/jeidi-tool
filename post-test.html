@@ -1453,16 +1453,30 @@
 
       <div class="panel no-print">
         <h2>上傳黑貓追蹤匯出檔</h2>
-        <div class="desc">黑貓收件完成後,從黑貓系統匯出的追蹤檔(訂單編號、託運單號),用來確認今天哪些訂單真的出貨了。</div>
+        <div class="desc">黑貓收件完成後,從黑貓系統匯出的追蹤檔(訂單編號、託運單號),用來確認今天哪些訂單真的出貨了。<b>今天沒有黑貓的單,這一個可以不放。</b></div>
         <div class="dropzone" id="p2-kerryDropzone" onclick="document.getElementById('p2-kerryInput').click()">
           <p id="p2-kerry-text">將黑貓追蹤匯出檔拖曳到這裡,或點擊選擇(.csv)</p>
           <div class="filename" id="p2-kerry-filename"></div>
           <input type="file" id="p2-kerryInput" accept=".csv">
         </div>
+      </div>
+
+      <div class="panel no-print" id="p2-postPanel">
+        <h2>上傳郵局大宗掛號執據(PDF)</h2>
+        <div class="desc">在 ezPost 上傳完、拿到「大宗掛號執據」PDF 之後放這裡。程式會用 PDF 裡的掛號號碼,<b>自動幫郵局寄的訂單填上貨運業者代碼 IPOST 和物流單編號,不用開 Excel</b>。黑貓和郵局可以同一天一起回報。這個檔案只在這台電腦的瀏覽器裡讀,不會上傳到任何地方。</div>
+        <div class="dropzone" id="p2-postDropzone" onclick="document.getElementById('p2-postInput').click()">
+          <p id="p2-post-text">將郵局大宗掛號執據拖曳到這裡,或點擊選擇(.pdf)</p>
+          <div class="filename" id="p2-post-filename"></div>
+          <input type="file" id="p2-postInput" accept=".pdf,application/pdf">
+        </div>
+      </div>
+
+      <div class="panel no-print">
         <div class="btn-row">
           <button class="primary" id="p2-processBtn" onclick="processReconcile()" disabled>比對出貨結果</button>
           <button class="ghost" id="p2-resetBtn" onclick="resetPage2()" style="display:none;">重新開始</button>
         </div>
+        <div class="desc" style="margin-top:8px;">LINE 回填範本一定要放,黑貓追蹤檔和郵局執據至少放一個。</div>
       </div>
 
       <div class="panel no-print" id="p2-errorPanel" style="display:none;">
@@ -1477,6 +1491,7 @@
         <div class="stat-row" id="p2-statRow"></div>
 
         <div class="warn-box" id="p2-unmatchedBox" style="display:none;"></div>
+        <div class="warn-box" id="p2-postBox" style="display:none;"></div>
 
         <div class="download-list">
           <div class="dl-item">
@@ -1781,7 +1796,7 @@
 
 <script>
 const TEST_BUILD = true;   // 測試版(post-test.html)只有這一行是 true,其他完全一樣;測好要換成正式版時,把它改成 false 放回 index.html 即可
-const APP_VERSION = '20261010-52'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20261010-53'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -5433,6 +5448,24 @@ p2KerryDropzone.addEventListener('drop', e=>{
 p2KerryInput.addEventListener('change', e=>{
   if(e.target.files.length) handleP2KerryFile(e.target.files[0]);
 });
+// ===== 頁面2:郵局大宗掛號執據(PDF)上傳 =====
+const p2PostDropzone = document.getElementById('p2-postDropzone');
+const p2PostInput = document.getElementById('p2-postInput');
+p2PostDropzone.addEventListener('dragover', e=>{e.preventDefault(); p2PostDropzone.classList.add('drag');});
+p2PostDropzone.addEventListener('dragleave', ()=> p2PostDropzone.classList.remove('drag'));
+p2PostDropzone.addEventListener('drop', e=>{
+  e.preventDefault(); p2PostDropzone.classList.remove('drag');
+  if(e.dataTransfer.files.length) handleP2PostFile(e.dataTransfer.files[0]);
+});
+p2PostInput.addEventListener('change', e=>{
+  if(e.target.files.length) handleP2PostFile(e.target.files[0]);
+});
+let p2PostFile = null;
+function handleP2PostFile(file){
+  p2PostFile = file;
+  document.getElementById('p2-post-filename').textContent = file.name;
+  checkP2Ready();
+}
 let p2KerryFile = null;
 function handleP2KerryFile(file){
   p2KerryFile = file;
@@ -5440,22 +5473,26 @@ function handleP2KerryFile(file){
   checkP2Ready();
 }
 function checkP2Ready(){
-  document.getElementById('p2-processBtn').disabled = !(p2OrderFile && p2KerryFile);
+  document.getElementById('p2-processBtn').disabled = !(p2OrderFile && (p2KerryFile || p2PostFile));
 }
 
 function resetPage2(){
   p2OrderFile = null;
   p2KerryFile = null;
+  p2PostFile = null;
+  p2Breakdown = null;
   reportRows = [];
   unmatchedOrders = [];
   document.getElementById('p2-order-filename').textContent = '';
   document.getElementById('p2-kerry-filename').textContent = '';
+  document.getElementById('p2-post-filename').textContent = '';
   document.getElementById('p2-processBtn').disabled = true;
   document.getElementById('p2-resetBtn').style.display = 'none';
   document.getElementById('p2-resultPanel').style.display = 'none';
   document.getElementById('p2-errorPanel').style.display = 'none';
   p2OrderInput.value = '';
   p2KerryInput.value = '';
+  p2PostInput.value = '';
 }
 
 function readAsBig5Text(file){
@@ -5515,14 +5552,75 @@ function matchTracking(cid, trackMap){
   return '';
 }
 
+// ===== 郵局回報:讀「大宗掛號執據」PDF,用姓名、地區、重量對回訂單,填 IPOST 和掛號號碼 =====
+const POST_SENT_KEY = 'jeidi_post_sent_v1', POST_SENT_DAYS = 60, POST_SENT_MAX = 800, POST_CARRIER_CODE = 'IPOST';
+const PDFJS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js', PDFJS_WORKER_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+function postSentLoad(){ try{ const a = JSON.parse(localStorage.getItem(POST_SENT_KEY) || '[]'); return Array.isArray(a) ? a : []; }catch(e){ return []; } }
+// 匯出郵局檔時記下每一筆(只存在這台電腦),保留 60 天、最多 800 筆;同一張訂單重新匯出就換成新的
+function postSentAdd(channel, rows){
+  try{
+    const now = Date.now(), fresh = rows.filter(r => r.oid);
+    const keep = postSentLoad().filter(x => now - x.t < POST_SENT_DAYS * 86400000 && !fresh.some(r => r.oid === x.oid && channel === x.ch));
+    fresh.forEach(r => keep.push({t: now, ch: channel, oid: r.oid, name: r.name || '', phone: r.phone || '', addr: r.address || '', g: Math.round((Number(r.kg) || 0) * 1000)}));
+    localStorage.setItem(POST_SENT_KEY, JSON.stringify(keep.slice(-POST_SENT_MAX)));
+  }catch(e){}
+}
+const postNameKey = v => String(v || '').replace(/[\s\u3000]/g, '');
+const postRegionKey = v => String(v || '').replace(/[\s\u3000]/g, '').replace(/台/g, '臺');
+function loadPdfJs(){
+  if(window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  return new Promise((resolve, reject) => {
+    const sc = document.createElement('script'); sc.src = PDFJS_URL;
+    sc.onload = () => { if(!window.pdfjsLib){ reject(new Error('PDF 讀取元件載入後無法使用')); return; } window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL; resolve(window.pdfjsLib); };
+    sc.onerror = () => reject(new Error('PDF 讀取元件(pdf.js)載入失敗,請確認網路後再試'));
+    document.head.appendChild(sc);
+    setTimeout(() => reject(new Error('PDF 讀取元件(pdf.js)載入逾時,請確認網路後再試')), 20000);
+  });
+}
+// 讀「大宗掛號執據」:第 1 頁(和存根頁)每一筆是「順序 掛號號碼 姓名 郵遞區號 地區 重量」;同一個掛號號碼出現兩次(執據和存根)只算一筆
+async function readPostReceiptPdf(file){
+  const lib = await loadPdfJs(), buf = await file.arrayBuffer();
+  const doc = await lib.getDocument({data: new Uint8Array(buf)}).promise;
+  const rows = [], seen = new Set();
+  for(let n = 1; n <= doc.numPages; n++){
+    const page = await doc.getPage(n), tc = await page.getTextContent(), byY = {};
+    tc.items.forEach(it => { if(!it.str || !it.str.trim()) return; const y = Math.round(it.transform[5] / 3); (byY[y] = byY[y] || []).push([it.transform[4], it.str]); });
+    Object.keys(byY).map(Number).sort((a, b) => b - a).forEach(y => {
+      const line = byY[y].sort((a, b) => a[0] - b[0]).map(x => x[1]).join(' ');
+      const m = line.match(/(\d{6})-(\d{6})-(\d{2})-(\d{6})\s+(.+?)\s+(\d{3,6})\s*(\S+?)\s+(\d{2,5})(?:\s|$)/);
+      if(!m) return;
+      const tracking = m[1] + m[2] + m[3] + m[4];
+      if(seen.has(tracking)) return;
+      seen.add(tracking); rows.push({tracking, name: m[5].trim(), zip: m[6], region: m[7], g: Number(m[8])});
+    });
+  }
+  return {rows, pages: doc.numPages};
+}
+// 用「姓名 + (重量或地區其中一個)」對回匯出時記下的訂單;同一筆記錄只用一次,分數高的優先(重量 2 分、地區 1 分)
+function matchPostReceipt(pdfRows, sent, channel){
+  const used = new Set(), matches = [], unmatched = [];
+  pdfRows.forEach(p => {
+    const nk = postNameKey(p.name), rg = postRegionKey(p.region);
+    let best = -1, bestScore = 0;
+    sent.forEach((x, i) => {
+      if(used.has(i) || x.ch !== channel || postNameKey(x.name) !== nk) return;
+      const score = (x.g === p.g ? 2 : 0) + (rg && postRegionKey(x.addr).includes(rg) ? 1 : 0);
+      if(score > bestScore){ best = i; bestScore = score; }
+    });
+    if(best >= 0){ used.add(best); matches.push({p, s: sent[best]}); } else unmatched.push(p);
+  });
+  return {matches, unmatched};
+}
+let p2Breakdown = null;
+
 let reportHeaders = [];
 let reportRows = [];
 
 async function processReconcile(){
   document.getElementById('p2-errorPanel').style.display = 'none';
 
-  if(!p2OrderFile || !p2KerryFile){
-    showP2Error(['請先上傳 LINE 回填範本與黑貓追蹤檔。']);
+  if(!p2OrderFile || (!p2KerryFile && !p2PostFile)){
+    showP2Error(['請先上傳 LINE 回填範本,再放黑貓追蹤檔或郵局大宗掛號執據(至少一個)。']);
     return;
   }
 
@@ -5558,7 +5656,9 @@ async function processReconcile(){
     return;
   }
 
-  // 讀取黑貓追蹤檔
+  // 讀取黑貓追蹤檔(今天沒有黑貓的單可以不放)
+  const trackMap = {};
+  if(p2KerryFile){
   let kerryText;
   try{
     kerryText = await readAsBig5Text(p2KerryFile);
@@ -5578,12 +5678,25 @@ async function processReconcile(){
     showP2Error(['黑貓檔案裡找不到「訂單編號」或「託運單號」欄位,請確認上傳的是黑貓匯出的追蹤檔。']);
     return;
   }
-  const trackMap = {};
   kerryRows.slice(1).forEach(r=>{
     const oid = cleanId(r[kOI]);
     const track = String(r[kTI]||'').trim();
     if(oid && !oid.includes('E+')) trackMap[oid] = track;
   });
+  }
+
+  // 讀取郵局大宗掛號執據(PDF):用姓名、地區、重量對回匯出郵局檔時記下的訂單
+  const postMap = {};
+  p2Breakdown = null;
+  if(p2PostFile){
+    let pdf;
+    try{ pdf = await readPostReceiptPdf(p2PostFile); }
+    catch(err){ showP2Error(['讀取郵局執據 PDF 失敗:' + err.message, '請確認放的是 ezPost 下載的「大宗掛號執據」PDF。']); return; }
+    if(pdf.rows.length === 0){ showP2Error(['PDF 裡沒有找到掛號號碼。請確認放的是「大宗掛號執據」(上面有一排排像 078403-999002-18-251002 的掛號號碼),不是別的 PDF。']); return; }
+    const mm = matchPostReceipt(pdf.rows, postSentLoad(), 'line');
+    mm.matches.forEach(x => { postMap[cleanId(x.s.oid)] = x.p.tracking; });
+    p2Breakdown = {kerry: 0, post: 0, both: 0, postInfo: {total: pdf.rows.length, matched: mm.matches.length, unmatched: mm.unmatched, notInTemplate: []}};
+  }
 
   // 檢查這批訂單編號裡有沒有重複的(同一份檔案裡同一張訂單出現兩次以上)
   const orderIdCounts = {};
@@ -5604,7 +5717,7 @@ async function processReconcile(){
 
   // 直接在原本範本的欄位裡填入貨運業者代碼跟物流單編號;沒配對到的訂單不放進回報檔案裡,
   // 不然整份檔案會因為有訂單缺單號而沒辦法上傳回報
-  let matchedCount = 0;
+  let matchedCount = 0, kerryCount = 0, postCount = 0, bothCount = 0;
   unmatchedOrders = [];
   reportHeaders = headers;
   reportRows = [];
@@ -5612,13 +5725,15 @@ async function processReconcile(){
     const oid = cleanId(r[oI]);
     if(seenIds.has(oid)) return; // 重複訂單只處理第一筆
     seenIds.add(oid);
-    const tracking = matchTracking(oid, trackMap);
-    if(tracking){
+    const tracking = matchTracking(oid, trackMap), postTrack = postMap[oid] || '';
+    if(tracking || postTrack){
       const row = [...r];
-      row[carrierI] = 'T_CAT';
-      row[trackI] = tracking;
+      row[carrierI] = tracking ? 'T_CAT' : POST_CARRIER_CODE;   // 黑貓 T_CAT;郵局 IPOST(LINE 的貨運業者代碼表)
+      row[trackI] = tracking || postTrack;
       reportRows.push(row);
       matchedCount++;
+      if(tracking) kerryCount++; else postCount++;
+      if(tracking && postTrack) bothCount++;
     }else{
       unmatchedOrders.push({orderId: oid, name: ''});
     }
@@ -5630,8 +5745,7 @@ async function processReconcile(){
   // 沒配對到的訂單,自動記錄到隔天待處理清單;配對到的,如果之前卡在清單裡就解除
   dataRows.forEach(r=>{
     const oid = cleanId(r[oI]);
-    const tracking = matchTracking(oid, trackMap);
-    if(tracking){
+    if(matchTracking(oid, trackMap) || postMap[oid]){
       resolvePendingShipment('line', oid);
     }
   });
@@ -5639,6 +5753,11 @@ async function processReconcile(){
     markPendingShipment('line', o.orderId, o.name);
   });
 
+  if(p2Breakdown){
+    p2Breakdown.kerry = kerryCount; p2Breakdown.post = postCount; p2Breakdown.both = bothCount;
+    const inTpl = new Set(dataRows.map(r => cleanId(r[oI])));
+    p2Breakdown.postInfo.notInTemplate = Object.keys(postMap).filter(id => !inTpl.has(id));
+  }
   renderP2Result(total, matchedCount, unmatchedCount);
 }
 
@@ -5708,10 +5827,17 @@ function updateCarrierCategoryCount(cat, value){
 }
 
 function renderP2Result(total, matched, unmatched){
-  document.getElementById('p2-resultDesc').textContent =
-    '今天共 ' + total + ' 張訂單,黑貓確認收走 ' + matched + ' 張,' + (unmatched>0 ? unmatched + ' 張還沒被黑貓收走,已經自動排除在回報檔案外(留到明天處理)。' : '全部都出貨了。');
+  const bd = p2Breakdown;   // 有放郵局執據才有
+  document.getElementById('p2-resultDesc').textContent = bd
+    ? '今天共 ' + total + ' 張訂單,已確認出貨 ' + matched + ' 張(黑貓 ' + bd.kerry + ' 張、郵局 ' + bd.post + ' 張),' + (unmatched>0 ? unmatched + ' 張還沒有出貨資料,已經自動排除在回報檔案外(留到明天處理)。' : '全部都出貨了。') + (bd.both > 0 ? '(有 ' + bd.both + ' 張同時出現在黑貓和郵局,已用黑貓的單號。)' : '')
+    : '今天共 ' + total + ' 張訂單,黑貓確認收走 ' + matched + ' 張,' + (unmatched>0 ? unmatched + ' 張還沒被黑貓收走,已經自動排除在回報檔案外(留到明天處理)。' : '全部都出貨了。');
 
-  document.getElementById('p2-statRow').innerHTML = `
+  document.getElementById('p2-statRow').innerHTML = bd ? `
+    <div class="stat"><div class="num">${total}</div><div class="lbl">今天總訂單數</div></div>
+    <div class="stat"><div class="num">${bd.kerry}</div><div class="lbl">已確認出貨(黑貓)</div></div>
+    <div class="stat"><div class="num">${bd.post}</div><div class="lbl">已確認出貨(郵局)</div></div>
+    <div class="stat"><div class="num">${unmatched}</div><div class="lbl">留到明天</div></div>
+  ` : `
     <div class="stat"><div class="num">${total}</div><div class="lbl">今天總訂單數</div></div>
     <div class="stat"><div class="num">${matched}</div><div class="lbl">已確認出貨(黑貓)</div></div>
     <div class="stat"><div class="num">${unmatched}</div><div class="lbl">留到明天</div></div>
@@ -5720,11 +5846,18 @@ function renderP2Result(total, matched, unmatched){
   const box = document.getElementById('p2-unmatchedBox');
   if(unmatched > 0){
     box.style.display = 'block';
-    box.innerHTML = '<strong>以下訂單今天沒被黑貓收走,明天要繼續跟進:</strong><br>' +
+    box.innerHTML = '<strong>' + (bd ? '以下訂單今天沒有黑貓或郵局的出貨資料,明天要繼續跟進:' : '以下訂單今天沒被黑貓收走,明天要繼續跟進:') + '</strong><br>' +
       unmatchedOrders.map(o => escapeHtml(o.orderId) + '　' + escapeHtml(o.name)).join('<br>');
   }else{
     box.style.display = 'none';
   }
+
+  const pb = document.getElementById('p2-postBox'), pi = bd && bd.postInfo;
+  if(pi && (pi.unmatched.length > 0 || pi.notInTemplate.length > 0)){
+    const mask = n => String(n || '').slice(0, 1) + '○';
+    pb.style.display = 'block';
+    pb.innerHTML = (pi.unmatched.length > 0 ? '<strong>郵局執據裡有 ' + pi.unmatched.length + ' 件對不到訂單</strong>(沒有放進回報檔):<br>' + pi.unmatched.map(p => escapeHtml(mask(p.name)) + ' ' + escapeHtml(p.zip + p.region) + ' ' + p.g + 'g 掛號號碼尾 ' + escapeHtml(p.tracking.slice(-6))).join('<br>') + '<br>常見原因:匯出郵局檔的是另一台電腦、超過 60 天,或這張單不是用這個網頁匯出的。<br>' : '') + (pi.notInTemplate.length > 0 ? '<strong>有 ' + pi.notInTemplate.length + ' 件對得到訂單,但不在這份 LINE 回填範本裡</strong>(可能已經回報過):' + pi.notInTemplate.map(escapeHtml).join('、') : '');
+  }else pb.style.display = 'none';
 
   document.getElementById('p2-resultPanel').style.display = 'block';
   document.getElementById('p2-resetBtn').style.display = 'inline-block';
@@ -8302,7 +8435,7 @@ async function downloadPostXlsx(){
   const btn = document.getElementById('postDownloadBtn');
   if(btn){ btn.disabled = true; btn.textContent = '產生中…'; }
   try{
-    const rows = toExport.map(its => ({name: clean(its[0].name), phone: clean(its[0].phone), address: clean(its[0].address), kg: Math.round(orderWeightInfo(its).grams) / 1000}));
+    const rows = toExport.map(its => ({name: clean(its[0].name), phone: clean(its[0].phone), address: clean(its[0].address), kg: Math.round(orderWeightInfo(its).grams) / 1000, oid: its[0].orderId}));
     const cap = await postTemplateCapacity();
     const files = []; for(let i = 0; i < rows.length; i += cap) files.push(rows.slice(i, i + cap));
     let version = '';
@@ -8312,6 +8445,7 @@ async function downloadPostXlsx(){
       if(i < files.length - 1) await new Promise(r => setTimeout(r, 500));
     }
     ledgerAdd(POST_EXPORT_KEY, currentChannel, toExport.map(its => its[0].orderId));
+  postSentAdd(currentChannel, rows);   // 記下每一筆(訂單編號、姓名、電話、地址、重量),回傳追蹤號時要對回訂單;只存在這台電腦,不上傳雲端;測試模式也記(不然沒辦法測回傳)
     let h = '<div><b>這次匯出 ' + toExport.length + ' 張</b>(本批共 ' + groups.length + ' 張郵局訂單)' + (files.length > 1 ? ',每個檔最多 ' + cap + ' 列,所以分成 ' + files.length + ' 個檔案' : '') + (skipped ? ';<b>略過 ' + skipped + ' 張之前已經匯出過的</b>,不會重複建單' : '') + '。</div>';
     if(version && version !== POST_TEMPLATE_KNOWN_VERSION) h += '<div style="color:var(--warn);margin-top:6px;">⚠ 郵局範本版本是 ' + escapeHtml(version) + ',我是照 ' + POST_TEMPLATE_KNOWN_VERSION + ' 版做的。請先小量上傳確認沒問題。</div>';
     h += '<div style="margin-top:6px;">上傳到郵局 ezPost 之後,請先核對第一筆的地址和重量,再確認寄件。</div>';
