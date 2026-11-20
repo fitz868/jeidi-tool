@@ -1781,7 +1781,7 @@
 
 <script>
 const TEST_BUILD = true;   // 測試版(post-test.html)只有這一行是 true,其他完全一樣;測好要換成正式版時,把它改成 false 放回 index.html 即可
-const APP_VERSION = '20261010-51'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20261010-52'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -2471,6 +2471,66 @@ function cloudOrderFields(channel, headers, row){
   if(c) out.coupon = c.slice(0, 80);
   return out;
 }
+// ===== 匿名客戶碼 custKey(官網;給回購分析用)=====
+// 做法:HMAC-SHA256(鹽, 'jeidi-cust-v1|' + 來源),取前 6 bytes → 'c_' + 12 碼。來源:有 Email 用 'e:' + 小寫去空白的 Email;沒有就用電話 'p:' + 正規化電話。
+// 「鹽」是一串隨機值,存在資料庫 app_config/custKeySalt(只有登入的人讀得到),不寫在程式碼裡 —— 所以就算拿到客戶碼和公開的程式碼,也沒辦法把電話、Email 試出來。
+// Email、電話本身算完就丟掉,不會存進雲端、也不會留在瀏覽器的進度裡。鹽讀不到的時候,寧可不產生客戶碼,也不用錯的鹽產生錯的碼(之後可以用「補資料」補上)。
+const CUST_SALT_COLLECTION = 'app_config', CUST_SALT_DOC = 'custKeySalt';
+let custHmacKey = null, custKeyMissing = 0;
+function custPhoneNorm(v){
+  let d = String(v == null ? '' : v).replace(/\D/g, '');
+  if(d.startsWith('886')) d = '0' + d.slice(3);
+  if(d.length === 9 && d.startsWith('9')) d = '0' + d;
+  return d.length >= 8 ? d : '';
+}
+// 每張訂單第一列的客戶來源:欄位名稱要完全相同('Email'、'Phone'、'Billing Phone')
+function custSourceOf(headers, row){
+  if(!headers || !row || row.length !== headers.length) return '';
+  const at = name => headers.indexOf(name), val = name => { const i = at(name); return i === -1 ? '' : row[i]; };
+  const email = String(val('Email') || '').toLowerCase().replace(/\s+/g, '');
+  if(email) return 'e:' + email;
+  const ph = custPhoneNorm(val('Phone')) || custPhoneNorm(val('Billing Phone'));
+  return ph ? 'p:' + ph : '';
+}
+async function getCustHmacKey(){
+  if(custHmacKey) return custHmacKey;
+  if(!(window.crypto && crypto.subtle)) return null;
+  await waitForFirebase();
+  const {db, doc, getDoc, setDoc, serverTimestamp} = window.__fb;
+  const ref = () => doc(db, CUST_SALT_COLLECTION, CUST_SALT_DOC);
+  const read = async () => { try{ const snap = await withTimeout(getDoc(ref()), 6000); const ok = snap && (typeof snap.exists === 'function' ? snap.exists() : snap.exists); const sl = ok ? (snap.data() || {}).salt : null; return /^[0-9a-f]{64}$/.test(sl || '') ? sl : null; }catch(e){ return null; } };
+  let salt = await read();
+  if(!salt){
+    if(isTestMode()) return null;   // 測試模式不寫雲端,所以不能建鹽
+    const hex = Array.from(crypto.getRandomValues(new Uint8Array(32))).map(b => b.toString(16).padStart(2, '0')).join('');
+    try{ await setDoc(ref(), {salt: hex, createdBy: currentUserEmail || '', createdAt: serverTimestamp()}); }catch(e){}   // 建不起來(例如別台電腦剛好先建好了)就重讀,以先建好的為準
+    salt = await read();
+    if(!salt) return null;
+  }
+  try{ custHmacKey = await crypto.subtle.importKey('raw', new Uint8Array(salt.match(/../g).map(h => parseInt(h, 16))), {name: 'HMAC', hash: 'SHA-256'}, false, ['sign']); }catch(e){ return null; }
+  return custHmacKey;
+}
+async function computeCustKey(src){
+  const key = await getCustHmacKey(); if(!key) return '';
+  const sig = new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode('jeidi-cust-v1|' + src)));
+  return 'c_' + Array.from(sig.slice(0, 6)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+// 官網讀檔後呼叫:每張訂單用第一列算客戶碼,記在這張訂單的每個品項上(custKey)
+async function attachCustKeys(items, headers){
+  custKeyMissing = 0; const seen = {};
+  for(const it of items){
+    const id = it.orderId; if(!id) continue;
+    if(!(id in seen)){
+      seen[id] = ''; const src = custSourceOf(headers, it.rawRow);
+      if(src){ seen[id] = await computeCustKey(src); if(!seen[id]) custKeyMissing++; }
+    }
+    if(seen[id]) it.custKey = seen[id];
+  }
+  // 購買人的 Email、電話:客戶碼算完就從整列原始資料裡清掉(不然會跟著進度存在瀏覽器裡)。出貨助手本身從來不讀這幾欄;收件人電話(Shipping Phone)是印標籤要用的,原本就在,這次沒動
+  const idx = ['Email', 'Phone', 'Billing Phone'].map(n => headers.indexOf(n)).filter(i => i >= 0);
+  items.forEach(it => { if(Array.isArray(it.rawRow) && it.rawRow.length === headers.length) idx.forEach(i => { it.rawRow[i] = ''; }); });
+}
+function custKeyWarn(){ return custKeyMissing > 0 ? ' ⚠ 有 ' + custKeyMissing + ' 張官網訂單<b>沒有客戶碼</b>(讀不到資料庫裡的鹽或規則還沒發布;不影響檢貨,之後可以用「補資料」補上)。' : ''; }
 function buildCloudOrders(items, channel){
   const groups = {}, order = [];
   items.forEach(it => {
@@ -2499,6 +2559,7 @@ function buildCloudOrders(items, channel){
       importedBy: currentUserEmail || ''
     };   // importedAt(寫入時間)要等到真的寫入的那一刻才加(用資料庫的時間)
     Object.assign(d, cloudOrderFields(channel, rawHeaders, first.rawRow));   // 購買時間、訂單金額(取每張訂單第一列)、優惠券/優惠碼:有就填
+    if(channel === 'shop'){ const ck = g.find(x => x.custKey); if(ck) d.custKey = ck.custKey; }   // 官網:匿名客戶碼(同一張訂單用第一個有的)
     return d;
   });
 }
@@ -2541,6 +2602,7 @@ async function saveImportedOrdersToCloud(items, channel){
   }else if(fail > 0){
     setCloudNote('☁ 沒有新的訂單被存進去(可能都已經存過了;如果每次都這樣,請告訴開發的人)。<b>不影響檢貨</b>。');
   }
+  if(channel === 'shop' && custKeyMissing > 0){ const el = document.getElementById('cloudSaveNote'); if(el && el.innerHTML) el.innerHTML += custKeyWarn(); }
 }
 
 // ── 讀取、統計、下載(老闆畫面、管理者報表共用)──
@@ -2611,10 +2673,10 @@ function renderCloudSummary(prefix){
 function downloadCloudCsv(prefix){
   const D = cloudData[prefix]; if(!D || D.docs.length === 0) return;
   const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
-  const lines = [['匯入日期', '通路', '訂單編號', '購買時間', '訂單金額(每張訂單只在第一列)', '優惠券/優惠碼', '物流方式', '縣市', '商品SKU', '商品名稱', '數量', '單價', '小計', '系統補的贈品', '有客製文字', '已取消', '來源', '平台欄位(日期、付款、金額、折扣、運費…)'].map(q).join(',')];
+  const lines = [['匯入日期', '通路', '訂單編號', '購買時間', '訂單金額(每張訂單只在第一列)', '優惠券/優惠碼', '物流方式', '縣市', '商品SKU', '商品名稱', '數量', '單價', '小計', '系統補的贈品', '有客製文字', '已取消', '來源', '平台欄位(日期、付款、金額、折扣、運費…)', '客戶碼'].map(q).join(',')];
   D.docs.slice().sort((x, y) => String(y.importDate).localeCompare(String(x.importDate)) || String(x.orderId).localeCompare(String(y.orderId))).forEach(d => {
     const extra = Object.keys(d.extra || {}).map(k => k + '=' + d.extra[k]).join(' | ');
-    (d.lines || []).forEach((l, li) => lines.push([d.importDate, CLOUD_CH_LABEL[d.channel] || d.channel, d.orderId, d.purchaseTime || '', (li === 0 && d.orderAmount != null) ? d.orderAmount : '', d.coupon || '', SHIP_CATEGORY_LABEL[d.shippingCategory] || d.shippingCategory || '', d.region || '', l.sku, l.name, l.qty, l.price, l.subtotal, l.gift ? '是' : '', d.hasCust ? '是' : '', d.cancelled ? '是' : '', d.backfilled ? '歷史補入(沒有金額)' : (d.fromFile ? '平台檔案補入' : '匯入'), extra].map(q).join(',')));
+    (d.lines || []).forEach((l, li) => lines.push([d.importDate, CLOUD_CH_LABEL[d.channel] || d.channel, d.orderId, d.purchaseTime || '', (li === 0 && d.orderAmount != null) ? d.orderAmount : '', d.coupon || '', SHIP_CATEGORY_LABEL[d.shippingCategory] || d.shippingCategory || '', d.region || '', l.sku, l.name, l.qty, l.price, l.subtotal, l.gift ? '是' : '', d.hasCust ? '是' : '', d.cancelled ? '是' : '', d.backfilled ? '歷史補入(沒有金額)' : (d.fromFile ? '平台檔案補入' : '匯入'), extra, d.custKey || ''].map(q).join(',')));
   });
   const blob = new Blob(['\ufeff' + lines.join('\r\n')], {type: 'text/csv;charset=utf-8'});
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'orders_' + ymd(new Date()).replace(/-/g, '') + '.csv';
@@ -2694,10 +2756,10 @@ async function runBackfill(){
 
 // ===== 用平台匯出檔補資料:補上購買時間、訂單金額、優惠券/優惠碼(LINE、官網;管理者用)=====
 const HIST_MAX_WRITES = 5000;   // 一次最多處理幾筆(Firebase 免費方案一天寫入有上限;分批做,補過的下次會自動略過)
-const HIST_FIELDS = ['purchaseTime', 'orderAmount', 'coupon'];
+const HIST_FIELDS = ['purchaseTime', 'orderAmount', 'coupon', 'custKey'];
 function histBlockHtml(){
   return '<div class="cl-backfill"><h3>用平台匯出檔補資料(購買時間、訂單金額、優惠券/優惠碼)</h3>' +
-    '<div class="dup-sub">以前存的訂單沒有這三樣,只有平台的匯出檔裡有。選 LINE 或官網的訂單匯出檔(<b>可以是一整年的、可以一次選好幾個</b>),系統依訂單編號對回去:<b>雲端已經有的訂單,只補上缺的這三樣</b>(不會改任何已經有的值);雲端沒有的訂單會新增(日期是客人的購買日,不是今天)。LINE 檔案裡「已取消、已退貨」的訂單會標成取消。不存客人的姓名、電話、地址。</div>' +
+    '<div class="dup-sub">以前存的訂單沒有這三樣,只有平台的匯出檔裡有。選 LINE 或官網的訂單匯出檔(<b>可以是一整年的、可以一次選好幾個</b>),系統依訂單編號對回去:<b>雲端已經有的訂單,只補上缺的(購買時間、金額、優惠券、客戶碼)</b>(不會改任何已經有的值);雲端沒有的訂單會新增(日期是客人的購買日,不是今天)。LINE 檔案裡「已取消、已退貨」的訂單會標成取消。不存客人的姓名、電話、地址。</div>' +
     '<div class="btn-row"><select id="rpt-hf-ch"><option value="line">LINE 的訂單匯出檔(.xlsx)</option><option value="shop">官網的訂單匯出檔(.csv)</option></select> <input type="file" id="rpt-hf-file" accept=".xlsx,.xls,.csv" multiple> <button class="ghost" id="rpt-hf-preview" onclick="previewHist()">先檢查</button></div>' +
     '<div class="form-msg" id="rpt-hf-msg"></div><div id="rpt-hf-result"></div></div>';
 }
@@ -2711,6 +2773,7 @@ async function parseHistFiles(files, channel){
       currentFile = f;
       const items = channel === 'shop' ? await readShopItems() : await readLineItems();
       if(!items){ errs.push('(' + f.name + ' 讀不了)'); continue; }
+      if(channel === 'shop' && custKeyMissing > 0) errs.push('(' + f.name + ':有 ' + custKeyMissing + ' 張沒有客戶碼,讀不到資料庫裡的鹽)');
       buildCloudOrders(items, channel).forEach(d => {
         const pd = String(d.purchaseTime || '').slice(0, 10);
         if(/^\d{4}-\d{2}-\d{2}$/.test(pd)) d.importDate = pd;   // 日期用客人的購買日;檔案裡沒有購買時間才用今天
@@ -6368,6 +6431,7 @@ async function readShopItems(){
     const result = parseShopRows(dataRows, headers);
     if(result.error){ showError(result.error); return null; }
     shopGiftReport = result.giftReport || null;
+    try{ await attachCustKeys(result.items, headers); }catch(e){}   // 官網:加上匿名客戶碼(Email、電話算完就丟,不存)
     return result.items;
   }catch(err){
     showError(['整理資料時發生問題: ' + err.message]);
