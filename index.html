@@ -821,6 +821,21 @@
   }
   .pick-card-later .pc-later-tag{display:inline-block;}
   .pick-card-done .pc-later-btn{display:none;}
+  .pick-card.pick-card-tomorrow{border-left:6px solid #2E86AB;background:#F4FAFD;}
+  .pc-tomorrow-btn{
+    background:none;border:1px solid var(--line);border-radius:6px;color:#1F6F8B;
+    font-size:11px;font-weight:600;padding:3px 9px;cursor:pointer;
+  }
+  .pc-tomorrow-btn:hover{background:#E3F2F8;border-color:#2E86AB;}
+  .pc-tomorrow-tag{
+    display:none;margin:0 auto 0 10px;font-size:11.5px;font-weight:700;color:#1F6F8B;
+    background:#DCEEF5;padding:2px 8px;border-radius:10px;
+  }
+  .pick-card-tomorrow .pc-tomorrow-tag{display:inline-block;}
+  .pick-card-done .pc-tomorrow-btn{display:none;}
+  .rc-plan{font-size:12px;color:#1F6F4E;margin:4px 0 2px;line-height:1.5;}
+  .rc-plan b{font-size:16px;}
+  .rc-plan span{color:#6B6B6B;}
   .pc-spec-pill{
     display:inline-block;margin-left:6px;padding:0 8px;border:1.5px solid var(--ink);border-radius:10px;
     font-size:12px;font-weight:600;line-height:1.5;vertical-align:1px;white-space:nowrap;color:var(--ink);
@@ -1738,7 +1753,7 @@
 </div>
 
 <script>
-const APP_VERSION = '20261010-49'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20261010-50'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -4046,6 +4061,7 @@ function renderLiveSessions(sessions, cumulative){
   cumulative = cumulative || {};
   latestLiveSessions = sessions;
   latestLiveCumulative = cumulative;
+  try{ renderCategoryPanel(); }catch(e){}   // 出貨核對頁的「今天預計」跟著即時進度更新
   const labels = {line:'LINE', shop:'官網', shopee:'蝦皮', pinkoi:'PINKOI'};
   const row = document.getElementById('glsRow');
   if(!row) return;
@@ -5621,14 +5637,27 @@ async function loadCategoryTotals(){
 }
 
 function renderCategoryPanel(){
-  const hasAny = Object.values(categoryTotals).some(v => v > 0);
+  // 今天預計出貨 = 已確認的(pick_records)+ 各通路目前還在檢貨單上的(扣掉標了明天出貨的)。檢貨單上的數字來自即時進度,只算今天的
+  const todayStr = ymd(new Date()), plan = {}, tmPlan = {};
+  Object.keys(latestLiveSessions || {}).forEach(ch => {
+    const ss = latestLiveSessions[ch];
+    if(!ss || ss.date !== todayStr) return;
+    Object.keys(ss.plan || {}).forEach(c => { plan[c] = (plan[c] || 0) + Number(ss.plan[c] || 0); });
+    Object.keys(ss.tomorrowPlan || {}).forEach(c => { tmPlan[c] = (tmPlan[c] || 0) + Number(ss.tomorrowPlan[c] || 0); });
+  });
+  const hasPlan = Object.values(plan).some(v => v > 0) || Object.values(tmPlan).some(v => v > 0);
+  const hasAny = Object.values(categoryTotals).some(v => v > 0) || hasPlan;
   document.getElementById('p3-summaryDesc').textContent = hasAny
-    ? '跨 LINE / 官網 / 蝦皮 / 補寄,依實際物流方式加總今天確認揀貨的件數,可以跟廠商電話告知的件數核對。'
+    ? '跨 LINE / 官網 / 蝦皮 / 補寄,依實際物流方式加總今天確認揀貨的件數,可以跟廠商電話告知的件數核對。' + (hasPlan ? '「今天預計」= 已確認的 + 還在各通路檢貨單上的(已扣掉標了「明天出貨」的)。' : '')
     : '今天還沒有任何通路按下「確認完成揀貨」,或補寄記錄確認完成,暫時沒有數字可以核對。';
 
   document.getElementById('p3-statRow').innerHTML = CATEGORY_TOTAL_KEYS.map(cat=>{
     const sysCount = categoryTotals[cat] || 0;
     const reported = carrierReportedCount[cat];
+    const onList = plan[cat] || 0, tmN = tmPlan[cat] || 0, expected = sysCount + onList;
+    const planHtml = (expected > 0 || tmN > 0)
+      ? '<div class="rc-plan">今天預計 <b>' + expected + '</b> 件<br><span>已確認 ' + sysCount + ' + 檢貨單上 ' + onList + (tmN > 0 ? ';已扣掉明天出貨 ' + tmN : '') + '</span></div>'
+      : '';
     let diffHtml = '';
     if(reported !== null && reported !== undefined && reported !== ''){
       const diff = Number(reported) - sysCount;
@@ -5640,6 +5669,7 @@ function renderCategoryPanel(){
       <div class="stat rc-cell">
         <div class="num">${sysCount}</div>
         <div class="lbl">${SHIP_CATEGORY_LABEL[cat]} 系統統計</div>
+        ${planHtml}
         <div class="rc-input-row">
           <label>廠商告知:</label>
           <input type="number" class="rc-input" value="${reported !== null && reported !== undefined ? reported : ''}" oninput="updateCarrierCategoryCount('${cat}', this.value)">
@@ -6697,6 +6727,7 @@ function isChannelBatchIncomplete(ch){
   });
   const doneItems = batch.doneItems || {};
   for(let idx = 0; idx < orderIds.length; idx++){
+    if(itemIsTomorrow(byOrder[orderIds[idx]][0])) continue;   // 明天出貨的,今天不算「還沒做完」(通路按鈕才不會一直亮紅點)
     const itemCount = byOrder[orderIds[idx]].length;
     const doneCount = (doneItems[idx] || []).length;
     if(doneCount < itemCount) return true; // 有還沒勾完的品項
@@ -7150,6 +7181,8 @@ function renderPickList(){
     const santaBlock = santaN > 0 ? '<div class="pc-santa">🎅 禮盒內放' + SANTA_PROMO.cardName + ' ×' + santaN + '</div>' : '';
     let cardClass = 'pick-card';
     if(santaN > 0) cardClass += ' pick-card-santa';
+    const isTomorrow = orderIsTomorrow(its);
+    if(isTomorrow) cardClass += ' pick-card-tomorrow';
     if(notes.length > 0) cardClass += ' pick-card-alert';
     if(hasOverQty) cardClass += ' pick-card-highqty';
     const shipCat = its[0].shippingCategory;
@@ -7167,8 +7200,10 @@ function renderPickList(){
         '<div class="pc-top-row no-print">' +
           '<label class="pc-check"><input type="checkbox" onchange="togglePickDone(' + idx + ', this.checked)"> 已檢貨</label>' +
           '<span class="pc-later-tag">⏳ 稍後檢貨</span>' +
+          '<span class="pc-tomorrow-tag">📅 明天出貨</span>' +
           '<span class="pc-top-actions">' +
             '<button class="pc-later-btn" onclick="toggleLater(' + idx + ')" title="先放到下面晚點再檢,不算已檢貨">⏳ 稍後檢貨</button>' +
+            '<button class="pc-tomorrow-btn" onclick="toggleTomorrow(' + idx + ')" title="這張今天不出、明天再出;今天的出貨量會扣掉它">' + (isTomorrow ? '↩ 取消明天' : '📅 明天出貨') + '</button>' +
             '<button class="pc-delete-btn" onclick="deleteOrder(' + idx + ')" title="刪除這張訂單(例如離島無法出貨的訂單)">✕ 刪除</button>' +
           '</span>' +
         '</div>' +
@@ -7211,7 +7246,8 @@ function updateSfQuickLinkBanner(){
 // 整張訂單的主開關:勾選=全部品項一起勾,取消=全部一起取消
 // ===== 卡片排序:還沒檢的(最上面)→ 稍後檢貨 → 已檢完(最下面),讓還沒處理的一直留在上面 =====
 function cardRank(card){
-  if(card.classList.contains('pick-card-done')) return 2;
+  if(card.classList.contains('pick-card-done')) return 3;
+  if(card.classList.contains('pick-card-tomorrow')) return 2;
   if(card.classList.contains('pick-card-later')) return 1;
   return 0;
 }
@@ -7250,10 +7286,55 @@ function applyLaterState(card, isLater){
   if(btn) btn.textContent = isLater ? '↩ 取消稍後' : '⏳ 稍後檢貨';
 }
 
+// ===== 明天出貨:這張今天不出,算今天出貨量時要扣掉 =====
+// 標記記在訂單的每個品項上(it.tomorrow = 標記當天的日期),跟著整批存進瀏覽器;只有「標記當天」有效,隔天自動失效(明天重新匯入檔案,它們自然會再出現)。
+function itemIsTomorrow(it){ return !!it && !!it.tomorrow && it.tomorrow === ymd(new Date()); }
+function orderIsTomorrow(its){ return !!its && its.length > 0 && itemIsTomorrow(its[0]); }
+function applyTomorrowState(card, on){
+  if(!card) return;
+  card.classList.toggle('pick-card-tomorrow', !!on);
+  const btn = card.querySelector('.pc-tomorrow-btn');
+  if(btn) btn.textContent = on ? '↩ 取消明天' : '📅 明天出貨';
+}
+// 拿掉這張的「明天出貨」(不動別的狀態)
+function clearTomorrowFlag(idx){
+  const its = pickOrderGroups[idx], card = document.getElementById('pick-card-' + idx);
+  if(its) its.forEach(it => { delete it.tomorrow; });
+  applyTomorrowState(card, false);
+}
+function toggleTomorrow(idx){
+  const card = document.getElementById('pick-card-' + idx), its = pickOrderGroups[idx];
+  if(!card || !its || !its.length || card.classList.contains('pick-card-done')) return;
+  const on = !card.classList.contains('pick-card-tomorrow');
+  if(on){
+    const today = ymd(new Date());
+    its.forEach(it => { it.tomorrow = today; });
+    applyLaterState(card, false); applyTomorrowState(card, true);
+    resolvePendingPick(currentChannel, its[0].orderId);   // 標了明天出貨不是「忘記揀貨」,解除跨天追蹤
+  }else clearTomorrowFlag(idx);
+  placeCardInOrder(card);
+  const cards = Array.from(document.querySelectorAll('#pickList .pick-card'));
+  if(on && cards.length > 0 && cards.every(c => c.classList.contains('pick-card-tomorrow'))) currentBatchConfirmed = true;   // 剩下的全都是明天出貨 → 這批今天算做完
+  else if(!on) currentBatchConfirmed = false;
+  updatePickProgress(); filterPickList(); saveState();
+}
+// 目前這個通路的批次:今天要出的各物流有幾張、標了明天出貨的各物流有幾張(同步到雲端,出貨核對頁用)
+function computePlanCounts(){
+  const plan = {}, tomorrowPlan = {}; let tomorrow = 0;
+  pickOrderGroups.forEach(its => {
+    if(!its || its.length === 0) return;
+    const cat = its[0].shippingCategory || 'kerry';
+    if(orderIsTomorrow(its)){ tomorrow++; tomorrowPlan[cat] = (tomorrowPlan[cat] || 0) + 1; }
+    else plan[cat] = (plan[cat] || 0) + 1;
+  });
+  return {plan, tomorrow, tomorrowPlan};
+}
+
 // 稍後檢貨:先把這張放到下面,但不算已檢貨(進度、還缺清單都照樣算它還沒檢)
 function toggleLater(idx){
   const card = document.getElementById('pick-card-' + idx);
   if(!card || card.classList.contains('pick-card-done')) return;
+  if(card.classList.contains('pick-card-tomorrow')) clearTomorrowFlag(idx);   // 改成稍後檢貨,就不是明天出貨了
   applyLaterState(card, !card.classList.contains('pick-card-later'));
   placeCardInOrder(card);
   saveState();
@@ -7320,7 +7401,7 @@ function togglePickDone(idx, done){
       const cb = itemEl.querySelector('.pc-item-check input');
       if(cb) cb.checked = done;
     });
-    if(done) applyLaterState(card, false); // 已經檢完了,就不用再標「稍後」
+    if(done){ applyLaterState(card, false); clearTomorrowFlag(idx); } // 已經檢完了,就不用再標「稍後」或「明天出貨」
   }
   placeCardInOrder(card);
   // 確認完成之後如果又有新的勾選動作,代表狀態已經跟剛剛確認的不一樣了,重新標記為「進行中」
@@ -7334,6 +7415,7 @@ function togglePickDone(idx, done){
 function toggleItemPicked(cardIdx, itemIdx, checked){
   const card = document.getElementById('pick-card-' + cardIdx);
   if(!card) return;
+  if(checked && card.classList.contains('pick-card-tomorrow')) clearTomorrowFlag(cardIdx);   // 開始檢這張了,就不是明天出貨
   const itemEls = card.querySelectorAll('.pc-item');
   const itemEl = itemEls[itemIdx];
   if(itemEl) itemEl.classList.toggle('pc-item-done', checked);
@@ -7353,7 +7435,7 @@ function toggleItemPicked(cardIdx, itemIdx, checked){
   if(masterCheckbox) masterCheckbox.checked = allDone;
   card.classList.toggle('pick-card-done', allDone);
   card.classList.toggle('pick-card-partial', !allDone && !noneDone);
-  if(allDone) applyLaterState(card, false); // 已經檢完了,就不用再標「稍後」
+  if(allDone){ applyLaterState(card, false); clearTomorrowFlag(cardIdx); } // 已經檢完了,就不用再標「稍後」或「明天出貨」
   placeCardInOrder(card);
 
   // 同上,勾選動作發生後代表狀態異動了,重新標記為「進行中」,要再按一次確認完成才會變回已確認
@@ -7408,7 +7490,7 @@ function filterPickList(){
   const cards = document.querySelectorAll('#pickList .pick-card');
   cards.forEach(card=>{
     const matchesSearch = !kw || card.textContent.toLowerCase().includes(kw);
-    const matchesHideDone = !hideDone || !card.classList.contains('pick-card-done');
+    const matchesHideDone = !hideDone || (!card.classList.contains('pick-card-done') && !card.classList.contains('pick-card-tomorrow'));   // 「只顯示未檢貨」:明天出貨的今天不用檢,也先藏起來
     card.style.display = (matchesSearch && matchesHideDone) ? '' : 'none';
   });
 }
@@ -7431,10 +7513,12 @@ window.addEventListener('afterprint', ()=>{
 });
 
 function updatePickProgress(){
-  const total = document.querySelectorAll('#pickList .pick-card').length;
+  const all = document.querySelectorAll('#pickList .pick-card').length;
+  const tmN = document.querySelectorAll('#pickList .pick-card-tomorrow').length;
+  const total = all - tmN;   // 今天要出的(扣掉明天出貨)
   const done = document.querySelectorAll('#pickList .pick-card-done').length;
   const el = document.getElementById('pickProgress');
-  if(el) el.textContent = total > 0 ? ('已檢貨 ' + done + ' / ' + total) : '';
+  if(el) el.textContent = all > 0 ? ('已檢貨 ' + done + ' / ' + total + (tmN > 0 ? '(另有 ' + tmN + ' 張明天出貨)' : '')) : '';
   syncLiveProgress(total, done);
   renderTodaySummary();
 }
@@ -7444,6 +7528,7 @@ function getPendingSkuBreakdown(){
   const totals = {};
   pickOrderGroups.forEach((its, idx)=>{
     if(!its) return;
+    if(orderIsTomorrow(its)) return;   // 明天出貨的,今天不用備貨
     const card = document.getElementById('pick-card-' + idx);
     const itemEls = card ? card.querySelectorAll('.pc-item') : null;
     its.forEach((it, itemIdx)=>{
@@ -7464,6 +7549,7 @@ function syncLiveProgress(total, done){
   const channel = currentChannel;
   const confirmed = currentBatchConfirmed;
   const pendingSkus = getPendingSkuBreakdown().slice(0, 30); // 最多存30項,避免資料過大
+  const planInfo = computePlanCounts();   // 今天預計出貨(各物流)與明天出貨的張數
 
   clearTimeout(liveSyncTimers[channel]);
   liveSyncTimers[channel] = setTimeout(async ()=>{
@@ -7473,6 +7559,7 @@ function syncLiveProgress(total, done){
       await setDoc(doc(db, 'live_sessions', channel), {
         channel, total, done, confirmed,
         pendingSkus, date: ymd(new Date()),
+        plan: planInfo.plan, tomorrow: planInfo.tomorrow, tomorrowPlan: planInfo.tomorrowPlan,
         updatedAt: serverTimestamp(), updatedBy: currentUserEmail || ''
       });
     }catch(err){
@@ -7604,17 +7691,21 @@ function recordDoneCards(doneCards){
   pickOrderGroups.forEach(its=>{
     if(!its || its.length === 0) return;
     const oid = its[0].orderId;
-    if(!doneOrderIds.has(oid)) markPendingPick(channel, oid, its[0].name);
+    if(!doneOrderIds.has(oid)){
+      if(orderIsTomorrow(its)) resolvePendingPick(channel, oid);   // 明天出貨的不算「忘記揀貨」
+      else markPendingPick(channel, oid, its[0].name);
+    }
   });
   saved.then(() => { Object.keys(specialHistoryCache).forEach(k => { delete specialHistoryCache[k]; }); if(specialOrders.length) renderSpecialOrders(); }).catch(() => {});
   return {doneOrderIds, saved, info};
 }
 
 function confirmPickProgress(){
-  const total = document.querySelectorAll('#pickList .pick-card').length;
+  const totalAll = document.querySelectorAll('#pickList .pick-card').length;
+  const total = totalAll - document.querySelectorAll('#pickList .pick-card-tomorrow').length;   // 今天要出的(扣掉明天出貨)
   const doneCards = Array.from(document.querySelectorAll('#pickList .pick-card-done'));
   const done = doneCards.length;
-  if(total === 0){
+  if(totalAll === 0){
     alert('目前沒有檢貨單資料,請先處理訂單檔案。');
     return;
   }
@@ -7636,13 +7727,17 @@ function confirmPickProgress(){
   const keptStates = captureCardStates(); // 留下來的訂單(部分勾選/稍後檢貨)要保留原本的狀態
   parsedItems = parsedItems.filter(it => !doneOrderIds.has(it.orderId));
   custItems = parsedItems.filter(it => it.hasCust);
-  currentBatchConfirmed = parsedItems.length === 0; // 全部都確認完了才算真的完成,還有剩就還是「進行中」
+  const leftToday = parsedItems.filter(it => !itemIsTomorrow(it)).length;   // 今天還要出的(扣掉明天出貨)
+  const tmOrders = new Set(parsedItems.filter(it => itemIsTomorrow(it)).map(it => it.orderId)).size;
+  currentBatchConfirmed = leftToday === 0; // 全部都確認完了才算真的完成,還有剩就還是「進行中」(只剩明天出貨的,今天就算完成)
   renderPickList();
   restoreCardStates(keptStates);
   if(parsedItems.length === 0){
     note.textContent = '✓ ' + label + ' 這批全部確認完成(共 ' + total + ' 張),已記錄到出貨核對頁面。';
+  }else if(leftToday === 0){
+    note.textContent = '✓ ' + label + ' 今天要出的都確認完成了(共 ' + done + ' 張),另外 ' + tmOrders + ' 張標了明天出貨,留在下面。';
   }else{
-    note.textContent = '✓ 已確認 ' + label + ' ' + done + ' 張,還剩 ' + parsedItems.length + ' 張訂單還沒檢貨完成,留在下面繼續處理。';
+    note.textContent = '✓ 已確認 ' + label + ' ' + done + ' 張,還剩 ' + leftToday + ' 張訂單還沒檢貨完成,留在下面繼續處理。' + (tmOrders > 0 ? '(另有 ' + tmOrders + ' 張標了明天出貨)' : '');
   }
   // 資料庫寫入失敗的話,出貨核對的數字會少算,一定要讓使用者知道
   rec.saved.then(ok => {
