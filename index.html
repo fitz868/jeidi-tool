@@ -1582,12 +1582,8 @@
 
     <div class="panel no-print" id="p3-summaryPanel">
       <h2>今日物流件數核對</h2>
-      <div class="desc" id="p3-summaryDesc">跨 LINE / 官網 / 蝦皮 / 補寄,依實際物流方式加總今天確認揀貨的件數,可以跟廠商電話告知的件數核對。</div>
+      <div class="desc" id="p3-summaryDesc">跨 LINE / 官網 / 蝦皮 / 補寄,依實際物流方式加總今天確認揀貨的件數。</div>
       <div class="stat-row" id="p3-statRow"></div>
-      <div class="btn-row">
-        <button class="primary" onclick="submitCarrierCheck()">確認送出</button>
-      </div>
-      <div class="form-msg" id="carrierCheckMsg"></div>
     </div>
 
   </div><!-- /page3 -->
@@ -1778,7 +1774,7 @@
 </div>
 
 <script>
-const APP_VERSION = '20261010-51'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20261010-52'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -5638,7 +5634,6 @@ function showP2Error(lines){
 }
 
 let categoryTotals = {};
-let carrierReportedCount = {};
 
 async function loadCategoryTotals(){
   await waitForFirebase();
@@ -5673,42 +5668,25 @@ function renderCategoryPanel(){
   const hasPlan = Object.values(plan).some(v => v > 0) || Object.values(tmPlan).some(v => v > 0);
   const hasAny = Object.values(categoryTotals).some(v => v > 0) || hasPlan;
   document.getElementById('p3-summaryDesc').textContent = hasAny
-    ? '跨 LINE / 官網 / 蝦皮 / 補寄,依實際物流方式加總今天確認揀貨的件數,可以跟廠商電話告知的件數核對。' + (hasPlan ? '「今天預計」= 已確認的 + 還在各通路檢貨單上的(已扣掉標了「明天出貨」的)。' : '')
-    : '今天還沒有任何通路按下「確認完成揀貨」,或補寄記錄確認完成,暫時沒有數字可以核對。';
+    ? '跨 LINE / 官網 / 蝦皮 / 補寄,依實際物流方式加總今天確認揀貨的件數。' + (hasPlan ? '「今天預計」= 已確認的 + 還在各通路檢貨單上的(已扣掉標了「明天出貨」的)。' : '')
+    : '今天還沒有任何通路按下「確認完成揀貨」,或補寄記錄確認完成,暫時沒有數字可以顯示。';
 
   document.getElementById('p3-statRow').innerHTML = CATEGORY_TOTAL_KEYS.map(cat=>{
     const sysCount = categoryTotals[cat] || 0;
-    const reported = carrierReportedCount[cat];
     const onList = plan[cat] || 0, tmN = tmPlan[cat] || 0, expected = sysCount + onList;
     const planHtml = (expected > 0 || tmN > 0)
       ? '<div class="rc-plan">今天預計 <b>' + expected + '</b> 件<br><span>已確認 ' + sysCount + ' + 檢貨單上 ' + onList + (tmN > 0 ? ';已扣掉明天出貨 ' + tmN : '') + '</span></div>'
       : '';
-    let diffHtml = '';
-    if(reported !== null && reported !== undefined && reported !== ''){
-      const diff = Number(reported) - sysCount;
-      diffHtml = diff === 0
-        ? '<div class="rc-match rc-ok">✓ 對得上</div>'
-        : '<div class="rc-match rc-warn">⚠ 差 ' + Math.abs(diff) + ' 件(' + (diff>0 ? '廠商說的比較多' : '系統算的比較多') + ')</div>';
-    }
     return `
       <div class="stat rc-cell">
         <div class="num">${sysCount}</div>
         <div class="lbl">${SHIP_CATEGORY_LABEL[cat]} 系統統計</div>
         ${planHtml}
-        <div class="rc-input-row">
-          <label>廠商告知:</label>
-          <input type="number" class="rc-input" value="${reported !== null && reported !== undefined ? reported : ''}" oninput="updateCarrierCategoryCount('${cat}', this.value)">
-        </div>
-        ${diffHtml}
       </div>
     `;
   }).join('');
 }
 
-function updateCarrierCategoryCount(cat, value){
-  carrierReportedCount[cat] = value === '' ? null : value;
-  renderCategoryPanel();
-}
 
 function renderP2Result(total, matched, unmatched){
   document.getElementById('p2-resultDesc').textContent =
@@ -5887,32 +5865,7 @@ function downloadShopReportFile(){
   XLSX.writeFile(wb, '官網_出貨回報_' + fmtDate() + '.xlsx');
 }
 
-const CARRIER_CHECKS_COLLECTION = 'carrier_checks';
 
-async function submitCarrierCheck(){
-  await waitForFirebase();
-  const {db, collection, addDoc, serverTimestamp} = window.__fb;
-  const msgEl = document.getElementById('carrierCheckMsg');
-
-  const counts = {};
-  CATEGORY_TOTAL_KEYS.forEach(cat=>{
-    counts[cat] = {
-      system: categoryTotals[cat] || 0,
-      reported: (carrierReportedCount[cat] !== null && carrierReportedCount[cat] !== undefined) ? Number(carrierReportedCount[cat]) : null
-    };
-  });
-
-  try{
-    await addDoc(collection(db, CARRIER_CHECKS_COLLECTION), {
-      date: ymd(new Date()),
-      counts,
-      confirmedAt: serverTimestamp()
-    });
-    msgEl.textContent = '✓ 已送出並記錄。';
-  }catch(err){
-    msgEl.textContent = '送出失敗: ' + err.message;
-  }
-}
 
 const dropzone = document.getElementById('dropzone');
 const fileInput = document.getElementById('fileInput');
