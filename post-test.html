@@ -308,6 +308,11 @@
   .top-row-pickup{background:#FFF6DC;border-color:#EBD79B;}
   .top-row-pickup > summary{color:#7A5200;}
   .top-row-pickup .top-row-count.has{background:#B8860B;}
+  .top-row-progress{background:#EAF3FB;border-color:#B9D3EA;}
+  .top-row-progress > summary{color:#1F4E79;}
+  .top-row-progress .top-row-count.has{background:#2E6DA4;}
+  .top-row-progress .pb-title{font-weight:700;font-size:13.5px;margin:10px 0 2px;color:#1F4E79;}
+  .top-row-progress .pb-title:first-child{margin-top:4px;}
   /* 跳到檢貨卡片時,閃一下讓人看到是哪一張 */
   @keyframes pickFlash{0%,100%{box-shadow:0 0 0 0 rgba(192,57,43,0);}35%{box-shadow:0 0 0 7px rgba(192,57,43,.5);}}
   .pick-card-flash{animation:pickFlash .9s ease 2;}
@@ -1184,6 +1189,18 @@
     <div class="announce-box" id="announceBox" style="display:none;"></div>
 
     <div class="top-rows" id="topRows">
+    <details class="top-row top-row-progress" id="progressBox" data-row="progress">
+      <summary><span class="top-row-title">今日出貨進度</span><span class="top-row-count" id="progressBoxCount"></span><span class="top-row-chev" aria-hidden="true"></span></summary>
+      <div class="top-row-body">
+        <div class="pb-title">揀貨進度</div>
+        <div class="desc">來自頁面1每個通路按下「確認完成揀貨」時記錄的進度。</div>
+        <div id="p1-pickRow" class="pick-progress-row"></div>
+        <div class="pb-title">今日物流件數核對</div>
+        <div class="desc" id="p1-summaryDesc"></div>
+        <div class="stat-row" id="p1-statRow"></div>
+      </div>
+    </details>
+
     <details class="top-row top-row-special" id="specialBox" data-row="special">
       <summary><span class="top-row-title">特殊訂單</span><span class="top-row-count" id="specialBoxCount"></span><span class="top-row-chev" aria-hidden="true"></span></summary>
       <div class="top-row-body">
@@ -1832,7 +1849,7 @@
 
 <script>
 const TEST_BUILD = true;   // 測試版(post-test.html)只有這一行是 true,其他完全一樣;測好要換成正式版時,把它改成 false 放回 index.html 即可
-const APP_VERSION = '20261010-57'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20261010-58'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -1988,6 +2005,7 @@ async function handleAuthStateChange(user){
         loadResendRecords();
         loadDailyNotes();
         startLiveSessionListener();
+        refreshTopProgress();   // 頁面上方「今日出貨進度」那一列:登入就載入一次
         startBoardListener();
         startPickupListener();
         startSpecialListener();
@@ -4082,17 +4100,10 @@ async function getCumulativePickTotals(){
   return sums;
 }
 
-async function updatePage3PickProgress(){
+// 揀貨進度的畫面(出貨核對頁和頁面上方「今日出貨進度」那一列共用同一份)
+function pickProgressHtml(sums){
   const labels = {line:'LINE', shop:'官網', shopee:'蝦皮', pinkoi:'PINKOI'};
-  const row = document.getElementById('p3-pickRow');
-  if(!row) return;
-  row.innerHTML = Object.keys(labels).map(ch =>
-    '<div class="pp-cell"><div class="pp-name">' + labels[ch] + '</div><div class="pp-empty">讀取中...</div></div>'
-  ).join('');
-
-  const sums = await getCumulativePickTotals();
-
-  row.innerHTML = Object.keys(labels).map(ch=>{
+  return Object.keys(labels).map(ch=>{
     const s = sums[ch];
     if(!s || s.total === 0){
       return '<div class="pp-cell"><div class="pp-name">' + labels[ch] + '</div><div class="pp-empty">今天還沒確認</div></div>';
@@ -4100,6 +4111,26 @@ async function updatePage3PickProgress(){
     return '<div class="pp-cell"><div class="pp-name">' + labels[ch] + '</div><div class="pp-num pp-done">' + s.done + ' / ' + s.total + '</div></div>';
   }).join('');
 }
+async function updatePage3PickProgress(){
+  const labels = {line:'LINE', shop:'官網', shopee:'蝦皮', pinkoi:'PINKOI'};
+  const rows = ['p3-pickRow', 'p1-pickRow'].map(id => document.getElementById(id)).filter(Boolean);
+  if(rows.length === 0) return;
+  const loading = Object.keys(labels).map(ch =>
+    '<div class="pp-cell"><div class="pp-name">' + labels[ch] + '</div><div class="pp-empty">讀取中...</div></div>'
+  ).join('');
+  rows.forEach(r => { if(r.id === 'p3-pickRow' || !r.innerHTML) r.innerHTML = loading; });   // 上方那一列已經有內容就不閃「讀取中」
+  const sums = await getCumulativePickTotals();
+  const html = pickProgressHtml(sums);
+  rows.forEach(r => { r.innerHTML = html; });
+}
+// 頁面上方「今日出貨進度」那一列:載入一次(件數那塊最多每 20 秒讀一次資料庫)
+let lastCatTotalsLoad = 0;
+function refreshCategoryTotals(force){
+  const now = Date.now();
+  if(!force && now - lastCatTotalsLoad < 20000) return;
+  lastCatTotalsLoad = now; loadCategoryTotals();
+}
+function refreshTopProgress(){ updatePage3PickProgress(); refreshCategoryTotals(true); }
 
 // ===== 即時進行中(監聽 live_sessions,不用重新整理就能看到兼職現在進度)=====
 let liveSessionUnsub = null;
@@ -4146,6 +4177,8 @@ function renderLiveSessions(sessions, cumulative){
   latestLiveSessions = sessions;
   latestLiveCumulative = cumulative;
   try{ renderCategoryPanel(); }catch(e){}   // 出貨核對頁的「今天預計」跟著即時進度更新
+  try{ const ph = pickProgressHtml(cumulative); ['p3-pickRow', 'p1-pickRow'].forEach(id => { const r = document.getElementById(id); if(r) r.innerHTML = ph; }); }catch(e){}   // 揀貨進度跟著即時更新(不用再多讀一次資料庫)
+  try{ refreshCategoryTotals(false); }catch(e){}   // 件數那塊最多每 20 秒重讀一次
   const labels = {line:'LINE', shop:'官網', shopee:'蝦皮', pinkoi:'PINKOI'};
   const row = document.getElementById('glsRow');
   if(!row) return;
@@ -4974,6 +5007,7 @@ function jumpToPickCard(orderNumber){
   setTimeout(() => hit.card.classList.remove('pick-card-flash'), 2400);
 }
 initTopRows();
+(function(){ const pb = document.getElementById('progressBox'); if(pb) pb.addEventListener('toggle', () => { if(pb.open) refreshTopProgress(); }); })();   // 展開時更新一次
 
 // ===== 蝦皮取貨(客人到店取貨:登記手機號碼+驗證碼,客人領走後勾選)=====
 // 資料存在資料庫的 shopee_pickups,所有人看到同一份(即時更新)。
@@ -5838,13 +5872,14 @@ function renderCategoryPanel(){
   });
   const hasPlan = Object.values(plan).some(v => v > 0) || Object.values(tmPlan).some(v => v > 0);
   const hasAny = Object.values(categoryTotals).some(v => v > 0) || hasPlan;
-  document.getElementById('p3-summaryDesc').textContent = hasAny
+  const descText = hasAny
     ? '跨 LINE / 官網 / 蝦皮 / 補寄,依實際物流方式加總今天確認揀貨的件數。' + (hasPlan ? '「今天預計」= 已確認的 + 還在各通路檢貨單上的(已扣掉標了「明天出貨」的)。' : '')
     : '今天還沒有任何通路按下「確認完成揀貨」,或補寄記錄確認完成,暫時沒有數字可以顯示。';
-
-  document.getElementById('p3-statRow').innerHTML = CATEGORY_TOTAL_KEYS.map(cat=>{
+  let confirmedTotal = 0, expectedTotal = 0;
+  const cellsHtml = CATEGORY_TOTAL_KEYS.map(cat=>{
     const sysCount = categoryTotals[cat] || 0;
     const onList = plan[cat] || 0, tmN = tmPlan[cat] || 0, expected = sysCount + onList;
+    confirmedTotal += sysCount; expectedTotal += expected;
     const planHtml = (expected > 0 || tmN > 0)
       ? '<div class="rc-plan">今天預計 <b>' + expected + '</b> 件<br><span>已確認 ' + sysCount + ' + 檢貨單上 ' + onList + (tmN > 0 ? ';已扣掉明天出貨 ' + tmN : '') + '</span></div>'
       : '';
@@ -5856,6 +5891,17 @@ function renderCategoryPanel(){
       </div>
     `;
   }).join('');
+  [['p3-summaryDesc', 'p3-statRow'], ['p1-summaryDesc', 'p1-statRow']].forEach(([d, r]) => {   // 出貨核對頁和頁面上方那一列,同一份
+    const de = document.getElementById(d), re = document.getElementById(r);
+    if(de) de.textContent = descText;
+    if(re) re.innerHTML = cellsHtml;
+  });
+  const badge = document.getElementById('progressBoxCount');   // 那一列收起來時,標題旁邊的摘要
+  if(badge){
+    const any = confirmedTotal > 0 || expectedTotal > 0;
+    badge.textContent = any ? '已確認 ' + confirmedTotal + '・今天預計 ' + expectedTotal + ' 件' : '今天還沒確認';
+    badge.classList.toggle('has', any);
+  }
 }
 
 
@@ -7912,6 +7958,7 @@ function confirmPickProgress(){
       alert('⚠ 這次確認的 ' + done + ' 張訂單,記錄到出貨核對時失敗了(可能是網路或權限問題)。\n出貨核對頁的數字可能會少算,請重新整理後確認;若還是不對,請告訴開發的人。');
     }
     updatePage3PickProgress();
+    refreshCategoryTotals(true);   // 剛確認完,件數馬上更新
   });
   rec.saved.then(() => {
     const sk = rec.info.skipped.length;
