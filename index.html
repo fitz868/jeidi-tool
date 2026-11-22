@@ -799,6 +799,18 @@
   .sf-item:last-child{border-bottom:none;}
   #islandPanel{border:2px solid var(--warn);}
   #islandPanel h2{color:var(--warn);}
+  .island-row{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;}
+  .island-info{flex:1 1 320px;min-width:0;word-break:break-all;}
+  .island-actions{display:flex;gap:8px;flex:none;}
+  .island-btn{font-size:13px;padding:4px 10px;}
+  .island-btn.copied{background:#E3F5E8;border-color:#2e9e5b;color:#1f6b3d;}
+  .island-del{color:#b3261e;border-color:#b3261e;}
+  mark.island-kw{background:#FFD9D6;color:#b3261e;font-weight:700;padding:0 2px;border-radius:3px;}
+  .island-caution{margin:10px 0;padding:8px 12px;border-left:4px solid var(--warn);background:#FFF6E5;font-size:14px;line-height:1.6;}
+  .island-guide{margin-top:14px;padding:12px 16px;border:1px dashed var(--warn);border-radius:10px;font-size:14px;line-height:1.9;}
+  .island-guide-title{font-weight:700;}
+  .island-guide ol{margin:6px 0 0 20px;padding:0;}
+  .island-reason{background:#fff;border:1px solid var(--line);padding:2px 8px;border-radius:6px;}
   .pick-card .pc-divider{border-top:1px dashed var(--line);}
   .pick-card .pc-body{padding:14px 18px;}
   .pick-card .pc-item{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:5px 0;font-size:17px;}
@@ -1363,8 +1375,21 @@
 
   <div class="panel no-print" id="islandPanel" style="display:none;">
     <h2>⚠ 離島地區訂單(無法配送)</h2>
-    <div class="desc">地址裡出現金門/馬祖/澎湖/綠島/蘭嶼等離島地名,黑貓不配送這些地區。請先到平台後台取消這幾筆訂單,再重新匯入一次,或直接把這幾筆從檔案裡刪掉後重新上傳。</div>
+    <div class="desc">地址裡出現金門/馬祖/澎湖/綠島/蘭嶼等離島地名,黑貓不配送這些地區。請先到平台後台取消這幾筆訂單,再重新匯入一次,或直接把這幾筆從檔案裡刪掉後重新上傳。<b>取消之後,按每一列的「✕ 刪除這張」就能直接從這批移除,不用重新匯入。</b></div>
+    <div class="island-caution">⚠ <b>請留意是不是真的離島</b>:有些只是路名、社區名剛好有這幾個字(像「金門街」)。地址裡比對到的字會標成<mark class="island-kw">紅色</mark>,請看整段地址再決定。</div>
     <div id="islandList"></div>
+    <div id="islandGuide" class="island-guide" style="display:none;">
+      <div class="island-guide-title">在 LINE 取消這張訂單的步驟</div>
+      <ol>
+        <li>到 LINE 訂單</li>
+        <li>點「取消訂單」</li>
+        <li>搜尋欄貼上訂單編號(用上面的「📋 複製訂單編號」)</li>
+        <li>勾選那張訂單後,按右邊藍色的「申請取消」</li>
+        <li>理由選「其他」</li>
+        <li>貼上這段:<span class="island-reason">目前物流未配合離島，造成不便非常抱歉</span> <button class="ghost island-btn" onclick="copyIslandReason(this)">📋 複製這段</button></li>
+        <li>取消完成後,回到這裡按那張訂單的「✕ 刪除這張」,把它從這批移除</li>
+      </ol>
+    </div>
   </div>
 
   <div class="panel pick-section" id="pickPanel" style="display:none;">
@@ -1753,7 +1778,7 @@
 </div>
 
 <script>
-const APP_VERSION = '20261010-50'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20261010-51'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -7447,12 +7472,12 @@ function toggleItemPicked(cardIdx, itemIdx, checked){
 
 // 刪除整張訂單(例如離島地址無法出貨的訂單),不用再回去重新匯入檔案
 // 刪除後這張訂單就不在畫面上的資料裡了,之後產生黑貓CSV等匯出檔案也不會包含這張,不用另外處理
-function deleteOrder(idx){
+function deleteOrder(idx, skipConfirm){
   const its = pickOrderGroups[idx];
   if(!its || its.length === 0) return;
   const oid = its[0].orderId;
   const name = its[0].name;
-  const proceed = confirm('確定要刪除這張訂單嗎?\n\n' + escapeHtml(name) + '(' + escapeHtml(oid) + ')\n\n刪除後這張訂單會從目前這批的檢貨單、匯出檔案裡完全移除,適合用在離島地址等無法出貨的情況。這個動作沒辦法復原,如果只是還沒有貨,不用刪除,留著繼續等貨就好。');
+  const proceed = skipConfirm ? true : confirm('確定要刪除這張訂單嗎?\n\n' + escapeHtml(name) + '(' + escapeHtml(oid) + ')\n\n刪除後這張訂單會從目前這批的檢貨單、匯出檔案裡完全移除,適合用在離島地址等無法出貨的情況。這個動作沒辦法復原,如果只是還沒有貨,不用刪除,留著繼續等貨就好。');
   if(!proceed) return;
 
   const states = captureCardStates(); // 先記住其他卡片的勾選狀態,重畫後還原
@@ -7825,30 +7850,69 @@ function renderResult(){
   document.getElementById('kerryDownloadItem').style.display = (currentChannel === 'shopee' || currentChannel === 'pinkoi') ? 'none' : 'block';
 
   // 離島地區偵測(黑貓不配送,提醒先去平台取消訂單再重新匯入)
-  const ISLAND_KEYWORDS = ['金門','馬祖','澎湖','綠島','蘭嶼','小琉球','龜山島','南竿','北竿','東引'];
-  const islandOrders = [];
-  const seenIsland = new Set();
-  parsedItems.forEach(it=>{
-    if(seenIsland.has(it.orderId)) return;
-    const addr = String(it.address || '');
-    if(ISLAND_KEYWORDS.some(kw => addr.includes(kw))){
-      seenIsland.add(it.orderId);
-      islandOrders.push(it);
-    }
-  });
-  const islandPanel = document.getElementById('islandPanel');
-  if(islandOrders.length > 0){
-    document.getElementById('islandList').innerHTML = islandOrders.map(it =>
-      '<div class="sf-item"><strong>' + escapeHtml(it.orderId) + '</strong>　' + escapeHtml(it.name) + '　' + escapeHtml(it.address) + '</div>'
-    ).join('');
-    islandPanel.style.display = 'block';
-  }else{
-    islandPanel.style.display = 'none';
-  }
+  renderIslandPanel();
 
   document.getElementById('resultPanel').style.display = 'block';
   document.getElementById('resetBtn').style.display = 'inline-block';
   document.getElementById('processBtn').disabled = true;
+}
+
+// ===== 離島提示:標出比對到的字、複製訂單編號、刪除(要先確認已在平台取消)、LINE 取消步驟 =====
+const ISLAND_KEYWORDS = ['金門','馬祖','澎湖','綠島','蘭嶼','小琉球','龜山島','南竿','北竿','東引'];
+const ISLAND_CANCEL_REASON = '目前物流未配合離島，造成不便非常抱歉';
+function islandMatchedKeyword(addr){ const a = String(addr || ''); return ISLAND_KEYWORDS.find(kw => a.includes(kw)) || ''; }
+// 地址裡比對到的離島字樣標紅,一眼看得出是不是只是路名剛好有這兩個字
+function islandAddrHtml(addr){
+  const a = String(addr || ''), kw = islandMatchedKeyword(a);
+  if(!kw) return escapeHtml(a);
+  const i = a.indexOf(kw);
+  return escapeHtml(a.slice(0, i)) + '<mark class="island-kw">' + escapeHtml(kw) + '</mark>' + escapeHtml(a.slice(i + kw.length));
+}
+function renderIslandPanel(){
+  const islandOrders = [], seen = new Set();
+  parsedItems.forEach(it => {
+    if(seen.has(it.orderId)) return;
+    if(typeof itemCarrier === 'function' && itemCarrier(it) === 'post') return;   // (郵局版)走郵局的離島訂單不警告,郵局寄得出去;改成黑貓才警告
+    if(islandMatchedKeyword(it.address)){ seen.add(it.orderId); islandOrders.push(it); }
+  });
+  const panel = document.getElementById('islandPanel');
+  if(islandOrders.length === 0){ panel.style.display = 'none'; return; }
+  document.getElementById('islandList').innerHTML = islandOrders.map(it =>
+    '<div class="sf-item island-row"><div class="island-info"><strong>' + escapeHtml(it.orderId) + '</strong>　' + escapeHtml(it.name) + '　' + islandAddrHtml(it.address) + '</div>' +
+    '<div class="island-actions">' +
+      '<button class="ghost island-btn" data-oid="' + escapeHtml(it.orderId) + '" onclick="copyIslandOrderNo(this)">📋 複製訂單編號</button>' +
+      '<button class="ghost island-btn island-del" data-oid="' + escapeHtml(it.orderId) + '" onclick="deleteIslandOrder(this)">✕ 刪除這張</button>' +
+    '</div></div>'
+  ).join('');
+  document.getElementById('islandGuide').style.display = currentChannel === 'line' ? '' : 'none';   // 取消步驟是 LINE 的,其他通路不顯示
+  panel.style.display = 'block';
+}
+async function islandCopy(btn, text, doneLabel){
+  const ok = await copyTextToClipboard(text);
+  if(!btn.dataset.label) btn.dataset.label = btn.textContent;
+  btn.textContent = ok ? doneLabel : '複製失敗,請自己選取';
+  btn.classList.toggle('copied', ok);
+  clearTimeout(btn._t);
+  btn._t = setTimeout(() => { btn.textContent = btn.dataset.label; btn.classList.remove('copied'); }, 2500);
+}
+function copyIslandOrderNo(btn){ return islandCopy(btn, btn.dataset.oid, '已複製 ✓ ' + btn.dataset.oid); }
+function copyIslandReason(btn){ return islandCopy(btn, ISLAND_CANCEL_REASON, '已複製 ✓'); }
+// 刪除離島訂單:一定要先問「是不是已經先去平台取消了」(防呆),確定了才從整批移除(檢貨單、黑貓檔、郵局檔都不會再有它)
+function deleteIslandOrder(btn){
+  const oid = btn.dataset.oid, its = parsedItems.filter(it => it.orderId === oid);
+  if(its.length === 0){ renderIslandPanel(); return; }
+  const chLabel = {line:'LINE', shop:'官網', shopee:'蝦皮', pinkoi:'PINKOI'}[currentChannel] || '平台';
+  const proceed = confirm('【防呆確認】\n\n' + its[0].name + '(' + oid + ')\n\n這張訂單你已經先到 ' + chLabel + ' 取消了嗎?\n\n按「確定」= 已經取消了,現在把它從這批完全移除(檢貨單、黑貓檔案、郵局檔案都不會再有它,沒辦法復原)。\n按「取消」= 還沒取消,先不要刪,請先到 ' + chLabel + ' 取消。');
+  if(!proceed) return;
+  const idx = pickOrderGroups.findIndex(g => g && g[0] && g[0].orderId === oid);
+  if(idx >= 0) deleteOrder(idx, true);
+  else{
+    parsedItems = parsedItems.filter(it => it.orderId !== oid);
+    custItems = parsedItems.filter(it => it.hasCust);
+    resolvePendingPick(currentChannel, oid);
+    renderPickList(); saveState();
+  }
+  renderIslandPanel();
 }
 
 function escapeHtml(s){
