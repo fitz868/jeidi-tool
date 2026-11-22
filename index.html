@@ -313,6 +313,24 @@
   .top-row-progress .top-row-count.has{background:#2E6DA4;}
   .top-row-progress .pb-title{font-weight:700;font-size:13.5px;margin:10px 0 2px;color:#1F4E79;}
   .top-row-progress .pb-title:first-child{margin-top:4px;}
+  /* ===== 乾淨版:少一點方框 ===== */
+  body .panel{border:none;box-shadow:0 1px 3px rgba(40,30,20,.07);padding:24px;}
+  body .top-row{border:none;border-radius:10px;}
+  body .stat,body .pp-cell{background:transparent;border-radius:0;padding:10px 6px 8px;border-top:2px solid var(--line);}
+  .pick-card:not(.pick-card-alert):not(.pick-card-special):not(.pick-card-partial){border-color:transparent;box-shadow:0 1px 4px rgba(40,30,20,.10);}
+  body .pick-card .pc-divider{border-top:1px solid var(--line);opacity:.55;}
+  .pc-seg{display:inline-flex;}
+  .pc-seg button{border-radius:0;font-size:12px;padding:3px 13px;}
+  .pc-seg button:first-child{border-radius:6px 0 0 6px;}
+  .pc-seg button:last-child{border-radius:0 6px 6px 0;margin-left:-1px;}
+  body .pc-delete-btn{border-color:transparent;color:var(--ink-soft);font-weight:500;}
+  body .pc-delete-btn:hover{color:var(--warn);}
+  .pick-legend{font-size:13px;color:var(--ink-soft);line-height:2.1;margin:0 0 14px;}
+  .pick-legend b{color:var(--ink);margin-right:2px;}
+  .pick-legend .lg{display:inline-block;font-weight:700;font-size:12px;padding:1px 10px;border-radius:10px;margin:0 6px 0 12px;}
+  .lg-short{background:#EFEAF8;color:#6B5B9A;}
+  .lg-tmr{background:#E3F2F8;color:#1F6F8B;}
+  .lg-del{background:#F1F0EC;color:#8A5A1E;}
   /* 跳到檢貨卡片時,閃一下讓人看到是哪一張 */
   @keyframes pickFlash{0%,100%{box-shadow:0 0 0 0 rgba(192,57,43,0);}35%{box-shadow:0 0 0 7px rgba(192,57,43,.5);}}
   .pick-card-flash{animation:pickFlash .9s ease 2;}
@@ -1421,6 +1439,7 @@
       </div>
     </div>
     <div class="desc no-print" id="pickConfirmNote">依排序往下滑檢查,或直接列印成紙本。品名已對照 SKU 表顯示簡單品名,配件會列在該項目下方。揀貨完成後按上方「確認完成揀貨」,進度會記錄到「出貨核對」頁面。</div>
+    <div class="pick-legend no-print"><b>這三個按鈕怎麼選</b><span class="lg lg-short">缺貨</span>貨還沒備齊,先放著,補齊後一起出(今天仍算要出的,只是還沒好)<span class="lg lg-tmr">明天出</span>已經決定明天才出(今天的出貨量不算它)<span class="lg lg-del">刪除</span>取消、離島等不會出了<span id="pickWeekendNote" style="display:none;"> ・ 📦 今天是週末,黑貓不來收,包好的會等週一一起收。</span></div>
     <div id="specialPickBanner" class="special-pick-banner no-print" style="display:none;"></div>
 <div id="sfQuickLinkBanner" class="no-print"></div>
 
@@ -1791,7 +1810,7 @@
 </div>
 
 <script>
-const APP_VERSION = '20261010-53'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20261010-54'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -5692,12 +5711,13 @@ async function loadCategoryTotals(){
 
 function renderCategoryPanel(){
   // 今天預計出貨 = 已確認的(pick_records)+ 各通路目前還在檢貨單上的(扣掉標了明天出貨的)。檢貨單上的數字來自即時進度,只算今天的
-  const todayStr = ymd(new Date()), plan = {}, tmPlan = {};
+  const todayStr = ymd(new Date()), plan = {}, tmPlan = {}, shPlan = {};
   Object.keys(latestLiveSessions || {}).forEach(ch => {
     const ss = latestLiveSessions[ch];
     if(!ss || ss.date !== todayStr) return;
     Object.keys(ss.plan || {}).forEach(c => { plan[c] = (plan[c] || 0) + Number(ss.plan[c] || 0); });
     Object.keys(ss.tomorrowPlan || {}).forEach(c => { tmPlan[c] = (tmPlan[c] || 0) + Number(ss.tomorrowPlan[c] || 0); });
+    Object.keys(ss.shortPlan || {}).forEach(c => { shPlan[c] = (shPlan[c] || 0) + Number(ss.shortPlan[c] || 0); });
   });
   const hasPlan = Object.values(plan).some(v => v > 0) || Object.values(tmPlan).some(v => v > 0);
   const hasAny = Object.values(categoryTotals).some(v => v > 0) || hasPlan;
@@ -5707,10 +5727,10 @@ function renderCategoryPanel(){
   let confirmedTotal = 0, expectedTotal = 0;
   const cellsHtml = CATEGORY_TOTAL_KEYS.map(cat=>{
     const sysCount = categoryTotals[cat] || 0;
-    const onList = plan[cat] || 0, tmN = tmPlan[cat] || 0, expected = sysCount + onList;
+    const onList = plan[cat] || 0, tmN = tmPlan[cat] || 0, shN = shPlan[cat] || 0, expected = sysCount + onList;
     confirmedTotal += sysCount; expectedTotal += expected;
     const planHtml = (expected > 0 || tmN > 0)
-      ? '<div class="rc-plan">今天預計 <b>' + expected + '</b> 件<br><span>已確認 ' + sysCount + ' + 檢貨單上 ' + onList + (tmN > 0 ? ';已扣掉明天出貨 ' + tmN : '') + '</span></div>'
+      ? '<div class="rc-plan">今天預計 <b>' + expected + '</b> 件<br><span>已確認 ' + sysCount + ' + 檢貨單上 ' + onList + (shN > 0 ? '(其中缺貨 ' + shN + ')' : '') + (tmN > 0 ? ';已扣掉明天出貨 ' + tmN : '') + '</span></div>'
       : '';
     return `
       <div class="stat rc-cell">
@@ -7223,12 +7243,14 @@ function renderPickList(){
       '<div class="pc-top">' +
         '<div class="pc-top-row no-print">' +
           '<label class="pc-check"><input type="checkbox" onchange="togglePickDone(' + idx + ', this.checked)"> 已檢貨</label>' +
-          '<span class="pc-later-tag">⏳ 稍後檢貨</span>' +
-          '<span class="pc-tomorrow-tag">📅 明天出貨</span>' +
+          '<span class="pc-later-tag">缺貨</span>' +
+          '<span class="pc-tomorrow-tag">明天出</span>' +
           '<span class="pc-top-actions">' +
-            '<button class="pc-later-btn" onclick="toggleLater(' + idx + ')" title="先放到下面晚點再檢,不算已檢貨">⏳ 稍後檢貨</button>' +
-            '<button class="pc-tomorrow-btn" onclick="toggleTomorrow(' + idx + ')" title="這張今天不出、明天再出;今天的出貨量會扣掉它">' + (isTomorrow ? '↩ 取消明天' : '📅 明天出貨') + '</button>' +
-            '<button class="pc-delete-btn" onclick="deleteOrder(' + idx + ')" title="刪除這張訂單(例如離島無法出貨的訂單)">✕ 刪除</button>' +
+            '<span class="pc-seg">' +
+            '<button class="pc-later-btn" onclick="toggleLater(' + idx + ')" title="貨還沒備齊:先放著,補齊後一起出。今天仍算要出的">缺貨</button>' +
+            '<button class="pc-tomorrow-btn" onclick="toggleTomorrow(' + idx + ')" title="已經決定明天才出。今天的出貨量不算它">' + (isTomorrow ? '↩ 取消明天' : '明天出') + '</button>' +
+            '</span>' +
+            '<button class="pc-delete-btn" onclick="deleteOrder(' + idx + ')" title="刪除這張訂單(取消、離島等不會出了)">刪除</button>' +
           '</span>' +
         '</div>' +
         '<div class="pc-headrow"><span class="pc-name">' + escapeHtml(name) + shipTag + '</span>' + orderBadge + '</div>' +
@@ -7246,6 +7268,7 @@ function renderPickList(){
   renderSpecialOrders();   // (裡面會呼叫 applySpecialToCards)檢貨單重畫了,特殊訂單那一列的提示也要重畫
   renderLineBagNote();
   renderSantaSummary(orderIds.map(oid => santaCardsFor(byOrder[oid], oid)));
+  const wk = document.getElementById('pickWeekendNote'); if(wk){ const wd = new Date().getDay(); wk.style.display = (wd === 0 || wd === 6) ? 'inline' : 'none'; }   // 週六日黑貓不來收
   updateSfQuickLinkBanner();
   updatePickProgress();
 }
@@ -7307,7 +7330,7 @@ function applyLaterState(card, isLater){
   if(!card) return;
   card.classList.toggle('pick-card-later', !!isLater);
   const btn = card.querySelector('.pc-later-btn');
-  if(btn) btn.textContent = isLater ? '↩ 取消稍後' : '⏳ 稍後檢貨';
+  if(btn) btn.textContent = isLater ? '↩ 取消缺貨' : '缺貨';
 }
 
 // ===== 明天出貨:這張今天不出,算今天出貨量時要扣掉 =====
@@ -7318,7 +7341,7 @@ function applyTomorrowState(card, on){
   if(!card) return;
   card.classList.toggle('pick-card-tomorrow', !!on);
   const btn = card.querySelector('.pc-tomorrow-btn');
-  if(btn) btn.textContent = on ? '↩ 取消明天' : '📅 明天出貨';
+  if(btn) btn.textContent = on ? '↩ 取消明天' : '明天出';
 }
 // 拿掉這張的「明天出貨」(不動別的狀態)
 function clearTomorrowFlag(idx){
@@ -7351,7 +7374,9 @@ function computePlanCounts(){
     if(orderIsTomorrow(its)){ tomorrow++; tomorrowPlan[cat] = (tomorrowPlan[cat] || 0) + 1; }
     else plan[cat] = (plan[cat] || 0) + 1;
   });
-  return {plan, tomorrow, tomorrowPlan};
+  const shortPlan = {};   // 標了「缺貨」的(還在今天預計裡,但要看得出缺幾張)
+  document.querySelectorAll('#pickList .pick-card-later').forEach(c => { const g = pickOrderGroups[Number(String(c.id).replace('pick-card-', ''))]; if(g && g[0]){ const cat = g[0].shippingCategory || 'kerry'; shortPlan[cat] = (shortPlan[cat] || 0) + 1; } });
+  return {plan, tomorrow, tomorrowPlan, shortPlan};
 }
 
 // 稍後檢貨:先把這張放到下面,但不算已檢貨(進度、還缺清單都照樣算它還沒檢)
@@ -7361,6 +7386,7 @@ function toggleLater(idx){
   if(card.classList.contains('pick-card-tomorrow')) clearTomorrowFlag(idx);   // 改成稍後檢貨,就不是明天出貨了
   applyLaterState(card, !card.classList.contains('pick-card-later'));
   placeCardInOrder(card);
+  updatePickProgress();   // 缺貨的張數要跟著更新(進度文字、雲端即時進度)
   saveState();
 }
 
@@ -7542,7 +7568,8 @@ function updatePickProgress(){
   const total = all - tmN;   // 今天要出的(扣掉明天出貨)
   const done = document.querySelectorAll('#pickList .pick-card-done').length;
   const el = document.getElementById('pickProgress');
-  if(el) el.textContent = all > 0 ? ('已檢貨 ' + done + ' / ' + total + (tmN > 0 ? '(另有 ' + tmN + ' 張明天出貨)' : '')) : '';
+  const shN = document.querySelectorAll('#pickList .pick-card-later').length;   // 缺貨的張數
+  if(el) el.textContent = all > 0 ? ('已檢貨 ' + done + ' / ' + total + (shN > 0 ? ',缺貨 ' + shN + ' 張' : '') + (tmN > 0 ? '(另有 ' + tmN + ' 張明天出貨)' : '')) : '';
   syncLiveProgress(total, done);
   renderTodaySummary();
 }
@@ -7583,7 +7610,7 @@ function syncLiveProgress(total, done){
       await setDoc(doc(db, 'live_sessions', channel), {
         channel, total, done, confirmed,
         pendingSkus, date: ymd(new Date()),
-        plan: planInfo.plan, tomorrow: planInfo.tomorrow, tomorrowPlan: planInfo.tomorrowPlan,
+        plan: planInfo.plan, tomorrow: planInfo.tomorrow, tomorrowPlan: planInfo.tomorrowPlan, shortPlan: planInfo.shortPlan,
         updatedAt: serverTimestamp(), updatedBy: currentUserEmail || ''
       });
     }catch(err){
