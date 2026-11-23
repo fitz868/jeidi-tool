@@ -331,6 +331,37 @@
   .lg-short{background:#EFEAF8;color:#6B5B9A;}
   .lg-tmr{background:#E3F2F8;color:#1F6F8B;}
   .lg-del{background:#F1F0EC;color:#8A5A1E;}
+  .pc-status{padding:0 18px 10px;margin-top:-2px;}
+  .pc-status:empty{display:none;}
+  .pc-st{display:inline-block;font-size:12.5px;font-weight:600;padding:2px 10px;border-radius:10px;line-height:1.6;}
+  .pc-st-ok{background:#E3F5E8;color:#1F6B3D;}
+  .pc-st-miss{background:#FBEAEA;color:#B3261E;}
+  .pc-st-none{background:#F1F0EC;color:#6B6B6B;}
+  .ts-tag{display:block;font-size:11px;font-weight:600;color:#1F6F8B;margin-top:2px;}
+  body .pick-card.pick-card-packed{background:#F2FAF5;}
+  body .pick-card-done .pc-tomorrow-btn{display:inline-block;}   /* 已經勾完的卡片也要能按「明天出」(包好了才發現這張是明天出) */
+  /* ===== 左邊的儀錶板:螢幕夠寬(1320px 以上)才出現,內容區往右讓位;比較窄的螢幕維持上面那條可收合的列 ===== */
+  .dash-left{display:none;}
+  @media screen and (min-width:1320px){
+    .dash-left{display:block;position:fixed;top:16px;left:12px;width:236px;max-height:calc(100vh - 32px);overflow-y:auto;background:var(--paper);border-radius:12px;box-shadow:0 1px 3px rgba(40,30,20,.08);padding:16px 16px 12px;z-index:20;}
+    #progressBox{display:none;}
+    .shell{margin-left:max(260px, calc((100vw - 1200px) / 2));margin-right:0;}
+  }
+  .dash-title{font-weight:700;font-size:15px;}
+  .dash-date{font-weight:400;font-size:12.5px;color:var(--ink-soft);margin-left:8px;}
+  .dash-sec{font-size:12px;font-weight:700;color:var(--ink-soft);letter-spacing:.04em;margin:14px 0 2px;}
+  .dash-item{padding:6px 0;border-bottom:1px solid var(--line);}
+  .dash-item:last-child{border-bottom:none;}
+  .dash-row{display:flex;justify-content:space-between;align-items:baseline;gap:8px;}
+  .dash-name{font-size:14px;}
+  .dash-num{font-family:'Source Serif 4',Georgia,serif;font-size:17px;font-weight:600;}
+  .dash-num.dash-ok{color:var(--ok);}
+  .dash-num.dash-dim{color:var(--ink-soft);font-size:12.5px;font-weight:400;font-family:inherit;}
+  .dash-sub{font-size:11.5px;color:var(--ink-soft);line-height:1.5;margin-top:1px;}
+  .dash-item.dash-zero .dash-name{color:var(--ink-soft);}
+  .dash-item.dash-zero .dash-num{color:#B8B4AA;}
+  .dash-note{margin-top:10px;font-size:12px;color:#8A5A1E;background:#FFF6E5;border-radius:8px;padding:6px 8px;line-height:1.5;}
+  .dash-note:empty{display:none;}
   /* 跳到檢貨卡片時,閃一下讓人看到是哪一張 */
   @keyframes pickFlash{0%,100%{box-shadow:0 0 0 0 rgba(192,57,43,0);}35%{box-shadow:0 0 0 7px rgba(192,57,43,.5);}}
   .pick-card-flash{animation:pickFlash .9s ease 2;}
@@ -1179,6 +1210,14 @@
   </div>
 
   <div id="helperMode">
+  <aside class="dash-left no-print" id="progressDash">
+    <div class="dash-title">今日出貨進度<span class="dash-date" id="d-date"></span></div>
+    <div class="dash-sec">揀貨進度</div>
+    <div id="d-pickRow"></div>
+    <div class="dash-sec">今日物流件數</div>
+    <div id="d-statRow"></div>
+    <div class="dash-note" id="d-note"></div>
+  </aside>
 
   <div class="top-boxes no-print">
     <div class="announce-box" id="announceBox" style="display:none;"></div>
@@ -1439,7 +1478,7 @@
       </div>
     </div>
     <div class="desc no-print" id="pickConfirmNote">依排序往下滑檢查,或直接列印成紙本。品名已對照 SKU 表顯示簡單品名,配件會列在該項目下方。揀貨完成後按上方「確認完成揀貨」,進度會記錄到「出貨核對」頁面。</div>
-    <div class="pick-legend no-print"><b>這三個按鈕怎麼選</b><span class="lg lg-short">缺貨</span>貨還沒備齊,先放著,補齊後一起出(今天仍算要出的,只是還沒好)<span class="lg lg-tmr">明天出</span>已經決定明天才出(今天的出貨量不算它)<span class="lg lg-del">刪除</span>取消、離島等不會出了<span id="pickWeekendNote" style="display:none;"> ・ 📦 今天是週末,黑貓不來收,包好的會等週一一起收。</span></div>
+    <div class="pick-legend no-print"><b>這三個按鈕怎麼選</b><span class="lg lg-short">缺貨</span>貨還沒備齊,先放著,補齊後一起出(今天仍算要出的,只是還沒好)<span class="lg lg-tmr">明天出</span>已經決定明天才出(今天的出貨量不算它)。這種單也可以勾品項:全部勾完 = 已包好,沒勾的就是缺的,會寫在卡片上和左邊「缺貨的東西」<span class="lg lg-del">刪除</span>取消、離島等不會出了<span id="pickWeekendNote" style="display:none;"> ・ 📦 今天是週末,黑貓不來收,包好的會等週一一起收。</span></div>
     <div id="specialPickBanner" class="special-pick-banner no-print" style="display:none;"></div>
 <div id="sfQuickLinkBanner" class="no-print"></div>
 
@@ -1452,6 +1491,10 @@
         <div class="sidebar-summary" id="todaySummaryPanel" style="display:none;">
           <div class="sidebar-summary-title sidebar-summary-head"><span>這批還剩要出貨</span><button class="ts-print-btn" onclick="printRemainingList()" title="列印這份清單(熱感應機也可以)">🖨 列印</button></div>
           <div id="todaySummaryList"></div>
+        </div>
+        <div class="sidebar-summary" id="shortSummaryPanel" style="display:none;">
+          <div class="sidebar-summary-title sidebar-summary-head"><span>缺貨的東西</span></div>
+          <div id="shortSummaryList"></div>
         </div>
       </aside>
       <div class="pick-grid-wrap">
@@ -1810,7 +1853,7 @@
 </div>
 
 <script>
-const APP_VERSION = '20261010-54'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20261010-56'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -3947,7 +3990,7 @@ function loadChannelBatch(ch){
     const doneCount = doneItems[idx].length;
     const allDone = doneCount === itemEls.length;
     const noneDone = doneCount === 0;
-    card.classList.toggle('pick-card-done', allDone);
+    setCardDoneClass(card, allDone);
     card.classList.toggle('pick-card-partial', !allDone && !noneDone);
     const masterCb = card.querySelector('.pc-check input');
     if(masterCb) masterCb.checked = allDone;
@@ -4067,6 +4110,13 @@ function pickProgressHtml(sums){
     return '<div class="pp-cell"><div class="pp-name">' + labels[ch] + '</div><div class="pp-num pp-done">' + s.done + ' / ' + s.total + '</div></div>';
   }).join('');
 }
+function pickProgressDashHtml(sums){
+  const labels = {line:'LINE', shop:'官網', shopee:'蝦皮', pinkoi:'PINKOI'};
+  return Object.keys(labels).map(ch => {
+    const s = sums[ch], has = s && s.total > 0;
+    return '<div class="dash-item' + (has ? '' : ' dash-zero') + '"><div class="dash-row"><span class="dash-name">' + labels[ch] + '</span>' + (has ? '<span class="dash-num dash-ok">' + s.done + ' / ' + s.total + '</span>' : '<span class="dash-num dash-dim">今天還沒確認</span>') + '</div></div>';
+  }).join('');
+}
 async function updatePage3PickProgress(){
   const labels = {line:'LINE', shop:'官網', shopee:'蝦皮', pinkoi:'PINKOI'};
   const rows = ['p3-pickRow', 'p1-pickRow'].map(id => document.getElementById(id)).filter(Boolean);
@@ -4078,6 +4128,7 @@ async function updatePage3PickProgress(){
   const sums = await getCumulativePickTotals();
   const html = pickProgressHtml(sums);
   rows.forEach(r => { r.innerHTML = html; });
+  const dr = document.getElementById('d-pickRow'); if(dr) dr.innerHTML = pickProgressDashHtml(sums);   // 左邊的儀錶板
 }
 // 頁面上方「今日出貨進度」那一列:載入一次(件數那塊最多每 20 秒讀一次資料庫)
 let lastCatTotalsLoad = 0;
@@ -4133,7 +4184,7 @@ function renderLiveSessions(sessions, cumulative){
   latestLiveSessions = sessions;
   latestLiveCumulative = cumulative;
   try{ renderCategoryPanel(); }catch(e){}   // 出貨核對頁的「今天預計」跟著即時進度更新
-  try{ const ph = pickProgressHtml(cumulative); ['p3-pickRow', 'p1-pickRow'].forEach(id => { const r = document.getElementById(id); if(r) r.innerHTML = ph; }); }catch(e){}   // 揀貨進度跟著即時更新(不用再多讀一次資料庫)
+  try{ const ph = pickProgressHtml(cumulative); ['p3-pickRow', 'p1-pickRow'].forEach(id => { const r = document.getElementById(id); if(r) r.innerHTML = ph; }); const dr = document.getElementById('d-pickRow'); if(dr) dr.innerHTML = pickProgressDashHtml(cumulative); }catch(e){}   // 揀貨進度跟著即時更新(不用再多讀一次資料庫)
   try{ refreshCategoryTotals(false); }catch(e){}   // 件數那塊最多每 20 秒重讀一次
   const labels = {line:'LINE', shop:'官網', shopee:'蝦皮', pinkoi:'PINKOI'};
   const row = document.getElementById('glsRow');
@@ -5711,26 +5762,31 @@ async function loadCategoryTotals(){
 
 function renderCategoryPanel(){
   // 今天預計出貨 = 已確認的(pick_records)+ 各通路目前還在檢貨單上的(扣掉標了明天出貨的)。檢貨單上的數字來自即時進度,只算今天的
-  const todayStr = ymd(new Date()), plan = {}, tmPlan = {}, shPlan = {};
+  const todayStr = ymd(new Date()), plan = {}, tmPlan = {}, shPlan = {}, pkPlan = {};
   Object.keys(latestLiveSessions || {}).forEach(ch => {
     const ss = latestLiveSessions[ch];
     if(!ss || ss.date !== todayStr) return;
     Object.keys(ss.plan || {}).forEach(c => { plan[c] = (plan[c] || 0) + Number(ss.plan[c] || 0); });
     Object.keys(ss.tomorrowPlan || {}).forEach(c => { tmPlan[c] = (tmPlan[c] || 0) + Number(ss.tomorrowPlan[c] || 0); });
     Object.keys(ss.shortPlan || {}).forEach(c => { shPlan[c] = (shPlan[c] || 0) + Number(ss.shortPlan[c] || 0); });
+    Object.keys(ss.tomorrowPackedPlan || {}).forEach(c => { pkPlan[c] = (pkPlan[c] || 0) + Number(ss.tomorrowPackedPlan[c] || 0); });
   });
   const hasPlan = Object.values(plan).some(v => v > 0) || Object.values(tmPlan).some(v => v > 0);
   const hasAny = Object.values(categoryTotals).some(v => v > 0) || hasPlan;
   const descText = hasAny
     ? '跨 LINE / 官網 / 蝦皮 / 補寄,依實際物流方式加總今天確認揀貨的件數。' + (hasPlan ? '「今天預計」= 已確認的 + 還在各通路檢貨單上的(已扣掉標了「明天出貨」的)。' : '')
     : '今天還沒有任何通路按下「確認完成揀貨」,或補寄記錄確認完成,暫時沒有數字可以顯示。';
-  let confirmedTotal = 0, expectedTotal = 0;
+  let confirmedTotal = 0, expectedTotal = 0; const dashParts = [];
   const cellsHtml = CATEGORY_TOTAL_KEYS.map(cat=>{
     const sysCount = categoryTotals[cat] || 0;
-    const onList = plan[cat] || 0, tmN = tmPlan[cat] || 0, shN = shPlan[cat] || 0, expected = sysCount + onList;
+    const onList = plan[cat] || 0, tmN = tmPlan[cat] || 0, shN = shPlan[cat] || 0, pkN = pkPlan[cat] || 0, expected = sysCount + onList;
     confirmedTotal += sysCount; expectedTotal += expected;
+    const parts = [];   // 左邊儀錶板每一列下面的小字
+    if(expected > 0) parts.push('預計 ' + expected + ' 件' + (shN > 0 ? '(缺貨 ' + shN + ')' : ''));
+    if(tmN > 0) parts.push('明天出 ' + tmN + (pkN > 0 ? '(已包好 ' + pkN + ')' : ''));
+    dashParts.push('<div class="dash-item' + (sysCount === 0 && parts.length === 0 ? ' dash-zero' : '') + '"><div class="dash-row"><span class="dash-name">' + SHIP_CATEGORY_LABEL[cat] + '</span><span class="dash-num">' + sysCount + '</span></div>' + (parts.length ? '<div class="dash-sub">' + parts.join('・') + '</div>' : '') + '</div>');
     const planHtml = (expected > 0 || tmN > 0)
-      ? '<div class="rc-plan">今天預計 <b>' + expected + '</b> 件<br><span>已確認 ' + sysCount + ' + 檢貨單上 ' + onList + (shN > 0 ? '(其中缺貨 ' + shN + ')' : '') + (tmN > 0 ? ';已扣掉明天出貨 ' + tmN : '') + '</span></div>'
+      ? '<div class="rc-plan">今天預計 <b>' + expected + '</b> 件<br><span>已確認 ' + sysCount + ' + 檢貨單上 ' + onList + (shN > 0 ? '(其中缺貨 ' + shN + ')' : '') + (tmN > 0 ? ';已扣掉明天出貨 ' + tmN + (pkN > 0 ? '(已包好 ' + pkN + ')' : '') : '') + '</span></div>'
       : '';
     return `
       <div class="stat rc-cell">
@@ -5745,6 +5801,9 @@ function renderCategoryPanel(){
     if(de) de.textContent = descText;
     if(re) re.innerHTML = cellsHtml;
   });
+  const dsr = document.getElementById('d-statRow'); if(dsr) dsr.innerHTML = dashParts.join('');   // 左邊的儀錶板
+  const dnote = document.getElementById('d-note'); if(dnote){ const wd = new Date().getDay(); dnote.textContent = (wd === 0 || wd === 6) ? '📦 今天是週末,黑貓不來收,包好的會等週一一起收。' : ''; }
+  const dd = document.getElementById('d-date'); if(dd){ const t = new Date(); dd.textContent = (t.getMonth() + 1) + '/' + t.getDate() + '(' + '日一二三四五六'[t.getDay()] + ')'; }
   const badge = document.getElementById('progressBoxCount');   // 那一列收起來時,標題旁邊的摘要
   if(badge){
     const any = confirmedTotal > 0 || expectedTotal > 0;
@@ -7254,6 +7313,7 @@ function renderPickList(){
           '</span>' +
         '</div>' +
         '<div class="pc-headrow"><span class="pc-name">' + escapeHtml(name) + shipTag + '</span>' + orderBadge + '</div>' +
+        '<div class="pc-status no-print"></div>' +
       '</div>' +
       '<div class="pc-divider"></div>' +
       '<div class="pc-body">' + itemsHtml + custBlock + santaBlock + '</div>' +
@@ -7351,7 +7411,7 @@ function clearTomorrowFlag(idx){
 }
 function toggleTomorrow(idx){
   const card = document.getElementById('pick-card-' + idx), its = pickOrderGroups[idx];
-  if(!card || !its || !its.length || card.classList.contains('pick-card-done')) return;
+  if(!card || !its || !its.length) return;
   const on = !card.classList.contains('pick-card-tomorrow');
   if(on){
     const today = ymd(new Date());
@@ -7359,6 +7419,7 @@ function toggleTomorrow(idx){
     applyLaterState(card, false); applyTomorrowState(card, true);
     resolvePendingPick(currentChannel, its[0].orderId);   // 標了明天出貨不是「忘記揀貨」,解除跨天追蹤
   }else clearTomorrowFlag(idx);
+  refreshCardDoneState(card);   // 已經全勾完的:標明天出 → 變「已包好」;取消明天出 → 變回「已檢貨」
   placeCardInOrder(card);
   const cards = Array.from(document.querySelectorAll('#pickList .pick-card'));
   if(on && cards.length > 0 && cards.every(c => c.classList.contains('pick-card-tomorrow'))) currentBatchConfirmed = true;   // 剩下的全都是明天出貨 → 這批今天算做完
@@ -7376,18 +7437,87 @@ function computePlanCounts(){
   });
   const shortPlan = {};   // 標了「缺貨」的(還在今天預計裡,但要看得出缺幾張)
   document.querySelectorAll('#pickList .pick-card-later').forEach(c => { const g = pickOrderGroups[Number(String(c.id).replace('pick-card-', ''))]; if(g && g[0]){ const cat = g[0].shippingCategory || 'kerry'; shortPlan[cat] = (shortPlan[cat] || 0) + 1; } });
-  return {plan, tomorrow, tomorrowPlan, shortPlan};
+  const packedPlan = {};   // 明天出、已經包好的(各物流)
+  document.querySelectorAll('#pickList .pick-card-packed').forEach(c => { const g = pickOrderGroups[Number(String(c.id).replace('pick-card-', ''))]; if(g && g[0]){ const cat = g[0].shippingCategory || 'kerry'; packedPlan[cat] = (packedPlan[cat] || 0) + 1; } });
+  return {plan, tomorrow, tomorrowPlan, shortPlan, packedPlan};
 }
 
 // 稍後檢貨:先把這張放到下面,但不算已檢貨(進度、還缺清單都照樣算它還沒檢)
 function toggleLater(idx){
   const card = document.getElementById('pick-card-' + idx);
-  if(!card || card.classList.contains('pick-card-done')) return;
-  if(card.classList.contains('pick-card-tomorrow')) clearTomorrowFlag(idx);   // 改成稍後檢貨,就不是明天出貨了
+  if(!card || card.classList.contains('pick-card-done') || card.classList.contains('pick-card-packed')) return;   // 已包好的不能標缺貨
+  if(card.classList.contains('pick-card-tomorrow')){ clearTomorrowFlag(idx); refreshCardDoneState(card); }   // 改成缺貨,就不是明天出了
   applyLaterState(card, !card.classList.contains('pick-card-later'));
   placeCardInOrder(card);
   updatePickProgress();   // 缺貨的張數要跟著更新(進度文字、雲端即時進度)
   saveState();
+}
+
+// ===== 明天出的卡片:勾品項 = 包好了(不是今天出)=====
+// 明天出的卡片全部勾完,用 pick-card-packed 表示「已包好」,不用 pick-card-done(done 代表今天出,會被算進今天的數字、被「確認完成揀貨」記錄)
+function setCardDoneClass(card, allDone){
+  const tmr = card.classList.contains('pick-card-tomorrow');
+  card.classList.toggle('pick-card-done', !!allDone && !tmr);
+  card.classList.toggle('pick-card-packed', !!allDone && tmr);
+}
+function refreshCardDoneState(card){
+  if(!card) return;
+  const els = Array.from(card.querySelectorAll('.pc-item')), n = els.filter(e => e.classList.contains('pc-item-done')).length, all = els.length > 0 && n === els.length;
+  setCardDoneClass(card, all);
+  card.classList.toggle('pick-card-partial', n > 0 && !all);
+  const m = card.querySelector('.pc-check input'); if(m) m.checked = all;
+}
+// 這張卡片還沒勾的品項(= 缺的、還沒包的)
+function cardMissingItems(idx){
+  const its = pickOrderGroups[idx], card = document.getElementById('pick-card-' + idx);
+  if(!its || !card) return [];
+  const els = card.querySelectorAll('.pc-item'), out = [];
+  its.forEach((it, i) => {
+    if(!it.sku) return;
+    const el = els[i];
+    if(el && el.classList.contains('pc-item-done')) return;
+    out.push({sku: it.sku, name: it.displayName || it.itemName, qty: it.qty});
+  });
+  return out;
+}
+// 缺貨、明天出的卡片上,寫出現在的狀態:已包好 / 缺什麼 / 還沒包
+function renderCardStatus(card){
+  const box = card.querySelector('.pc-status'); if(!box) return;
+  const later = card.classList.contains('pick-card-later'), tmr = card.classList.contains('pick-card-tomorrow'), packed = card.classList.contains('pick-card-packed');
+  if(!later && !tmr){ if(box.innerHTML) box.innerHTML = ''; return; }
+  const idx = cardIdxNum(card), its = pickOrderGroups[idx] || [], total = its.filter(it => it.sku).length, miss = cardMissingItems(idx);
+  let html = '';
+  if(tmr && packed) html = '<span class="pc-st pc-st-ok">✅ 已包好,明天直接出</span>';
+  else if(later || (tmr && miss.length > 0 && miss.length < total)){
+    const names = miss.map(m => spaceComboX(m.name) + ' ×' + m.qty);
+    html = '<span class="pc-st pc-st-miss">缺:' + escapeHtml(names.slice(0, 4).join('、')) + (names.length > 4 ? ' 等 ' + names.length + ' 項' : '') + '</span>';
+  }else if(tmr) html = '<span class="pc-st pc-st-none">明天出,還沒包</span>';
+  box.innerHTML = html;
+}
+function renderAllCardStatus(){ document.querySelectorAll('#pickList .pick-card').forEach(renderCardStatus); }
+// 左邊的「缺貨的東西」:缺貨卡片沒勾的品項 + 明天出卡片(有勾一部分)沒勾的品項,依商品合計
+function getShortageBreakdown(){
+  const totals = {};
+  pickOrderGroups.forEach((its, idx) => {
+    if(!its) return;
+    const card = document.getElementById('pick-card-' + idx); if(!card) return;
+    const later = card.classList.contains('pick-card-later'), tmr = card.classList.contains('pick-card-tomorrow');
+    if(!later && !tmr) return;
+    const miss = cardMissingItems(idx), total = its.filter(it => it.sku).length;
+    if(tmr && !(miss.length > 0 && miss.length < total)) return;   // 明天出的:有包一部分才算缺;還沒開始包、已經包好的不算
+    miss.forEach(m => {
+      if(!totals[m.sku]) totals[m.sku] = {sku: m.sku, name: m.name, qty: 0, tomorrow: 0};
+      totals[m.sku].qty += m.qty; if(tmr) totals[m.sku].tomorrow += m.qty;
+    });
+  });
+  return Object.values(totals).sort((a, b) => b.qty - a.qty);
+}
+function renderShortSummary(){
+  const panel = document.getElementById('shortSummaryPanel'); if(!panel) return;
+  const rows = getShortageBreakdown();
+  if(rows.length === 0){ panel.style.display = 'none'; return; }
+  document.getElementById('shortSummaryList').innerHTML = '<div class="today-summary-grid">' + rows.map(r => '<div class="ts-item"><div class="ts-name">' + escapeHtml(spaceComboX(r.name)) + (r.tomorrow > 0 ? '<span class="ts-tag">含明天出 ' + r.tomorrow + '</span>' : '') + '</div><div class="ts-qty">' + r.qty + '</div></div>').join('') + '</div>';
+  panel.style.display = 'block';
 }
 
 // 把某張卡片裡已勾選的品項(依品項順序號)套回去,並更新整張卡片的狀態
@@ -7403,7 +7533,7 @@ function applyItemDoneState(card, doneIdxList){
     doneCount++;
   });
   const allDone = itemEls.length > 0 && doneCount === itemEls.length;
-  card.classList.toggle('pick-card-done', allDone);
+  setCardDoneClass(card, allDone);
   card.classList.toggle('pick-card-partial', doneCount > 0 && !allDone);
   const masterCb = card.querySelector('.pc-check input');
   if(masterCb) masterCb.checked = allDone;
@@ -7444,14 +7574,14 @@ function togglePickDone(idx, done){
     return;
   }
   if(card){
-    card.classList.toggle('pick-card-done', done);
+    setCardDoneClass(card, done);
     card.classList.remove('pick-card-partial');
     card.querySelectorAll('.pc-item').forEach(itemEl=>{
       itemEl.classList.toggle('pc-item-done', done);
       const cb = itemEl.querySelector('.pc-item-check input');
       if(cb) cb.checked = done;
     });
-    if(done){ applyLaterState(card, false); clearTomorrowFlag(idx); } // 已經檢完了,就不用再標「稍後」或「明天出貨」
+    if(done) applyLaterState(card, false); // 已經檢完了,就不用再標「缺貨」(明天出的:全部勾完 = 已包好,仍然是明天出)
   }
   placeCardInOrder(card);
   // 確認完成之後如果又有新的勾選動作,代表狀態已經跟剛剛確認的不一樣了,重新標記為「進行中」
@@ -7465,7 +7595,6 @@ function togglePickDone(idx, done){
 function toggleItemPicked(cardIdx, itemIdx, checked){
   const card = document.getElementById('pick-card-' + cardIdx);
   if(!card) return;
-  if(checked && card.classList.contains('pick-card-tomorrow')) clearTomorrowFlag(cardIdx);   // 開始檢這張了,就不是明天出貨
   const itemEls = card.querySelectorAll('.pc-item');
   const itemEl = itemEls[itemIdx];
   if(itemEl) itemEl.classList.toggle('pc-item-done', checked);
@@ -7483,9 +7612,9 @@ function toggleItemPicked(cardIdx, itemIdx, checked){
   }
   const masterCheckbox = card.querySelector('.pc-check input');
   if(masterCheckbox) masterCheckbox.checked = allDone;
-  card.classList.toggle('pick-card-done', allDone);
+  setCardDoneClass(card, allDone);
   card.classList.toggle('pick-card-partial', !allDone && !noneDone);
-  if(allDone){ applyLaterState(card, false); clearTomorrowFlag(cardIdx); } // 已經檢完了,就不用再標「稍後」或「明天出貨」
+  if(allDone) applyLaterState(card, false); // 已經檢完了,就不用再標「缺貨」(明天出的:全部勾完 = 已包好)
   placeCardInOrder(card);
 
   // 同上,勾選動作發生後代表狀態異動了,重新標記為「進行中」,要再按一次確認完成才會變回已確認
@@ -7569,9 +7698,12 @@ function updatePickProgress(){
   const done = document.querySelectorAll('#pickList .pick-card-done').length;
   const el = document.getElementById('pickProgress');
   const shN = document.querySelectorAll('#pickList .pick-card-later').length;   // 缺貨的張數
-  if(el) el.textContent = all > 0 ? ('已檢貨 ' + done + ' / ' + total + (shN > 0 ? ',缺貨 ' + shN + ' 張' : '') + (tmN > 0 ? '(另有 ' + tmN + ' 張明天出貨)' : '')) : '';
+  const pkN = document.querySelectorAll('#pickList .pick-card-packed').length;   // 明天出、已經包好的張數
+  if(el) el.textContent = all > 0 ? ('已檢貨 ' + done + ' / ' + total + (shN > 0 ? ',缺貨 ' + shN + ' 張' : '') + (tmN > 0 ? '(另有 ' + tmN + ' 張明天出貨' + (pkN > 0 ? ',已包好 ' + pkN + ' 張' : '') + ')' : '')) : '';
+  renderAllCardStatus();
   syncLiveProgress(total, done);
   renderTodaySummary();
+  renderShortSummary();
 }
 
 // 彙整「還沒打勾」的訂單裡,各SKU還缺多少件(不含配件/組合成分,只算主商品)
@@ -7610,7 +7742,7 @@ function syncLiveProgress(total, done){
       await setDoc(doc(db, 'live_sessions', channel), {
         channel, total, done, confirmed,
         pendingSkus, date: ymd(new Date()),
-        plan: planInfo.plan, tomorrow: planInfo.tomorrow, tomorrowPlan: planInfo.tomorrowPlan, shortPlan: planInfo.shortPlan,
+        plan: planInfo.plan, tomorrow: planInfo.tomorrow, tomorrowPlan: planInfo.tomorrowPlan, shortPlan: planInfo.shortPlan, tomorrowPackedPlan: planInfo.packedPlan,
         updatedAt: serverTimestamp(), updatedBy: currentUserEmail || ''
       });
     }catch(err){
