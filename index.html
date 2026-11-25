@@ -1853,7 +1853,7 @@
 </div>
 
 <script>
-const APP_VERSION = '20261010-56'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20261010-57'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -6463,8 +6463,14 @@ async function readLineItems(){
     rawHeaders = headers;
 
     return dataRows.map(r => {
-      const sku = (skuHI !== -1 && String(r[skuHI]||'').trim() !== '') ? r[skuHI]
-                  : (skuII !== -1 ? r[skuII] : '');
+      // SKU:賣家商品代碼優先;但有些商品(例如三入香氛大豆蠟燭禮盒)賣家商品代碼是整個商品共用的總代碼,
+      // 真正對得上 SKU 表的是規格管理代碼。所以兩個都讀,SKU 表裡找得到的那個才用(都找不到就照原本:賣家商品代碼優先)
+      const codeH = (skuHI !== -1 ? String(r[skuHI] || '').trim() : ''), codeI = (skuII !== -1 ? String(r[skuII] || '').trim() : '');
+      let sku = codeH || codeI, skuAlt = '';
+      if(codeH && codeI && codeH !== codeI){
+        if(Object.keys(skuMap).length > 0 && !skuMap[codeH] && skuMap[codeI]) sku = codeI;
+        skuAlt = sku === codeH ? codeI : codeH;
+      }
       const custRawOriginal = cI !== -1 ? String(r[cI]||'').trim() : '';
       const custNormalized = custRawOriginal.replace(/^['"、\s]+/, '').replace(/[\s]+$/, '');
       const emptyTokens = ['', '-', '－', '無', 'na', 'n/a', '無刻印', '不需要', '不用'];
@@ -6481,6 +6487,7 @@ async function readLineItems(){
         qty: qI !== -1 ? toNum(r[qI], 1) : 1,
         subtotal: subI !== -1 ? toNum(r[subI], 0) : 0,
         sku: String(sku||'').trim(),
+        skuAlt: skuAlt,
         rawRow: r,
         shippingCategory: 'kerry'
       };
@@ -6779,6 +6786,7 @@ async function finishProcessing(rawItems, prefetched){
   pendingPickMap = loaded[4];
   let matchedSkuCount = 0;
   items.forEach(it=>{
+    if(it.skuAlt && !skuMap[it.sku] && skuMap[it.skuAlt]){ const t = it.sku; it.sku = it.skuAlt; it.skuAlt = t; }   // 讀檔當下 SKU 表通常還沒載入好;現在載入好了,賣家商品代碼對不上、規格管理代碼對得上 → 改用對得上的
     const info = skuMap[it.sku];
     if(info){
       it.displayName = info.name || it.itemName;
@@ -6909,6 +6917,7 @@ function restoreState(){
 function applySkuInfoToItems(items){
   if(Object.keys(skuMap).length === 0) return;
   items.forEach(it=>{
+    if(it.skuAlt && !skuMap[it.sku] && skuMap[it.skuAlt]){ const t = it.sku; it.sku = it.skuAlt; it.skuAlt = t; }   // SKU 表晚一點才載入:賣家商品代碼對不上、規格管理代碼對得上 → 改用對得上的
     const info = skuMap[it.sku];
     if(info){ it.displayName = info.name || it.itemName; it.combo = info.combo || ''; }
   });

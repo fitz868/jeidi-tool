@@ -339,6 +339,15 @@
   .pc-st-none{background:#F1F0EC;color:#6B6B6B;}
   .ts-tag{display:block;font-size:11px;font-weight:600;color:#1F6F8B;margin-top:2px;}
   body .pick-card.pick-card-packed{background:#F2FAF5;}
+  .pc-ship-wrap .pc-ship-tag{font-size:13px;font-weight:800;padding:3px 10px;}
+  .pc-ship-wrap .pc-ship-post{background:#1D7C86;color:#fff;}
+  .pc-ship-wrap .pc-ship-kerry{background:#5B4636;color:#fff;}
+  .pc-ship-wrap .pc-weight{font-size:12px;}
+  .carrier-filter{display:flex;gap:6px;margin:8px 0 4px;}
+  .carrier-filter button{flex:1;font-size:12.5px;padding:5px 4px;border-radius:8px;border:1px solid var(--line);background:#fff;cursor:pointer;}
+  .carrier-filter button b{margin-left:4px;}
+  .carrier-filter button.cf-on{background:#6B7A58;color:#fff;border-color:transparent;}
+  .carrier-rule{background:#EAF3F4;border-radius:8px;padding:6px 12px;}
   body .pick-card-done .pc-tomorrow-btn{display:inline-block;}   /* 已經勾完的卡片也要能按「明天出」(包好了才發現這張是明天出) */
   /* ===== 左邊的儀錶板:螢幕夠寬(1320px 以上)才出現,內容區往右讓位;比較窄的螢幕維持上面那條可收合的列 ===== */
   .dash-left{display:none;}
@@ -1521,12 +1530,18 @@
     </div>
     <div class="desc no-print" id="pickConfirmNote">依排序往下滑檢查,或直接列印成紙本。品名已對照 SKU 表顯示簡單品名,配件會列在該項目下方。揀貨完成後按上方「確認完成揀貨」,進度會記錄到「出貨核對」頁面。</div>
     <div class="pick-legend no-print"><b>這三個按鈕怎麼選</b><span class="lg lg-short">缺貨</span>貨還沒備齊,先放著,補齊後一起出(今天仍算要出的,只是還沒好)<span class="lg lg-tmr">明天出</span>已經決定明天才出(今天的出貨量不算它)。這種單也可以勾品項:全部勾完 = 已包好,沒勾的就是缺的,會寫在卡片上和左邊「缺貨的東西」<span class="lg lg-del">刪除</span>取消、離島等不會出了<span id="pickWeekendNote" style="display:none;"> ・ 📦 今天是週末,黑貓不來收,包好的會等週一一起收。</span></div>
+    <div class="pick-legend carrier-rule no-print" id="carrierRuleNote" style="display:none;"><b>郵局 / 黑貓怎麼分(LINE 禮物)</b>整張(含包裝)<b>300 g 以內走郵局</b>(郵資約 32 / 44 / 56 元),<b>超過 300 g 走黑貓</b>。卡片上的標籤會寫「郵局」或「黑貓」和重量;標錯了可以按卡片上的「改黑貓 / 改回郵局」。左邊可以只看郵局或只看黑貓。</div>
     <div id="specialPickBanner" class="special-pick-banner no-print" style="display:none;"></div>
 <div id="sfQuickLinkBanner" class="no-print"></div>
 
     <div class="pick-layout">
       <aside class="pick-sidebar no-print">
         <input type="text" id="pickSearchInput" placeholder="搜尋訂單編號或姓名" oninput="filterPickList()">
+        <div class="carrier-filter no-print" id="carrierFilterBar" style="display:none;">
+          <button class="cf-on" data-cf="all" onclick="setCarrierFilter('all')">全部<b id="cfAll">0</b></button>
+          <button data-cf="post" onclick="setCarrierFilter('post')">郵局<b id="cfPost">0</b></button>
+          <button data-cf="kerry" onclick="setCarrierFilter('kerry')">黑貓<b id="cfKerry">0</b></button>
+        </div>
         <label class="hide-done-toggle no-print">
           <input type="checkbox" id="hideDoneCheckbox" onchange="toggleHideDone(this.checked)"> 只顯示未檢貨
         </label>
@@ -1911,7 +1926,7 @@
 
 <script>
 const TEST_BUILD = true;   // 測試版(post-test.html)只有這一行是 true,其他完全一樣;測好要換成正式版時,把它改成 false 放回 index.html 即可
-const APP_VERSION = '20261010-61'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20261010-64'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -6649,8 +6664,14 @@ async function readLineItems(){
     rawHeaders = headers;
 
     return dataRows.map(r => {
-      const sku = (skuHI !== -1 && String(r[skuHI]||'').trim() !== '') ? r[skuHI]
-                  : (skuII !== -1 ? r[skuII] : '');
+      // SKU:賣家商品代碼優先;但有些商品(例如三入香氛大豆蠟燭禮盒)賣家商品代碼是整個商品共用的總代碼,
+      // 真正對得上 SKU 表的是規格管理代碼。所以兩個都讀,SKU 表裡找得到的那個才用(都找不到就照原本:賣家商品代碼優先)
+      const codeH = (skuHI !== -1 ? String(r[skuHI] || '').trim() : ''), codeI = (skuII !== -1 ? String(r[skuII] || '').trim() : '');
+      let sku = codeH || codeI, skuAlt = '';
+      if(codeH && codeI && codeH !== codeI){
+        if(Object.keys(skuMap).length > 0 && !skuMap[codeH] && skuMap[codeI]) sku = codeI;
+        skuAlt = sku === codeH ? codeI : codeH;
+      }
       const custRawOriginal = cI !== -1 ? String(r[cI]||'').trim() : '';
       const custNormalized = custRawOriginal.replace(/^['"、\s]+/, '').replace(/[\s]+$/, '');
       const emptyTokens = ['', '-', '－', '無', 'na', 'n/a', '無刻印', '不需要', '不用'];
@@ -6667,6 +6688,7 @@ async function readLineItems(){
         qty: qI !== -1 ? toNum(r[qI], 1) : 1,
         subtotal: subI !== -1 ? toNum(r[subI], 0) : 0,
         sku: String(sku||'').trim(),
+        skuAlt: skuAlt,
         rawRow: r,
         shippingCategory: 'kerry'
       };
@@ -6965,6 +6987,7 @@ async function finishProcessing(rawItems, prefetched){
   pendingPickMap = loaded[4];
   let matchedSkuCount = 0;
   items.forEach(it=>{
+    if(it.skuAlt && !skuMap[it.sku] && skuMap[it.skuAlt]){ const t = it.sku; it.sku = it.skuAlt; it.skuAlt = t; }   // 讀檔當下 SKU 表通常還沒載入好;現在載入好了,賣家商品代碼對不上、規格管理代碼對得上 → 改用對得上的
     const info = skuMap[it.sku];
     if(info){
       it.displayName = info.name || it.itemName;
@@ -7095,6 +7118,7 @@ function restoreState(){
 function applySkuInfoToItems(items){
   if(Object.keys(skuMap).length === 0) return;
   items.forEach(it=>{
+    if(it.skuAlt && !skuMap[it.sku] && skuMap[it.skuAlt]){ const t = it.sku; it.sku = it.skuAlt; it.skuAlt = t; }   // SKU 表晚一點才載入:賣家商品代碼對不上、規格管理代碼對得上 → 改用對得上的
     const info = skuMap[it.sku];
     if(info){ it.displayName = info.name || it.itemName; it.combo = info.combo || ''; }
   });
@@ -7515,6 +7539,7 @@ function renderPickList(){
   renderLineBagNote();
   renderSantaSummary(orderIds.map(oid => santaCardsFor(byOrder[oid], oid)));
   const wk = document.getElementById('pickWeekendNote'); if(wk){ const wd = new Date().getDay(); wk.style.display = (wd === 0 || wd === 6) ? 'inline' : 'none'; }   // 週六日黑貓不來收
+  applyCarrierMarks();
   renderCarrierSummary();
   updateSfQuickLinkBanner();
   updatePickProgress();
@@ -7856,8 +7881,9 @@ function filterPickList(){
   const cards = document.querySelectorAll('#pickList .pick-card');
   cards.forEach(card=>{
     const matchesSearch = !kw || card.textContent.toLowerCase().includes(kw);
+    const matchesCarrier = carrierFilter === 'all' || card.dataset.carrier === carrierFilter;
     const matchesHideDone = !hideDone || (!card.classList.contains('pick-card-done') && !card.classList.contains('pick-card-tomorrow'));   // 「只顯示未檢貨」:明天出貨的今天不用檢,也先藏起來
-    card.style.display = (matchesSearch && matchesHideDone) ? '' : 'none';
+    card.style.display = (matchesSearch && matchesHideDone && matchesCarrier) ? '' : 'none';
   });
 }
 
@@ -8332,9 +8358,26 @@ function setDefaultCarrier(v){
   refreshCarrierUI();
 }
 function isHomeDeliveryItem(it){ return !it.shippingCategory || it.shippingCategory === 'kerry'; }
+// ===== LINE 禮物:依重量自動分郵局 / 黑貓 =====
+// 規則:整張訂單(商品 + 卡片 + 寄出外包裝)的估計重量 ≤ 300 g → 郵局(普通掛號小包最高 56 元);超過 → 黑貓。
+// 重量有缺項的先不自動分(照預設),這樣「缺重量」的警告還是會出來。手動按卡片上的「改黑貓 / 改回郵局」會蓋過自動的結果。
+const POST_FEE_NORMAL = [32, 44, 56, 68, 80, 92, 104, 116, 128, 140];   // 普通掛號小包,每 100 g 一級,限重 1 公斤
+const POST_AUTO_MAX_G = 300;
+function postFeeNormal(g){ if(g == null || g > 1000) return null; return POST_FEE_NORMAL[Math.max(0, Math.ceil(g / 100) - 1)]; }
+let _ordMap = null;
+function orderItemsOf(it){   // 同一張訂單的所有品項(資料變動時才重建對照表)
+  if(!_ordMap || _ordMap.src !== parsedItems || _ordMap.n !== parsedItems.length){ const m = {}; parsedItems.forEach(x => { (m[x.orderId] = m[x.orderId] || []).push(x); }); _ordMap = {src: parsedItems, n: parsedItems.length, m}; }
+  return _ordMap.m[it.orderId] || [it];
+}
+function autoCarrierOf(it){
+  if(currentChannel !== 'line' || !isHomeDeliveryItem(it)) return null;
+  const w = orderWeightInfo(orderItemsOf(it)); if(w.missing.length) return null;
+  return w.grams <= POST_AUTO_MAX_G ? 'post' : 'kerry';
+}
 function itemCarrier(it){
   if(!isHomeDeliveryItem(it)) return null;
-  return (it.carrier === 'kerry' || it.carrier === 'post') ? it.carrier : getDefaultCarrier();
+  if(it.carrier === 'kerry' || it.carrier === 'post') return it.carrier;   // 手動選的
+  return autoCarrierOf(it) || getDefaultCarrier();
 }
 function orderCarrier(its){ return itemCarrier(its[0]); }
 function toggleCarrier(idx){
@@ -8342,7 +8385,8 @@ function toggleCarrier(idx){
   if(!its || !its.length) return;
   const next = orderCarrier(its) === 'post' ? 'kerry' : 'post';
   // 換成「跟預設一樣」的那家 → 清掉這張的明確選擇,繼續跟著預設走;換成跟預設不一樣的,才記下來
-  its.forEach(it => { if(next === getDefaultCarrier()) delete it.carrier; else it.carrier = next; });
+  const base = autoCarrierOf(its[0]) || getDefaultCarrier();   // LINE 禮物的「預設」是依重量自動分的結果
+  its.forEach(it => { if(next === base) delete it.carrier; else it.carrier = next; });
   saveState();
   refreshCarrierUI();
 }
@@ -8362,13 +8406,13 @@ function parseWeightG(v, isKg){
 // 名稱裡的關鍵字 → 組成(用「品項類型」或固定的 SKU 代號表示)。順序很重要:長的、具體的放前面。
 // 內建重量(公克):您量好的。SKU 表「重量」欄有填的,一律以 SKU 表為準(會蓋掉這裡);沒填才用這裡。
 // 成系列的單品、卡片:同「品項類型」共用一個重量;其他(紙袋、禮品袋、燭蓋、霧面燭台、空盒、寄出外包裝…):用 SKU 代號。
-const WT_DEFAULT_TYPE = {'居家噴霧': 151.5, '蠟燭(小)': 158, '蠟燭(大)': 396.5, '擴香瓶組合(黑棒)': 282.5, '香氛袋/亞麻袋': 50, '隨身噴霧': 26, '卡片': 4, '精油': 44.5, '香氛袋補充包': 32.5, '擴香補充液': 250, '空間噴霧': 193, '茶燭': 14, '空間噴霧補充袋': 154, '蠟燭': 440};
-const WT_DEFAULT_SKU = {'paperbag-M': 66, 'BagFW': 37, 'WT_BOX_3CNDL': 225, 'WT_BOX_CLASSIC': 123, 'WT_BOX_CAKE': 60, 'WT_BOX_BUTTER': 60, 'WT_BOX_CROC': 60, 'CSL': 94, 'Candlestick': 97, 'WT_BOX_FLOWER': 440, 'WT_SET_6CNDL': 977, 'WT_PACK': 90};
+const WT_DEFAULT_TYPE = {'居家噴霧': 150, '蠟燭(小)': 159, '蠟燭(大)': 385, '擴香瓶組合(黑棒)': 278, '香氛袋/亞麻袋': 48, '隨身噴霧': 25, '卡片': 5, '精油': 43, '香氛袋補充包': 32, '擴香補充液': 252, '空間噴霧': 166, '茶燭': 14, '空間噴霧補充袋': 154, '蠟燭': 440};
+const WT_DEFAULT_SKU = {'paperbag-M': 66, 'BagFW': 37, 'WT_BOX_3CNDL': 225, 'WT_BOX_CLASSIC': 123, 'WT_BOX_CAKE': 60, 'WT_BOX_BUTTER': 60, 'WT_BOX_CROC': 60, 'CSL': 94, 'Candlestick': 97, 'WT_BOX_FLOWER': 440, 'WT_SET_6CNDL': 977, 'WT_PACK': 30};
 const WT_TYPE_LABEL = {'蠟燭': '金賭爛 250ml 蠟燭', '卡片': '卡片(任一張)'};
 const WT_NOT_SOLD = ['護手霜', '洗手乳', '擴香瓶(基礎,沒有單賣)', '擴香瓶組合(木棒)'];   // 不再販售:沒有重量;如果還有這些的訂單,會被擋住提醒
 const WT_KEYWORDS = [
   ['花落花開禮盒', [['WT_BOX_FLOWER', 1], ['蠟燭(小)', 4]]], ['六入小蠟燭禮盒', [['WT_SET_6CNDL', 1]]], ['六入小蠟燭', [['WT_SET_6CNDL', 1]]],
-  ['三大蠟燭禮盒', [['WT_BOX_3CNDL', 1], ['蠟燭(大)', 3]]], ['三大蠟禮盒', [['WT_BOX_3CNDL', 1], ['蠟燭(大)', 3]]], ['經典香氛禮盒', [['WT_BOX_CLASSIC', 1]]], ['經典禮盒', [['WT_BOX_CLASSIC', 1]]],
+  ['木紋禮盒', [['WT_BOX_3CNDL', 1], ['蠟燭(大)', 3]]], ['三大蠟燭禮盒', [['WT_BOX_3CNDL', 1], ['蠟燭(大)', 3]]], ['三大蠟禮盒', [['WT_BOX_3CNDL', 1], ['蠟燭(大)', 3]]], ['經典香氛禮盒', [['WT_BOX_CLASSIC', 1]]], ['經典禮盒', [['WT_BOX_CLASSIC', 1]]],
   ['蛋糕人禮盒', [['WT_BOX_CAKE', 1]]], ['奶油捲禮盒', [['WT_BOX_BUTTER', 1]]], ['鱷魚人禮盒', [['WT_BOX_CROC', 1]]],
   ['空間噴霧補充袋', [['空間噴霧補充袋', 1]]], ['空間噴霧', [['空間噴霧', 1]]], ['擴香補充液', [['擴香補充液', 1]]],
   ['小蠟燭', [['蠟燭(小)', 1]]], ['大蠟燭', [['蠟燭(大)', 1]]], ['小蠟', [['蠟燭(小)', 1]]], ['大蠟', [['蠟燭(大)', 1]]],
@@ -8488,18 +8532,40 @@ function shipTagHtml(its, idx){
   if(!isHomeDeliveryItem(its[0])) return '<span class="pc-ship-tag pc-ship-' + shipCat + '">' + CH[currentChannel] + '・' + SHIP_CATEGORY_LABEL[shipCat] + '</span>';
   const c = orderCarrier(its);
   let wt = '';
-  if(c === 'post'){
+  if(c === 'post' || currentChannel === 'line'){   // 郵局一定顯示重量;LINE 禮物的黑貓也顯示(看得出為什麼超過 300 g)
     const w = orderWeightInfo(its);
-    wt = w.missing.length
-      ? '<span class="pc-weight missing" title="缺重量的項目:' + escapeHtml(w.missing.join('、')) + '">⚠ 缺重量</span>'
-      : '<span class="pc-weight">約 ' + Math.round(w.grams) + ' g</span>';
+    if(w.missing.length){
+      if(c === 'post') wt = '<span class="pc-weight missing" title="缺重量的項目:' + escapeHtml(w.missing.join('、')) + '">⚠ 缺重量</span>';
+    }else{
+      const fee = c === 'post' ? postFeeNormal(w.grams) : null;
+      wt = '<span class="pc-weight">約 ' + Math.round(w.grams) + ' g' + (fee != null ? '・約 ' + fee + ' 元' : '') + '</span>';
+    }
   }
   return '<span class="pc-ship-wrap"><span class="pc-ship-tag pc-ship-' + c + '">' + CH[currentChannel] + '・' + CARRIER_LABEL[c] + '</span>' + wt + '</span>';
 }
 function carrierBtnHtml(its, idx){
   if(!isHomeDeliveryItem(its[0])) return '';
-  return '<button class="pc-carrier-btn" onclick="toggleCarrier(' + idx + ')" title="這張訂單換一家寄(預設是郵局)">' + (orderCarrier(its) === 'post' ? '改黑貓' : '改回郵局') + '</button>';
+  return '<button class="pc-carrier-btn" onclick="toggleCarrier(' + idx + ')" title="這張訂單換一家寄(LINE 禮物會依重量自動分,這裡可以手動換)">' + (orderCarrier(its) === 'post' ? '改黑貓' : '改回郵局') + '</button>';
 }
+let carrierFilter = 'all';
+function applyCarrierMarks(){   // 每張卡片記下走哪家、更新「全部 / 郵局 / 黑貓」的張數,並套用篩選
+  let post = 0, kerry = 0;
+  pickOrderGroups.forEach((its, idx) => {
+    const card = document.getElementById('pick-card-' + idx); if(!card || !its || !its.length) return;
+    const c = isHomeDeliveryItem(its[0]) ? orderCarrier(its) : '';
+    card.dataset.carrier = c || '';
+    if(c === 'post') post++; else if(c === 'kerry') kerry++;
+  });
+  const bar = document.getElementById('carrierFilterBar');
+  if(bar){
+    bar.style.display = (post + kerry > 0) ? '' : 'none';
+    document.getElementById('cfAll').textContent = post + kerry; document.getElementById('cfPost').textContent = post; document.getElementById('cfKerry').textContent = kerry;
+    bar.querySelectorAll('button').forEach(b => b.classList.toggle('cf-on', b.dataset.cf === carrierFilter));
+  }
+  const note = document.getElementById('carrierRuleNote'); if(note) note.style.display = (currentChannel === 'line' && post + kerry > 0) ? '' : 'none';
+  filterPickList();
+}
+function setCarrierFilter(v){ carrierFilter = v; applyCarrierMarks(); }
 function refreshCarrierUI(){
   pickOrderGroups.forEach((its, idx) => {
     if(!its || !isHomeDeliveryItem(its[0])) return;
@@ -8510,6 +8576,7 @@ function refreshCarrierUI(){
     const btn = card.querySelector('.pc-carrier-btn');
     if(btn) btn.textContent = orderCarrier(its) === 'post' ? '改黑貓' : '改回郵局';
   });
+  applyCarrierMarks();
   renderCarrierSummary();
   updateIslandPanel();
 }
