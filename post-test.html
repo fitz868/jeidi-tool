@@ -351,10 +351,14 @@
   body .pick-card-done .pc-tomorrow-btn{display:inline-block;}   /* 已經勾完的卡片也要能按「明天出」(包好了才發現這張是明天出) */
   /* ===== 左邊的儀錶板:螢幕夠寬(1320px 以上)才出現,內容區往右讓位;比較窄的螢幕維持上面那條可收合的列 ===== */
   .dash-left{display:none;}
-  @media screen and (min-width:1320px){
-    .dash-left{display:block;position:fixed;top:16px;left:12px;width:236px;max-height:calc(100vh - 32px);overflow-y:auto;background:var(--paper);border-radius:12px;box-shadow:0 1px 3px rgba(40,30,20,.08);padding:16px 16px 12px;z-index:20;}
+  @media screen and (min-width:1100px){   /* 1100px 以上:儀錶板放在最左邊(窄一點的螢幕用 200px 寬),內容區往右讓位 */
+    .dash-left{display:block;position:fixed;top:12px;left:8px;width:200px;max-height:calc(100vh - 24px);overflow-y:auto;background:var(--paper);border-radius:12px;box-shadow:0 1px 3px rgba(40,30,20,.08);padding:14px 12px 10px;z-index:20;}
     #progressBox{display:none;}
-    .shell{margin-left:max(260px, calc((100vw - 1200px) / 2));margin-right:0;}
+    .shell{margin-left:216px;margin-right:0;}
+  }
+  @media screen and (min-width:1320px){   /* 寬螢幕:儀錶板寬一點,內容區仍然置中 */
+    .dash-left{top:16px;left:12px;width:236px;max-height:calc(100vh - 32px);padding:16px 16px 12px;}
+    .shell{margin-left:max(260px, calc((100vw - 1200px) / 2));}
   }
   .dash-title{font-weight:700;font-size:15px;}
   .dash-date{font-weight:400;font-size:12.5px;color:var(--ink-soft);margin-left:8px;}
@@ -1926,7 +1930,7 @@
 
 <script>
 const TEST_BUILD = true;   // 測試版(post-test.html)只有這一行是 true,其他完全一樣;測好要換成正式版時,把它改成 false 放回 index.html 即可
-const APP_VERSION = '20261010-64'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20261010-65'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
