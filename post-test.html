@@ -1715,36 +1715,6 @@
 
   <div id="page3" style="display:none;">
 
-    <div class="panel no-print" id="p3-checklistPanel">
-      <h2>今日出貨檢核</h2>
-      <div class="desc">填寫人+打勾確認+備註,送出後直接存進資料庫,不用再複製貼到表格。</div>
-
-      <div class="field-block">
-        <label>填寫人</label>
-        <div class="filler-btns" id="fillerBtns">
-          <button type="button" class="stype-btn" data-filler="茹" onclick="selectFiller('茹')">茹</button>
-          <button type="button" class="stype-btn" data-filler="文" onclick="selectFiller('文')">文</button>
-          <button type="button" class="stype-btn" data-filler="沈" onclick="selectFiller('沈')">沈</button>
-          <button type="button" class="stype-btn" data-filler="F" onclick="selectFiller('F')">F</button>
-        </div>
-      </div>
-
-      <div class="checklist">
-        <label><input type="checkbox" id="cb-linereport"> LINE回報完成</label>
-        <label><input type="checkbox" id="cb-shopee"> 蝦皮今日必出貨完成</label>
-        <label><input type="checkbox" id="cb-otherchan"> 其他通路完成</label>
-      </div>
-
-      <div class="field-block">
-        <label for="checklistRemark">備註(一般性提醒,明天大家進到出貨頁面就會看到)</label>
-        <textarea id="checklistRemark" rows="2" placeholder="例如:今天黑貓改時間,大家注意"></textarea>
-      </div>
-
-      <div class="btn-row">
-        <button class="primary" onclick="submitDailyChecklist()">送出</button>
-      </div>
-      <div class="form-msg" id="checklistMsg"></div>
-    </div>
 
     <div class="panel no-print" id="p3-reportPanel">
       <h2>出貨數據</h2>
@@ -1948,7 +1918,7 @@
 
 <script>
 const TEST_BUILD = true;   // 測試版(post-test.html)只有這一行是 true,其他完全一樣;測好要換成正式版時,把它改成 false 放回 index.html 即可
-const APP_VERSION = '20261010-67'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20261010-69'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -3778,47 +3748,8 @@ async function submitResendForm(){
   }
 }
 
-// ===== 每日出貨檢核(填寫人、打勾、一般性備註提醒)=====
+// ===== 今日提醒(之前從「今日出貨檢核」留下、還沒處理的備註。檢核表已經拿掉,這裡只剩顯示和「已處理」,舊的按完就不會再出現)=====
 const DAILY_CHECKLIST_COLLECTION = 'daily_checklist';
-let selectedFiller = null;
-
-function selectFiller(name){
-  selectedFiller = name;
-  document.querySelectorAll('#fillerBtns .stype-btn').forEach(b=>{
-    b.classList.toggle('active', b.dataset.filler === name);
-  });
-}
-
-async function submitDailyChecklist(){
-  await waitForFirebase();
-  const {db, collection, addDoc, serverTimestamp} = window.__fb;
-  const msgEl = document.getElementById('checklistMsg');
-
-  if(!selectedFiller){
-    msgEl.textContent = '請先選填寫人。';
-    return;
-  }
-
-  const lineReport = document.getElementById('cb-linereport').checked;
-  const shopeeDone = document.getElementById('cb-shopee').checked;
-  const otherDone = document.getElementById('cb-otherchan').checked;
-  const remark = document.getElementById('checklistRemark').value.trim();
-
-  try{
-    await addDoc(collection(db, DAILY_CHECKLIST_COLLECTION), {
-      date: ymd(new Date()),
-      filledBy: selectedFiller,
-      lineReport, shopeeDone, otherDone,
-      remark: remark || '',
-      remarkStatus: remark ? 'pending' : null,
-      createdAt: serverTimestamp()
-    });
-    msgEl.textContent = '✓ 已送出並記錄。';
-  }catch(err){
-    msgEl.textContent = '送出失敗: ' + err.message;
-  }
-}
-
 // 頁面1顯示:還沒處理的一般性提醒備註
 async function loadDailyNotes(){
   await waitForFirebase();
@@ -4169,7 +4100,7 @@ function selectPinkoiType(t){
 // ===== 頁面切換 =====
 // ===== 出貨核對頁:近 7 天 + 這個月的出貨數據(把每次「確認完成揀貨」的紀錄加總)=====
 let p3ReportDim = 'category', p3ReportRecords = null;
-const REP_CHANNELS = [['line', 'LINE'], ['shop', '官網'], ['shopee', '蝦皮'], ['pinkoi', 'PINKOI']];
+const REP_CHANNELS = [['line', 'LINE'], ['shop', '官網'], ['shopee', '蝦皮'], ['pinkoi', 'PINKOI'], ['resend', '補寄']];   // 補寄確認完成時也會記一筆(通路 resend),要有這一欄,按通路的合計才會跟按物流一樣
 function ymdAdd(d, n){ return ymd(new Date(d.getFullYear(), d.getMonth(), d.getDate() + n)); }
 function repDayLabel(str){ const [y, m, d] = str.split('-').map(Number); return m + '/' + d + '(' + '日一二三四五六'[new Date(y, m - 1, d).getDay()] + ')'; }
 async function fetchPickRecordsRange(fromStr, toStr){
