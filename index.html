@@ -342,14 +342,14 @@
   body .pick-card-done .pc-tomorrow-btn{display:inline-block;}   /* 已經勾完的卡片也要能按「明天出」(包好了才發現這張是明天出) */
   /* ===== 左邊的儀錶板:螢幕夠寬(1320px 以上)才出現,內容區往右讓位;比較窄的螢幕維持上面那條可收合的列 ===== */
   .dash-left{display:none;}
-  @media screen and (min-width:1100px){   /* 1100px 以上:儀錶板放在最左邊(窄一點的螢幕用 200px 寬),內容區往右讓位 */
-    .dash-left{display:block;position:fixed;top:12px;left:8px;width:200px;max-height:calc(100vh - 24px);overflow-y:auto;background:var(--paper);border-radius:12px;box-shadow:0 1px 3px rgba(40,30,20,.08);padding:14px 12px 10px;z-index:20;}
+  @media screen and (min-width:1100px){   /* 1100px 以上:儀錶板放在最右邊(窄一點的螢幕用 200px 寬),內容區往左讓位;下面留給「即時進行中」「留言板」兩顆浮動按鈕,內容太長就在儀錶板裡面捲動 */
+    .dash-left{display:block;position:fixed;top:12px;right:8px;left:auto;width:200px;max-height:calc(100vh - 112px);overflow-y:auto;background:var(--paper);border-radius:12px;box-shadow:0 1px 3px rgba(40,30,20,.08);padding:14px 12px 10px;z-index:20;}
     #progressBox{display:none;}
-    .shell{margin-left:216px;margin-right:0;}
+    .shell{margin-left:auto;margin-right:216px;}
   }
   @media screen and (min-width:1320px){   /* 寬螢幕:儀錶板寬一點,內容區仍然置中 */
-    .dash-left{top:16px;left:12px;width:236px;max-height:calc(100vh - 32px);padding:16px 16px 12px;}
-    .shell{margin-left:max(260px, calc((100vw - 1200px) / 2));}
+    .dash-left{top:16px;right:12px;width:236px;max-height:calc(100vh - 116px);padding:16px 16px 12px;}
+    .shell{margin-right:max(260px, calc((100vw - 1200px) / 2));}
   }
   .dash-title{font-weight:700;font-size:15px;}
   .dash-date{font-weight:400;font-size:12.5px;color:var(--ink-soft);margin-left:8px;}
@@ -366,6 +366,23 @@
   .dash-item.dash-zero .dash-num{color:#B8B4AA;}
   .dash-note{margin-top:10px;font-size:12px;color:#8A5A1E;background:#FFF6E5;border-radius:8px;padding:6px 8px;line-height:1.5;}
   .dash-note:empty{display:none;}
+  .rep-tabs{display:flex;gap:8px;margin:10px 0 6px;flex-wrap:wrap;}
+  .rep-tabs button{padding:5px 16px;border-radius:16px;border:1px solid var(--line);background:#fff;font-size:13px;cursor:pointer;}
+  .rep-tabs button.rep-on{background:#6B7A58;color:#fff;border-color:transparent;}
+  .rep-tabs button.rep-reload{margin-left:auto;border-color:transparent;background:none;color:var(--ink-soft);}
+  .rep-msg{font-size:13px;color:#B3261E;margin:4px 0;line-height:1.6;}
+  .rep-msg:empty{display:none;}
+  .rep-title{font-weight:700;font-size:14px;margin:18px 0 6px;}
+  .rep-empty{padding:18px 0;color:var(--ink-soft);}
+  .rep-wrap{overflow-x:auto;}
+  .rep-tbl{width:100%;border-collapse:collapse;font-size:14px;table-layout:fixed;}
+  .rep-tbl th:first-child,.rep-tbl td:first-child{width:150px;}
+  .rep-tbl th{font-size:12px;color:var(--ink-soft);font-weight:600;text-align:right;padding:6px 10px;border-bottom:1px solid var(--line);white-space:nowrap;}
+  .rep-tbl td{text-align:right;padding:7px 10px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums;}
+  .rep-tbl th:first-child,.rep-tbl td:first-child{text-align:left;white-space:nowrap;}
+  .rep-tbl tr.rep-today td{font-weight:700;background:#F6F3EA;}
+  .rep-tbl tr.rep-sum td{font-weight:700;border-top:2px solid var(--line);}
+  .rep-tbl td.rep-zero{color:#C9C5BA;}
   /* 跳到檢貨卡片時,閃一下讓人看到是哪一張 */
   @keyframes pickFlash{0%,100%{box-shadow:0 0 0 0 rgba(192,57,43,0);}35%{box-shadow:0 0 0 7px rgba(192,57,43,.5);}}
   .pick-card-flash{animation:pickFlash .9s ease 2;}
@@ -1657,16 +1674,17 @@
       <div class="form-msg" id="checklistMsg"></div>
     </div>
 
-    <div class="panel no-print" id="p3-pickPanel">
-      <h2>揀貨進度</h2>
-      <div class="desc">來自頁面1每個通路按下「確認完成揀貨」時記錄的進度。</div>
-      <div id="p3-pickRow" class="pick-progress-row"></div>
-    </div>
-
-    <div class="panel no-print" id="p3-summaryPanel">
-      <h2>今日物流件數核對</h2>
-      <div class="desc" id="p3-summaryDesc">跨 LINE / 官網 / 蝦皮 / 補寄,依實際物流方式加總今天確認揀貨的件數。</div>
-      <div class="stat-row" id="p3-statRow"></div>
+    <div class="panel no-print" id="p3-reportPanel">
+      <h2>出貨數據</h2>
+      <div class="desc">近 7 天和這個月的出貨件數,來自每次按下「確認完成揀貨」的紀錄。今天即時的數字看左邊的「今日出貨進度」。</div>
+      <div class="rep-tabs">
+        <button class="rep-on" data-rd="category" onclick="setReportDim('category')">按物流</button>
+        <button data-rd="channel" onclick="setReportDim('channel')">按通路</button>
+        <button class="rep-reload" onclick="loadPage3Report()">重新讀取</button>
+      </div>
+      <div class="rep-msg" id="p3-reportMsg"></div>
+      <div id="p3-reportMonth"></div>
+      <div id="p3-reportWeek"></div>
     </div>
 
   </div><!-- /page3 -->
@@ -1857,7 +1875,7 @@
 </div>
 
 <script>
-const APP_VERSION = '20261010-58'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
+const APP_VERSION = '20261010-60'; // 每次更新程式碼時記得更新這個版本標記,才能讓自動偵測正常運作
 let workbookData = null;
 let parsedItems = [];
 let custItems = [];
@@ -4071,12 +4089,64 @@ function selectPinkoiType(t){
 }
 
 // ===== 頁面切換 =====
+// ===== 出貨核對頁:近 7 天 + 這個月的出貨數據(把每次「確認完成揀貨」的紀錄加總)=====
+let p3ReportDim = 'category', p3ReportRecords = null;
+const REP_CHANNELS = [['line', 'LINE'], ['shop', '官網'], ['shopee', '蝦皮'], ['pinkoi', 'PINKOI']];
+function ymdAdd(d, n){ return ymd(new Date(d.getFullYear(), d.getMonth(), d.getDate() + n)); }
+function repDayLabel(str){ const [y, m, d] = str.split('-').map(Number); return m + '/' + d + '(' + '日一二三四五六'[new Date(y, m - 1, d).getDay()] + ')'; }
+async function fetchPickRecordsRange(fromStr, toStr){
+  await waitForFirebase();
+  const {db, collection, query, where, getDocs} = window.__fb;
+  const snap = await getDocs(query(collection(db, PICK_RECORDS_COLLECTION), where('date', '>=', fromStr), where('date', '<=', toStr)));
+  const out = []; snap.forEach(d => out.push(d.data())); return out;
+}
+async function loadPage3Report(){
+  const msg = document.getElementById('p3-reportMsg'); if(!msg) return;
+  const now = new Date(), today = ymd(now), monthStart = today.slice(0, 8) + '01', weekStart = ymdAdd(now, -6);
+  msg.textContent = '讀取中…';
+  try{ p3ReportRecords = await fetchPickRecordsRange(monthStart < weekStart ? monthStart : weekStart, today); msg.textContent = ''; }
+  catch(err){
+    p3ReportRecords = null; const code = (err && (err.code || err.message)) || String(err);
+    msg.textContent = /permission/i.test(code) ? '⚠ 讀不到出貨紀錄:這個帳號沒有權限讀取。請管理者把 Firestore 規則更新成 v5(出貨紀錄開放給登入的人讀取)。' : '⚠ 讀不到出貨紀錄(' + code + ')。請確認網路連線後按「重新讀取」。';
+  }
+  renderPage3Report();
+}
+function setReportDim(d){ p3ReportDim = d; document.querySelectorAll('#p3-reportPanel .rep-tabs [data-rd]').forEach(b => b.classList.toggle('rep-on', b.dataset.rd === d)); renderPage3Report(); }
+function renderPage3Report(){
+  const weekEl = document.getElementById('p3-reportWeek'), monthEl = document.getElementById('p3-reportMonth'); if(!weekEl || !monthEl) return;
+  if(!p3ReportRecords){ weekEl.innerHTML = ''; monthEl.innerHTML = ''; return; }
+  const now = new Date(), today = ymd(now), monthStart = today.slice(0, 8) + '01', days = [];
+  for(let i = 0; i < 7; i++) days.push(ymdAdd(now, -i));   // 今天在最上面
+  const weekFrom = days[6], dim = p3ReportDim;
+  const cols = dim === 'category' ? CATEGORY_TOTAL_KEYS.map(k => [k, SHIP_CATEGORY_LABEL[k]]) : REP_CHANNELS;
+  const val = (rec, key) => dim === 'category' ? Number((rec.categoryCounts || {})[key] || 0) : (rec.channel === key ? Number(rec.doneCount || 0) : 0);
+  const byDay = {}, month = {};
+  p3ReportRecords.forEach(rec => {
+    const d = rec.date; if(!d) return;
+    cols.forEach(([k]) => {
+      const v = val(rec, k); if(!v) return;
+      if(d >= weekFrom && d <= today){ byDay[d] = byDay[d] || {}; byDay[d][k] = (byDay[d][k] || 0) + v; }
+      if(d >= monthStart && d <= today) month[k] = (month[k] || 0) + v;
+    });
+  });
+  const weekTot = {}; days.forEach(d => Object.keys(byDay[d] || {}).forEach(k => { weekTot[k] = (weekTot[k] || 0) + byDay[d][k]; }));
+  const show = cols.filter(([k]) => weekTot[k] || month[k]);
+  if(show.length === 0){ weekEl.innerHTML = ''; monthEl.innerHTML = '<div class="rep-empty">這段期間(近 7 天和這個月)沒有確認完成揀貨的紀錄。</div>'; return; }
+  const sum = o => show.reduce((a, [k]) => a + (o[k] || 0), 0);
+  const cell = n => n ? '<td>' + n + '</td>' : '<td class="rep-zero">–</td>';
+  const head = first => '<thead><tr><th>' + first + '</th>' + show.map(([, l]) => '<th>' + escapeHtml(l) + '</th>').join('') + '<th>合計</th></tr></thead>';
+  const row = (label, o, cls) => '<tr' + (cls ? ' class="' + cls + '"' : '') + '><td>' + label + '</td>' + show.map(([k]) => cell(o[k] || 0)).join('') + '<td>' + (sum(o) || '–') + '</td></tr>';
+  const m = +monthStart.slice(5, 7);
+  monthEl.innerHTML = '<div class="rep-title">這個月(' + m + ' 月)總數</div><div class="rep-wrap"><table class="rep-tbl">' + head('期間') + '<tbody>' + row(repDayLabel(monthStart).replace(/\(.\)/, '') + ' ~ ' + repDayLabel(today).replace(/\(.\)/, ''), month, 'rep-sum') + '</tbody></table></div>';
+  weekEl.innerHTML = '<div class="rep-title">近 7 天(' + repDayLabel(weekFrom).replace(/\(.\)/, '') + ' ~ ' + repDayLabel(today).replace(/\(.\)/, '') + ')</div><div class="rep-wrap"><table class="rep-tbl">' + head('日期') + '<tbody>' + days.map(d => row((d === today ? '今天 ' : '') + repDayLabel(d), byDay[d] || {}, d === today ? 'rep-today' : '')).join('') + row('近 7 天合計', weekTot, 'rep-sum') + '</tbody></table></div>';
+}
+
 function switchPage(n){
   for(let i = 1; i <= 5; i++){
     document.getElementById('page' + i).style.display = n === i ? 'block' : 'none';
     document.getElementById('tab-page' + i).classList.toggle('active', n === i);
   }
-  if(n===3){ updatePage3PickProgress(); loadCategoryTotals(); }
+  if(n===3){ updatePage3PickProgress(); loadCategoryTotals(); loadPage3Report(); }
   if(n===4){ loadCompletedResends(); }
   if(n===5){ renderPickups(); }
 }
